@@ -3,6 +3,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { addReservationAtom } from "../store/store";
 import { reservationsAtom } from "../store/store";
 import { v4 as uuidv4 } from "uuid";
+import { DateTime } from "luxon";
 
 const Reservation: React.FC = () => {
   const [people, setPeople] = useState(1);
@@ -142,6 +143,12 @@ const Reservation: React.FC = () => {
   const handleReservation = () => {
     setTouched({ firstName: true, lastName: true, email: true, phone: true });
     const peopleToStore = service === "Symulator VR - 1 osoba" ? 2 : people;
+    const createdAt = DateTime.now().setZone("Europe/Warsaw").toISO()!;
+    const reservationDateTime = DateTime.fromFormat(
+      `${selectedDate} ${selectedHour}`,
+      "d-M-yyyy HH:mm",
+      { zone: "Europe/Warsaw" }
+    );
     if (validateSummary()) {
       const newReservation = {
         id: uuidv4(),
@@ -149,8 +156,8 @@ const Reservation: React.FC = () => {
         lastName: lastName.trim(),
         email: email.trim(),
         phone: `${countryCode}${phone.trim()}`,
-        createdAt: new Date().toISOString(),
-        reservationDate: `${selectedDate}T${selectedHour}`,
+        createdAt,
+        reservationDate: reservationDateTime.toISO()!,
         service: service as
           | "Stanowisko VR"
           | "Symulator VR - 1 osoba"
@@ -228,39 +235,62 @@ const Reservation: React.FC = () => {
     return slots;
   };
 
-  const getDayOfWeek = (dateString: string | null) => {
-    if (!dateString) return null;
-    const [day, monthNum, yearNum] = dateString.split("-").map(Number);
-    const date = new Date(yearNum, monthNum - 1, day);
-    return date.getDay();
-  };
+  // const getDayOfWeek = (dateString: string | null) => {
+  //   if (!dateString) return null;
+  //   const [day, monthNum, yearNum] = dateString.split("-").map(Number);
+  //   const date = new Date(yearNum, monthNum - 1, day);
+  //   return date.getDay();
+  // };
 
   const isHourAvailable = (hour: string) => {
     if (!selectedDate) return false;
 
+    const [day, month, year] = selectedDate.split("-").map(Number);
     const [h, m] = hour.split(":").map(Number);
-    const now = new Date();
-    const [dayD, monthD, yearD] = selectedDate.split("-").map(Number);
-    const selected = new Date(yearD, monthD - 1, dayD, h, m);
-    const isSunday = getDayOfWeek(selectedDate) === 0;
 
-    const serviceIsSimulator = service.includes("Symulator");
-    const startHour = isSunday ? 10 * 60 : 9 * 60;
+    const now = DateTime.now().setZone("Europe/Warsaw");
+    const selectedDateTime = DateTime.fromObject(
+      { day, month, year, hour: h, minute: m },
+      { zone: "Europe/Warsaw" }
+    );
+
+    const isSunday = selectedDateTime.weekday === 7; // Luxon: 1=Mon, 7=Sun
+    const isSimulator = service.includes("Symulator");
+
     const endHour = isSunday
-      ? serviceIsSimulator
-        ? 19 * 60 + 45 // 19:45
-        : 19 * 60 + 30 // 19:30
-      : serviceIsSimulator
-      ? 20 * 60 + 45 // 20:45
-      : 20 * 60 + 30; // 20:30
+      ? isSimulator
+        ? DateTime.fromObject(
+            { day, month, year, hour: 19, minute: 45 },
+            { zone: "Europe/Warsaw" }
+          )
+        : DateTime.fromObject(
+            { day, month, year, hour: 19, minute: 30 },
+            { zone: "Europe/Warsaw" }
+          )
+      : isSimulator
+      ? DateTime.fromObject(
+          { day, month, year, hour: 20, minute: 45 },
+          { zone: "Europe/Warsaw" }
+        )
+      : DateTime.fromObject(
+          { day, month, year, hour: 20, minute: 30 },
+          { zone: "Europe/Warsaw" }
+        );
 
-    const currentTimeMinutes = h * 60 + m;
+    const startHour = isSunday
+      ? DateTime.fromObject(
+          { day, month, year, hour: 10, minute: 0 },
+          { zone: "Europe/Warsaw" }
+        )
+      : DateTime.fromObject(
+          { day, month, year, hour: 9, minute: 0 },
+          { zone: "Europe/Warsaw" }
+        );
 
-    // ograniczenie dnia + godziny + przeszłość
     return (
-      currentTimeMinutes >= startHour &&
-      currentTimeMinutes <= endHour &&
-      selected >= now
+      selectedDateTime >= now &&
+      selectedDateTime >= startHour &&
+      selectedDateTime <= endHour
     );
   };
 
