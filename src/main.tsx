@@ -22,6 +22,9 @@ import New from './pages/New'
 import Polityka from './pages/Polityka'
 import Regulamin from './pages/Regulamin'
 
+import AdminLogin from './pages/AdminLogin';
+import AdminPanel from './pages/AdminPanel';
+
 
 
 const router = createBrowserRouter([
@@ -102,6 +105,16 @@ const router = createBrowserRouter([
       { 
         path: '/polityka-prywatnosci', 
         element: <Polityka />
+      },
+
+      {
+        path: '/login',
+        element: <AdminLogin />,
+      },
+
+      {
+        path: '/admin',
+        element: <AdminPanel />,
       },
     ],
     errorElement: <Error404 />,

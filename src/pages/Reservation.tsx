@@ -34,6 +34,19 @@ const Reservation: React.FC = () => {
     console.log("Aktualne rezerwacje:", reservations);
   }, [reservations]);
 
+  useEffect(() => {
+    if (service === "Symulator VR - 1 osoba") {
+      setPeople(1); // pokazujemy 1
+      setDuration("15");
+    } else if (service === "Symulator VR - 2 osoby") {
+      setPeople(2);
+      setDuration("15");
+    } else {
+      // domyślna wartość dla Stanowiska VR
+      setDuration("30");
+    }
+  }, [service]);
+
   const getDaysInMonth = (year: number, month: number) =>
     new Date(year, month + 1, 0).getDate();
 
@@ -84,12 +97,51 @@ const Reservation: React.FC = () => {
     setSelectedHour(null);
   };
 
+  const isPastHour = (hour: string) => {
+    if (!selectedDate) return false;
+
+    const [day, monthNum, yearNum] = selectedDate.split("-").map(Number);
+
+    const now = new Date();
+    const nowDateOnly = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+    const selectedDateOnly = new Date(yearNum, monthNum - 1, day);
+
+    if (selectedDateOnly < nowDateOnly) return true;
+
+    if (selectedDateOnly.getTime() === nowDateOnly.getTime()) {
+      const [hourPart, minutePart] = hour.split(":").map(Number);
+      const selectedHourTime = new Date(
+        yearNum,
+        monthNum - 1,
+        day,
+        hourPart,
+        minutePart
+      );
+
+      return selectedHourTime <= now;
+    }
+
+    return false;
+  };
+
+  const validateEmail = (email: string) => {
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  };
+
   const validateSummary = () => {
-    return firstName !== "" && lastName !== "" && email !== "" && phone !== "";
+    return (
+      firstName.trim() !== "" && lastName.trim() !== "" && validateEmail(email)
+    );
   };
 
   const handleReservation = () => {
     setTouched({ firstName: true, lastName: true, email: true, phone: true });
+    const peopleToStore = service === "Symulator VR - 1 osoba" ? 2 : people;
     if (validateSummary()) {
       const newReservation = {
         id: uuidv4(),
@@ -103,7 +155,7 @@ const Reservation: React.FC = () => {
           | "Stanowisko VR"
           | "Symulator VR - 1 osoba"
           | "Symulator VR - 2 osoby",
-        people,
+        people: peopleToStore,
         duration: parseInt(duration),
       };
 
@@ -153,11 +205,28 @@ const Reservation: React.FC = () => {
     "Grudzień",
   ];
 
-  const hourSlots = Array.from({ length: 24 }, (_, i) => {
-    const hour = 9 + Math.floor(i / 2);
-    const minutes = i % 2 === 0 ? "00" : "30";
-    return `${hour.toString().padStart(2, "0")}:${minutes}`;
-  });
+  const generateHourSlots = () => {
+    const isSimulator =
+      service === "Symulator VR - 1 osoba" ||
+      service === "Symulator VR - 2 osoby";
+    const step = isSimulator ? 15 : 30;
+
+    const slots: string[] = [];
+    const start = 9 * 60; // zawsze od 09:00
+    const end = isSimulator ? 20 * 60 + 45 : 20 * 60 + 30;
+
+    for (let time = start; time <= end; time += step) {
+      const hours = Math.floor(time / 60);
+      const minutes = time % 60;
+      slots.push(
+        `${hours.toString().padStart(2, "0")}:${minutes
+          .toString()
+          .padStart(2, "0")}`
+      );
+    }
+
+    return slots;
+  };
 
   const getDayOfWeek = (dateString: string | null) => {
     if (!dateString) return null;
@@ -167,10 +236,32 @@ const Reservation: React.FC = () => {
   };
 
   const isHourAvailable = (hour: string) => {
-    const day = getDayOfWeek(selectedDate);
-    if (day === null) return false;
-    if (day === 0) return hour >= "10:00" && hour <= "19:30";
-    return true;
+    if (!selectedDate) return false;
+
+    const [h, m] = hour.split(":").map(Number);
+    const now = new Date();
+    const [dayD, monthD, yearD] = selectedDate.split("-").map(Number);
+    const selected = new Date(yearD, monthD - 1, dayD, h, m);
+    const isSunday = getDayOfWeek(selectedDate) === 0;
+
+    const serviceIsSimulator = service.includes("Symulator");
+    const startHour = isSunday ? 10 * 60 : 9 * 60;
+    const endHour = isSunday
+      ? serviceIsSimulator
+        ? 19 * 60 + 45 // 19:45
+        : 19 * 60 + 30 // 19:30
+      : serviceIsSimulator
+      ? 20 * 60 + 45 // 20:45
+      : 20 * 60 + 30; // 20:30
+
+    const currentTimeMinutes = h * 60 + m;
+
+    // ograniczenie dnia + godziny + przeszłość
+    return (
+      currentTimeMinutes >= startHour &&
+      currentTimeMinutes <= endHour &&
+      selected >= now
+    );
   };
 
   return (
@@ -199,30 +290,39 @@ const Reservation: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-semibold mb-1">
-                  Czas trwania
+                  Czas trwania<span className="text-red-500"> *</span>
                 </label>
-                <select
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                  className="w-full p-3 rounded bg-[#0f1525] border border-gray-600 text-white"
-                >
-                  <option value="30">
-                    30 min - 39 zł za osobę (Pon. - Czw.) | 45 zł za osobę (Pt.
-                    - Niedz.)
-                  </option>
-                  <option value="60">
-                    60 min - 78 zł za osobę (Pon. - Czw.) | 90 zł za osobę (Pt.
-                    - Niedz.)
-                  </option>
-                  <option value="90">
-                    90 min - 117 zł za osobę (Pon. - Czw.) | 135 zł za osobę
-                    (Pt. - Niedz.)
-                  </option>
-                  <option value="120">
-                    120 min - 156 zł za osobę (Pon. - Czw.) | 180 zł za osobę
-                    (Pt. - Niedz.)
-                  </option>
-                </select>
+                {service === "Stanowisko VR" ? (
+                  <select
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    className="w-full p-3 rounded bg-[#0f1525] border border-gray-600 text-white"
+                  >
+                    <option value="30">
+                      30 min - 39 zł za osobę (Pon. - Czw.) | 45 zł za osobę
+                      (Pt. - Niedz.)
+                    </option>
+                    <option value="60">
+                      60 min - 78 zł za osobę (Pon. - Czw.) | 90 zł za osobę
+                      (Pt. - Niedz.)
+                    </option>
+                    <option value="90">
+                      90 min - 117 zł za osobę (Pon. - Czw.) | 135 zł za osobę
+                      (Pt. - Niedz.)
+                    </option>
+                    <option value="120">
+                      120 min - 156 zł za osobę (Pon. - Czw.) | 180 zł za osobę
+                      (Pt. - Niedz.)
+                    </option>
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    disabled
+                    value="15 min"
+                    className="w-full p-3 rounded bg-[#1a1a1a] border border-gray-600 text-white"
+                  />
+                )}
               </div>
 
               <div>
@@ -327,9 +427,9 @@ const Reservation: React.FC = () => {
                 Wybierz godzinę
               </h2>
               <div className="grid grid-cols-4 gap-2">
-                {hourSlots.map((hour) => {
+                {generateHourSlots().map((hour) => {
                   const isAvailable = selectedDate
-                    ? isHourAvailable(hour)
+                    ? isHourAvailable(hour) && !isPastHour(hour)
                     : false;
                   const isSelected = selectedHour === hour;
                   return (
@@ -438,9 +538,16 @@ const Reservation: React.FC = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 onBlur={() => setTouched({ ...touched, email: true })}
                 className={`w-full p-3 rounded bg-[#0f1525] border ${
-                  touched.email && !email ? "border-red-500" : "border-gray-600"
+                  touched.email && !validateEmail(email)
+                    ? "border-red-500"
+                    : "border-gray-600"
                 } text-white`}
               />
+              {touched.email && !validateEmail(email) && (
+                <p className="text-red-500 text-sm">
+                  Wprowadź poprawny adres email
+                </p>
+              )}
               <label className="text-sm font-semibold mb-1 mt-2">
                 Numer telefonu<span className="text-red-500"> *</span>
               </label>
@@ -644,7 +751,5 @@ const Reservation: React.FC = () => {
 export default Reservation;
 
 // TO DO:
-// - Dodanie walidacji formularza (np. regex dla emaila, numeru telefonu)
 // - sprawdzenie dostępności terminu (czy nie jest już zajęty)
-// - wykreslanie godziny ktora juz minela i tak samo dla dni ktore juz minely
 // poprawienie strony glownej
