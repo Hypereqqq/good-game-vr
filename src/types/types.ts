@@ -25,17 +25,7 @@ export interface Reservation {
 
   // TO DO
   // - walidacja dodawnia klienta do gry
-  // - mozliwosc wpisania wlasnej kwoty do oplaty
-  // - ogarniecie informacji na kafelki to znaczy: kto gra, na jaki czas, kiedy zaczal - kiedy konczy, za ile koniec, czy oplacone, jak nie to jaka kwota
-  // - dodanie opcji edytowania klienta, zmiana stanowiska, zmiana czasu gry, zmiana liczby graczy, zmiana statusu oplacenia
-  // - dodanie opcji usuwania klienta
-
-  // dodanie tabelki pod spodem w ktorej wlasnie mozna edytowac i usuwac klienta i zmieniac oplaty itp, ale usuwac tez mozna z poziomu kafelka
-  // moze jakby sie dalo to przenoszenie za pomoca przeciagniecia
-  // jak jest 10 minut do konca to napis sie robi zoltawy, a jak 5 minut to czerwony
-  // dodanie samemu godziny rozpoczecia
-  // klikniecie w kafelek otwiera edycje
-  // opcja dodania komentarza
-  // pooprawna kolejnosc w selecie
-  // nie pokazuje w selecie tych ktore sa zajete
-  // dodanie opcji zmiany stanowiska w trakcie gry
+  // - mozliwosc wpisania wlasnej kwoty do oplaty / ewnetualnie dodanie opcji ze doplata za symulator ze znizka lub bez
+  // mozliwosc zmiany liczby graczy w przypadku grup - ze np w trakcie kogos usunac i dodac do kolejki zeby zaplacil za tyle ile gral
+  // opcja dodania komentarza WAZNE
+  
