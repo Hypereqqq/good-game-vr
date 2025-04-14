@@ -27,4 +27,22 @@
   background: hsl(0, 0%, 40%); 
 }
 
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes blinkSlow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-blink {
+  animation: blink 1s infinite;
+}
+
+.animate-blink-slow {
+  animation: blinkSlow 0.8s infinite;
+}
+
 
