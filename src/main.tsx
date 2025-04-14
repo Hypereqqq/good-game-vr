@@ -24,6 +24,7 @@ import Regulamin from './pages/Regulamin'
 
 import AdminLogin from './pages/AdminLogin';
 import AdminPanel from './pages/AdminPanel';
+import AdminClientManager from './pages/AdminClientManager';
 
 
 
@@ -115,6 +116,11 @@ const router = createBrowserRouter([
       {
         path: '/admin',
         element: <AdminPanel />,
+      },
+
+      {
+        path: '/admin/zarzadzanie',
+        element: <AdminClientManager />,
       },
     ],
     errorElement: <Error404 />,
