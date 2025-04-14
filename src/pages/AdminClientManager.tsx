@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useAtom } from "jotai";
 import { clientsAtom } from "../store/clients";
 import { v4 as uuidv4 } from "uuid";
@@ -25,6 +25,25 @@ const AdminClientManager: React.FC = () => {
   const [duration, setDuration] = useState(30);
   const [paid, setPaid] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [customStartEnabled, setCustomStartEnabled] = useState(false);
+  const [customHour, setCustomHour] = useState(10); // domyślnie 10:00
+  const [customMinute, setCustomMinute] = useState(0); // domyślnie 0 min
+
+  useEffect(() => {
+    // Jeśli edytujemy — nie modyfikujemy slots
+    if (editId) return;
+  
+    const usedSlots = clients.flatMap((c) => c.stations);
+    const availableSlots = Object.keys(stanowiskoLabels)
+      .map(Number)
+      .filter((s) => !usedSlots.includes(s));
+  
+    const newSlots = Array(peopleCount)
+      .fill(null)
+      .map((_, i) => availableSlots[i] || availableSlots[0] || 1);
+  
+    setSlots(newSlots);
+  }, [peopleCount, clients, editId]);
 
   const resetForm = () => {
     setName("");
@@ -32,7 +51,9 @@ const AdminClientManager: React.FC = () => {
     setSlots([1]);
     setDuration(30);
     setPaid(false);
-    setEditId(null);
+    setCustomStartEnabled(false);
+    setCustomHour(10);
+    setCustomMinute(0);
   };
 
   const calculateEndTime = (startTime: string, duration: number) => {
@@ -75,17 +96,32 @@ const AdminClientManager: React.FC = () => {
   };
 
   const handlePeopleChange = (delta: number) => {
-    const newCount = Math.min(8, Math.max(1, peopleCount + delta));
+    const newCount = Math.max(1, Math.min(8, peopleCount + delta));
     setPeopleCount(newCount);
-    setSlots((prev) =>
-      Array(newCount)
-        .fill(1)
-        .map((_, i) => prev[i] || 1)
-    );
+
+    const usedSlots = clients.flatMap((c) => c.stations);
+    const availableSlots = Object.keys(stanowiskoLabels)
+      .map(Number)
+      .filter((s) => !usedSlots.includes(s));
+
+    const newSlots = Array(newCount)
+      .fill(null)
+      .map((_, i) => availableSlots[i] || availableSlots[0] || 1);
+
+    setSlots(newSlots);
   };
 
   const handleAddClient = () => {
-    const now = new Date();
+    const now = customStartEnabled
+      ? DateTime.now()
+          .set({
+            hour: customHour,
+            minute: customMinute,
+            second: 0,
+            millisecond: 0,
+          })
+          .toJSDate()
+      : new Date();
     const stations = [...slots];
 
     if (editId) {
@@ -148,7 +184,9 @@ const AdminClientManager: React.FC = () => {
     }
   };
 
-  const occupiedStations = clients.flatMap((client) => client.stations);
+  const occupiedStations = clients
+    .filter((c) => c.id !== editId)
+    .flatMap((client) => client.stations);
   const sortedStationOrder = [1, 2, 5, 6, 8, 7, 3, 4];
 
   return (
@@ -206,7 +244,11 @@ const AdminClientManager: React.FC = () => {
                 className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
               >
                 {sortedStationOrder
-                  .filter((stationId) => !occupiedStations.includes(stationId))
+                  .filter(
+                    (stationId) =>
+                      !occupiedStations.includes(stationId) ||
+                      slots[i] === stationId
+                  )
                   .map((stationId) => (
                     <option key={stationId} value={stationId}>
                       {stanowiskoLabels[stationId]}
@@ -224,6 +266,44 @@ const AdminClientManager: React.FC = () => {
               onChange={(e) => setDuration(parseInt(e.target.value))}
               className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
             />
+          </div>
+
+          <div className="mb-4">
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input
+                type="checkbox"
+                checked={customStartEnabled}
+                onChange={() => setCustomStartEnabled(!customStartEnabled)}
+              />
+              Niestandardowa godzina rozpoczęcia
+            </label>
+
+            {customStartEnabled && (
+              <div className="flex gap-4">
+                <div className="w-1/2">
+                  <label className="block text-sm mb-1">Godzina:</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={customHour}
+                    onChange={(e) => setCustomHour(Number(e.target.value))}
+                    className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                  />
+                </div>
+                <div className="w-1/2">
+                  <label className="block text-sm mb-1">Minuty:</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={customMinute}
+                    onChange={(e) => setCustomMinute(Number(e.target.value))}
+                    className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mb-4">
