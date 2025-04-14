@@ -1,14 +1,23 @@
 import { atom } from "jotai";
 import { Reservation } from "../types/types";
 
-// Atom przechowujący listę rezerwacji
-export const reservationsAtom = atom<Reservation[]>([]);
+const localStorageKey = "reservations";
 
-// Akcja do dodawania nowej rezerwacji
+// 1. Ładowanie danych z localStorage przy starcie
+const loadInitialReservations = (): Reservation[] => {
+  const stored = localStorage.getItem(localStorageKey);
+  return stored ? JSON.parse(stored) : [];
+};
+
+// 2. Główny atom z listą rezerwacji
+export const reservationsAtom = atom<Reservation[]>(loadInitialReservations());
+
+// 3. Atom do dodawania nowej rezerwacji
 export const addReservationAtom = atom(
-    null,
-    (get, set, newReservation: Reservation) => {
-      const current = get(reservationsAtom);
-      set(reservationsAtom, [...current, newReservation]);
-    }
-  );
+  null,
+  (get, set, newReservation: Reservation) => {
+    const updated = [...get(reservationsAtom), newReservation];
+    localStorage.setItem(localStorageKey, JSON.stringify(updated));
+    set(reservationsAtom, updated);
+  }
+);
