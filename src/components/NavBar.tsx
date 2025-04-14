@@ -59,136 +59,129 @@ const Navbar: React.FC = () => {
         {/* DESKTOP NAV */}
         {isLoggedIn ? (
           <div className="hidden lg:flex items-center justify-between w-full">
-            {/* ŚRODEK - Wyśrodkowane linki admina */}
-            <div className="flex-1 flex justify-center">
-              <ul className="flex gap-5 text-sm uppercase">
-                <li>
-                  <NavLink to="/admin" className={getLinkClass}>
-                    Strona główna
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink to="/admin/rezerwacje" className={getLinkClass}>
-                    Rezerwacje
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink to="/admin/zarzadzanie" className={getLinkClass}>
-                    Zarządzanie
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink to="/admin/vouchery" className={getLinkClass}>
-                    Vouchery
-                  </NavLink>
-                </li>
-              </ul>
-            </div>
-
-            {/* PRAWA - przycisk wyloguj */}
-            <div className="ml-4">
-              <button
-                onClick={handleLogout}
-                className="px-4 py-2 text-[#000000] font-bold uppercase text-[15px] tracking-wide bg-[#00d9ff] hover:bg-[#ffcc00] hover:text-[#000000] hover:scale-105 rounded transition duration-200"
-              >
-                Wyloguj
-              </button>
-            </div>
+          {/* ŚRODEK - Wyśrodkowane linki admina */}
+          <div className="flex-1 flex justify-center">
+            <ul className="flex gap-5 text-sm uppercase">
+              <li>
+                <NavLink to="/admin" className={getLinkClass}>
+                  Strona główna
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/admin/rezerwacje" className={getLinkClass}>
+                  Rezerwacje
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/admin/vouchery" className={getLinkClass}>
+                  Vouchery
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/admin/zarzadzanie" className={getLinkClass}>
+                  Zarządzanie
+                </NavLink>
+              </li>
+            </ul>
           </div>
+        
+          {/* PRAWA - przycisk wyloguj */}
+          <div className="ml-4">
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-[#000000] font-bold uppercase text-[15px] tracking-wide bg-[#00d9ff] hover:bg-[#ffcc00] hover:text-[#000000] hover:scale-105 rounded transition duration-200"
+            >
+              Wyloguj
+            </button>
+          </div>
+        </div>
         ) : (
           <>
-            <div className="hidden lg:flex items-center justify-between w-full">
-              {/* CENTER - wyśrodkowana nawigacja */}
-              <div className="flex-1 flex justify-center">
-                <ul className="flex gap-5 items-center text-sm uppercase">
-                  <li>
-                    <NavLink to="/" end className={getLinkClass}>
-                      O nas
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/gry-vr" className={getLinkClass}>
-                      Gry VR
-                    </NavLink>
-                  </li>
-                  <li
-                    className="relative"
-                    onMouseEnter={() => setDropdownOpen(true)}
-                    onMouseLeave={() => setDropdownOpen(false)}
-                  >
-                    <NavLink to="/imprezy" className={getLinkClass}>
-                      Imprezy
-                    </NavLink>
-                    {dropdownOpen && (
-                      <ul className="absolute top-full left-0 mt-1 w-48 bg-[#1d212a] shadow-xl rounded z-50 flex flex-col">
-                        {[
-                          { to: "/imprezy-dla-dzieci", label: "Dla dzieci" },
-                          {
-                            to: "/imprezy-dla-mlodziezy",
-                            label: "Dla młodzieży",
-                          },
-                          {
-                            to: "/imprezy-dla-doroslych",
-                            label: "Dla dorosłych",
-                          },
-                          { to: "/imprezy-dla-firm", label: "Dla firm" },
-                        ].map(({ to, label }) => (
-                          <li key={to}>
-                            <NavLink
-                              to={to}
-                              className={({ isActive }) =>
-                                `${baseLink} ${
-                                  isActive
-                                    ? "bg-[#171f2e] text-[#00d9ff]"
-                                    : "text-gray-300 " + hoverLink
-                                } block w-full`
-                              }
-                            >
-                              {label}
-                            </NavLink>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                  <li>
-                    <NavLink to="/cennik" className={getLinkClass}>
-                      Cennik
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/promocje" className={getLinkClass}>
-                      Promocje
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/galeria" className={getLinkClass}>
-                      Galeria
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/aktualnosci" className={getLinkClass}>
-                      Aktualności
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/kontakt" className={getLinkClass}>
-                      Kontakt
-                    </NavLink>
-                  </li>
-                </ul>
-              </div>
-
-              {/* RIGHT - przycisk Rezerwacja */}
-              <div className="ml-4">
+            <ul className="hidden lg:flex gap-5 items-center text-sm uppercase">
+              <li>
+                <NavLink to="/" end className={getLinkClass}>
+                  O nas
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/gry-vr" className={getLinkClass}>
+                  Gry VR
+                </NavLink>
+              </li>
+              <li
+                className="relative"
+                onMouseEnter={() => setDropdownOpen(true)}
+                onMouseLeave={() => setDropdownOpen(false)}
+              >
+                <NavLink to="/imprezy" className={getLinkClass}>
+                  Imprezy
+                </NavLink>
+                {dropdownOpen && (
+                  <ul className="absolute top-full left-0 mt-1 w-48 bg-[#1d212a] shadow-xl rounded z-50 flex flex-col">
+                    {[
+                      { to: "/imprezy-dla-dzieci", label: "Dla dzieci" },
+                      {
+                        to: "/imprezy-dla-mlodziezy",
+                        label: "Dla młodzieży",
+                      },
+                      {
+                        to: "/imprezy-dla-doroslych",
+                        label: "Dla dorosłych",
+                      },
+                      { to: "/imprezy-dla-firm", label: "Dla firm" },
+                    ].map(({ to, label }) => (
+                      <li key={to}>
+                        <NavLink
+                          to={to}
+                          className={({ isActive }) =>
+                            `${baseLink} ${
+                              isActive
+                                ? "bg-[#171f2e] text-[#00d9ff]"
+                                : "text-gray-300 " + hoverLink
+                            } block w-full`
+                          }
+                        >
+                          {label}
+                        </NavLink>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+              <li>
+                <NavLink to="/cennik" className={getLinkClass}>
+                  Cennik
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/promocje" className={getLinkClass}>
+                  Promocje
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/galeria" className={getLinkClass}>
+                  Galeria
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/aktualnosci" className={getLinkClass}>
+                  Aktualności
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/kontakt" className={getLinkClass}>
+                  Kontakt
+                </NavLink>
+              </li>
+              <li>
                 <NavLink
                   to="/rezerwacja"
-                  className="px-4 py-2 text-[#000000] font-bold uppercase text-[15px] tracking-wide bg-[#00d9ff] hover:bg-[#ffcc00] hover:text-[#000000] hover:scale-105 rounded transition duration-200"
+                  className="px-4 py-2 ml-4 text-[#000000] font-bold uppercase text-[15px] tracking-wide bg-[#00d9ff] hover:bg-[#ffcc00] hover:text-[#000000] hover:scale-105 rounded transition duration-200"
                 >
                   Rezerwacja
                 </NavLink>
-              </div>
-            </div>
+              </li>
+            </ul>
           </>
         )}
       </div>
@@ -211,20 +204,20 @@ const Navbar: React.FC = () => {
                 </li>
                 <li>
                   <NavLink
-                    to="/admin/manage"
-                    className={getLinkClass}
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Zarządzanie
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink
                     to="/admin/vouchers"
                     className={getLinkClass}
                     onClick={() => setMenuOpen(false)}
                   >
                     Vouchery
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/admin/manage"
+                    className={getLinkClass}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Zarządzanie
                   </NavLink>
                 </li>
                 <li>
