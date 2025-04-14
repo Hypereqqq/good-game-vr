@@ -9,7 +9,8 @@ const Footer: React.FC = () => {
         {/* Lewa strona */}
         <div className="text-center md:text-left">
           <p className="text-sm">
-            &copy; {new Date().getFullYear()} Good Game VR. Wszelkie prawa zastrzeżone.
+            &copy; {new Date().getFullYear()} Good Game VR. Wszelkie prawa
+            zastrzeżone.
           </p>
         </div>
 
@@ -18,8 +19,14 @@ const Footer: React.FC = () => {
           <Link to="/regulamin" className="hover:text-[#00d9ff] transition">
             Regulamin
           </Link>
-          <Link to="/polityka-prywatnosci" className="hover:text-[#00d9ff] transition">
+          <Link
+            to="/polityka-prywatnosci"
+            className="hover:text-[#00d9ff] transition"
+          >
             Polityka prywatności
+          </Link>
+          <Link to="/login" className="hover:text-[#00d9ff] transition">
+            Panel admina
           </Link>
         </div>
 
