@@ -28,20 +28,29 @@ const AdminClientManager: React.FC = () => {
   const [customStartEnabled, setCustomStartEnabled] = useState(false);
   const [customHour, setCustomHour] = useState(10); // domyślnie 10:00
   const [customMinute, setCustomMinute] = useState(0); // domyślnie 0 min
+  const [, setTick] = useState(0); // tylko do triggerowania re-renderu
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTick((prev) => prev + 1); // wymusza re-render
+    }, 1000); // co 1 sekunda
+
+    return () => clearInterval(interval); // czyszczenie przy unmount
+  }, []);
 
   useEffect(() => {
     // Jeśli edytujemy — nie modyfikujemy slots
     if (editId) return;
-  
+
     const usedSlots = clients.flatMap((c) => c.stations);
     const availableSlots = Object.keys(stanowiskoLabels)
       .map(Number)
       .filter((s) => !usedSlots.includes(s));
-  
+
     const newSlots = Array(peopleCount)
       .fill(null)
       .map((_, i) => availableSlots[i] || availableSlots[0] || 1);
-  
+
     setSlots(newSlots);
   }, [peopleCount, clients, editId]);
 
@@ -187,6 +196,14 @@ const AdminClientManager: React.FC = () => {
   const occupiedStations = clients
     .filter((c) => c.id !== editId)
     .flatMap((client) => client.stations);
+
+  const takenStationsCount = clients.reduce(
+    (total, client) => total + client.stations.length,
+    0
+  );
+
+  const allStationsTaken = !editId && takenStationsCount >= 8;
+
   const sortedStationOrder = [1, 2, 5, 6, 8, 7, 3, 4];
 
   return (
@@ -319,7 +336,12 @@ const AdminClientManager: React.FC = () => {
 
           <button
             onClick={handleAddClient}
-            className="w-full bg-[#00d9ff] text-black font-bold py-2 rounded hover:bg-[#ffcc00] transition"
+            disabled={allStationsTaken}
+            className={`w-full text-black font-bold py-2 rounded transition ${
+              allStationsTaken
+                ? "bg-gray-600 cursor-not-allowed"
+                : "bg-[#00d9ff] hover:bg-[#ffcc00]"
+            }`}
           >
             {editId ? "Zapisz zmiany" : "Dodaj klienta"}
           </button>

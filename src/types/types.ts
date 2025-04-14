@@ -24,8 +24,8 @@ export interface Reservation {
 
 
   // TO DO
-  // - walidacja dodawnia klienta do gry
   // - mozliwosc wpisania wlasnej kwoty do oplaty / ewnetualnie dodanie opcji ze doplata za symulator ze znizka lub bez
   // mozliwosc zmiany liczby graczy w przypadku grup - ze np w trakcie kogos usunac i dodac do kolejki zeby zaplacil za tyle ile gral
   // opcja dodania komentarza WAZNE
-  
+  // zeby samo z siebie dawalo kolejnosc dobra
+  // mozna dodac staystyki

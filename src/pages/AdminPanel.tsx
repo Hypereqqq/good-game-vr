@@ -3,6 +3,7 @@ import { useAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import { isAdminLoggedInAtom } from "../store/auth";
 import { reservationsAtom } from "../store/store";
+import { clientsAtom } from "../store/clients";
 import { DateTime } from "luxon";
 import { CalendarClock, Users, LayoutDashboard } from "lucide-react";
 const AdminPanel: React.FC = () => {
@@ -12,6 +13,8 @@ const AdminPanel: React.FC = () => {
 
   const now = DateTime.now().setZone("Europe/Warsaw");
   const [currentTime, setCurrentTime] = useState(now.toFormat("HH:mm:ss"));
+  const [clients] = useAtom(clientsAtom);
+  const occupiedStations = new Set(clients.flatMap((c) => c.stations));
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -29,8 +32,8 @@ const AdminPanel: React.FC = () => {
   }, [isLoggedIn, navigate]);
 
   useEffect(() => {
-      console.log("Aktualne rezerwacje:", reservations);
-    }, [reservations]);
+    console.log("Aktualne rezerwacje:", reservations);
+  }, [reservations]);
 
   // Najbliższa rezerwacja
   const upcomingReservation = reservations
@@ -110,7 +113,9 @@ const AdminPanel: React.FC = () => {
             <p className="text-lg font-semibold text-gray-400">
               Aktualnie grających
             </p>
-            <p className="text-5xl font-bold text-[#ffcc00] mt-1">8</p>
+            <p className="text-5xl font-bold text-[#ffcc00] mt-1">
+              {occupiedStations.size}
+            </p>
           </div>
         </div>
 
