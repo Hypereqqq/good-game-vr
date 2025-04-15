@@ -28,6 +28,8 @@ const AdminClientManager: React.FC = () => {
   const [customStartEnabled, setCustomStartEnabled] = useState(false);
   const [customHour, setCustomHour] = useState(10); // domyślnie 10:00
   const [customMinute, setCustomMinute] = useState(0); // domyślnie 0 min
+  const [customPriceEnabled, setCustomPriceEnabled] = useState(false);
+  const [customPrice, setCustomPrice] = useState<number | null>(null);
   const [, setTick] = useState(0); // tylko do triggerowania re-renderu
 
   useEffect(() => {
@@ -63,6 +65,8 @@ const AdminClientManager: React.FC = () => {
     setCustomStartEnabled(false);
     setCustomHour(10);
     setCustomMinute(0);
+    setCustomPrice(null);
+    setCustomPriceEnabled(false);
   };
 
   const calculateEndTime = (startTime: string, duration: number) => {
@@ -131,6 +135,7 @@ const AdminClientManager: React.FC = () => {
           })
           .toJSDate()
       : new Date();
+
     const stations = [...slots];
 
     if (editId) {
@@ -144,6 +149,20 @@ const AdminClientManager: React.FC = () => {
                 stations,
                 duration,
                 paid,
+                startTime: customStartEnabled
+                  ? DateTime.now()
+                      .set({
+                        hour: customHour,
+                        minute: customMinute,
+                        second: 0,
+                        millisecond: 0,
+                      })
+                      .toISO()
+                  : client.startTime,
+                customPrice: customPriceEnabled
+                  ? customPrice ?? undefined
+                  : undefined,
+                customStart: customStartEnabled,
               }
             : client
         )
@@ -158,6 +177,8 @@ const AdminClientManager: React.FC = () => {
         duration,
         startTime: now.toISOString(),
         paid,
+        customPrice: customPriceEnabled ? customPrice ?? undefined : undefined,
+        customStart: customStartEnabled,
       };
       setClients((prev) => [...prev, newClient]);
     }
@@ -178,11 +199,7 @@ const AdminClientManager: React.FC = () => {
     if (editId === client.id) {
       // Jeśli klikamy edycję tego samego klienta -> wyłącz edycję
       setEditId(null);
-      setName("");
-      setPeopleCount(1);
-      setSlots([1]);
-      setDuration(30);
-      setPaid(false);
+      resetForm(); // pełne resetowanie
     } else {
       setEditId(client.id);
       setName(client.name);
@@ -190,6 +207,14 @@ const AdminClientManager: React.FC = () => {
       setSlots(client.stations);
       setDuration(client.duration);
       setPaid(client.paid);
+      setCustomPrice(client.customPrice ?? null);
+      setCustomPriceEnabled(client.customPrice != null);
+
+      //customStart
+      const start = DateTime.fromISO(client.startTime);
+      setCustomStartEnabled(client.customStart ?? false);
+      setCustomHour(start.hour);
+      setCustomMinute(start.minute);
     }
   };
 
@@ -324,6 +349,56 @@ const AdminClientManager: React.FC = () => {
           </div>
 
           <div className="mb-4">
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input
+                type="checkbox"
+                checked={customPriceEnabled}
+                onChange={() => setCustomPriceEnabled(!customPriceEnabled)}
+              />
+              Niestandardowa kwota
+            </label>
+
+            {customPriceEnabled && (
+              <>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={customPrice ?? ""}
+                  onChange={(e) => setCustomPrice(Number(e.target.value))}
+                  className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white mb-2"
+                  placeholder="Podaj kwotę zł"
+                />
+
+                <div className="flex flex-wrap gap-2">
+                  {[50, 25, 15, 10, 5, 1].map((val) => (
+                    <button
+                      key={val}
+                      onClick={() =>
+                        setCustomPrice((prev) => (prev ?? 0) + val)
+                      }
+                      className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded"
+                    >
+                      +{val}
+                    </button>
+                  ))}
+                  {[50, 25, 15, 10, 5, 1].map((val) => (
+                    <button
+                      key={`minus-${val}`}
+                      onClick={() =>
+                        setCustomPrice((prev) => Math.max(0, (prev ?? 0) - val))
+                      }
+                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded"
+                    >
+                      -{val}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="mb-4">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -359,43 +434,52 @@ const AdminClientManager: React.FC = () => {
               return (
                 <div
                   key={index}
-                  className="bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words relative"
+                  className="bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words"
                 >
-                  <div className="text-sm font-bold text-[#00d9ff] mb-1">
-                    {stanowiskoLabels[slotIndex]}
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="text-sm font-bold text-[#00d9ff]">
+                      {stanowiskoLabels[slotIndex]}
+                    </div>
+                    {clientsInSlot.length > 0 && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEditClient(clientsInSlot[0])}
+                          className={`text-gray-500 hover:text-yellow-500 ${
+                            editId === clientsInSlot[0].id
+                              ? "animate-blink-slow text-yellow-500"
+                              : ""
+                          }`}
+                          title="Edytuj klienta"
+                        >
+                          <FaEdit />
+                        </button>
+                        <button
+                          onClick={() =>
+                            handleDeleteClient(clientsInSlot[0].id)
+                          }
+                          className="text-gray-500 hover:text-red-600"
+                          title="Usuń klienta"
+                        >
+                          <FaTrash />
+                        </button>
+                      </div>
+                    )}
                   </div>
+
                   {clientsInSlot.length > 0 ? (
                     clientsInSlot.map((client, i) => {
                       const isEditing = editId === client.id;
                       return (
                         <div
                           key={i}
-                          className={`text-sm text-blue-300 mb-2 relative ${
+                          className={`text-sm text-blue-300 mb-2 ${
                             isEditing ? "bg-[#2a354a] rounded " : ""
                           }`}
                         >
-                          <div className="absolute top-0 right-0 flex gap-2">
-                            <button
-                              onClick={() => handleEditClient(client)}
-                              className={`text-yellow-400 hover:text-yellow-500 ${
-                                isEditing ? "animate-blink-slow" : ""
-                              }`}
-                              title="Edytuj klienta"
-                            >
-                              <FaEdit />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClient(client.id)}
-                              className="text-red-500 hover:text-red-600"
-                              title="Usuń klienta"
-                            >
-                              <FaTrash />
-                            </button>
-                          </div>
                           <div className="font-semibold">
                             {client.name} – {client.duration} min
                           </div>
-                          <div className="text-xs text-gray-400">
+                          <div className="text-sm mt-4 text-gray-400">
                             {DateTime.fromISO(client.startTime).toFormat(
                               "HH:mm"
                             )}{" "}
@@ -422,13 +506,13 @@ const AdminClientManager: React.FC = () => {
                             }
                             return (
                               <div
-                                className={`text-xs ${colorClass} ${blinkClass}`}
+                                className={`text-sm mt-1 ${colorClass} ${blinkClass}`}
                               >
                                 Pozostało: {text}
                               </div>
                             );
                           })()}
-                          <div className="text-xs mt-1">
+                          <div className="text-sm mt-4">
                             {client.paid ? (
                               <span className="text-green-400 font-semibold">
                                 Opłacone
@@ -436,11 +520,12 @@ const AdminClientManager: React.FC = () => {
                             ) : (
                               <span className="text-red-400">
                                 Do zapłaty:{" "}
-                                {getSinglePlayerAmount(
-                                  client.duration,
-                                  client.startTime
-                                ).toFixed(2)}{" "}
-                                zł
+                                {client.customPrice != null
+                                  ? `${client.customPrice.toFixed(2)} zł`
+                                  : `${getSinglePlayerAmount(
+                                      client.duration,
+                                      client.startTime
+                                    ).toFixed(2)} zł`}
                               </span>
                             )}
                           </div>
@@ -516,15 +601,19 @@ const AdminClientManager: React.FC = () => {
                           </span>
                         ) : (
                           <span className="text-red-400">
-                            {price.toFixed(2)} zł
+                            {(client.customPrice != null
+                              ? client.customPrice * client.players
+                              : price
+                            ).toFixed(2)}{" "}
+                            zł
                           </span>
                         )}
                       </td>
                       <td className="p-3 flex gap-2">
                         <button
                           onClick={() => handleEditClient(client)}
-                          className={`text-yellow-400 hover:text-yellow-500 ${
-                            isEditing ? "animate-blink-slow" : ""
+                          className={`text-gray-500 hover:text-yellow-500 ${
+                            isEditing ? "animate-blink-slow text-yellow-500" : ""
                           }`}
                           title="Edytuj"
                         >
@@ -532,7 +621,7 @@ const AdminClientManager: React.FC = () => {
                         </button>
                         <button
                           onClick={() => handleDeleteClient(client.id)}
-                          className="text-red-500 hover:text-red-600"
+                          className=" text-gray-500 hover:text-red-600"
                           title="Usuń"
                         >
                           <FaTrash />
