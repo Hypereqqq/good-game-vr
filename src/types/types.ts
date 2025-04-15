@@ -19,13 +19,17 @@ export interface Reservation {
     duration: number; // czas gry w minutach
     startTime: string; // czas rozpoczęcia (ISO string)
     paid: boolean; // czy opłacone
+    customPrice?: number
+    customStart?: boolean;
   }
   
 
 
   // TO DO
-  // - mozliwosc wpisania wlasnej kwoty do oplaty / ewnetualnie dodanie opcji ze doplata za symulator ze znizka lub bez
+  // mozliwosc rozdzielenia grupy na wybrany rozmiar ze np grupe 4 osobowa podzielic na 2 grupy po 2 osoby!!!!!!!
   // mozliwosc zmiany liczby graczy w przypadku grup - ze np w trakcie kogos usunac i dodac do kolejki zeby zaplacil za tyle ile gral
   // opcja dodania komentarza WAZNE
   // zeby samo z siebie dawalo kolejnosc dobra
   // mozna dodac staystyki
+  // sortowanie tabeli po czasie do konca
+  // mozliwosc kolorowania?
