@@ -56,6 +56,20 @@ const AdminClientManager: React.FC = () => {
     setSlots(newSlots);
   }, [peopleCount, clients, editId]);
 
+  useEffect(() => {
+    if (customPriceEnabled && customPrice === null) {
+      setCustomPrice(getSinglePlayerAmount(duration, new Date().toISOString()));
+    }
+  }, [customPriceEnabled, duration, peopleCount]);
+
+  useEffect(() => {
+    if (customStartEnabled) {
+      const now = DateTime.now(); // Używamy UTC zamiast lokalnego czasu
+      setCustomHour(now.hour); // Ustawiamy godzinę na bieżącą w UTC
+      setCustomMinute(now.minute); // Ustawiamy minutę na bieżącą w UTC
+    }
+  }, [customStartEnabled]);
+
   const resetForm = () => {
     setName("");
     setPeopleCount(1);
@@ -109,7 +123,10 @@ const AdminClientManager: React.FC = () => {
   };
 
   const handlePeopleChange = (delta: number) => {
-    const newCount = Math.max(1, Math.min(8, peopleCount + delta));
+    const newCount = Math.max(
+      1,
+      Math.min(8 - takenStationsCount, peopleCount + delta)
+    );
     setPeopleCount(newCount);
 
     const usedSlots = clients.flatMap((c) => c.stations);
@@ -125,6 +142,12 @@ const AdminClientManager: React.FC = () => {
   };
 
   const handleAddClient = () => {
+    const uniqueSlots = new Set(slots);
+    if (uniqueSlots.size !== slots.length) {
+      alert("Wszystkie stanowiska muszą być unikalne!");
+      return;
+    }
+
     const now = customStartEnabled
       ? DateTime.now()
           .set({
@@ -253,7 +276,7 @@ const AdminClientManager: React.FC = () => {
               <button
                 onClick={() => handlePeopleChange(1)}
                 className="px-2 py-1 bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50"
-                disabled={peopleCount >= 8}
+                disabled={peopleCount >= 8 || allStationsTaken}
               >
                 +
               </button>
@@ -326,10 +349,15 @@ const AdminClientManager: React.FC = () => {
                   <label className="block text-sm mb-1">Godzina:</label>
                   <input
                     type="number"
-                    min={0}
-                    max={23}
+                    min={-1}
+                    max={24}
                     value={customHour}
-                    onChange={(e) => setCustomHour(Number(e.target.value))}
+                    onChange={(e) => {
+                      let newHour = Number(e.target.value);
+                      if (newHour < 0) newHour = 23; // Zapętlanie godzin wstecz
+                      if (newHour > 23) newHour = 0; // Zapętlanie godzin do przodu
+                      setCustomHour(newHour);
+                    }}
                     className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
                   />
                 </div>
@@ -337,10 +365,15 @@ const AdminClientManager: React.FC = () => {
                   <label className="block text-sm mb-1">Minuty:</label>
                   <input
                     type="number"
-                    min={0}
-                    max={59}
+                    min={-1}
+                    max={60}
                     value={customMinute}
-                    onChange={(e) => setCustomMinute(Number(e.target.value))}
+                    onChange={(e) => {
+                      let newMinute = Number(e.target.value);
+                      if (newMinute < 0) newMinute = 59; // Zapętlanie minut wstecz
+                      if (newMinute > 59) newMinute = 0; // Zapętlanie minut do przodu
+                      setCustomMinute(newMinute);
+                    }}
                     className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
                   />
                 </div>
@@ -613,7 +646,9 @@ const AdminClientManager: React.FC = () => {
                         <button
                           onClick={() => handleEditClient(client)}
                           className={`text-gray-500 hover:text-yellow-500 ${
-                            isEditing ? "animate-blink-slow text-yellow-500" : ""
+                            isEditing
+                              ? "animate-blink-slow text-yellow-500"
+                              : ""
                           }`}
                           title="Edytuj"
                         >
