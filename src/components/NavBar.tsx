@@ -63,7 +63,7 @@ const Navbar: React.FC = () => {
           <div className="flex-1 flex justify-center">
             <ul className="flex gap-5 text-sm uppercase">
               <li>
-                <NavLink to="/admin" className={getLinkClass}>
+                <NavLink to="/admin" end className={getLinkClass}>
                   Strona główna
                 </NavLink>
               </li>
@@ -195,7 +195,16 @@ const Navbar: React.FC = () => {
                 <li className="text-xs text-gray-400">— PANEL ADMINA —</li>
                 <li>
                   <NavLink
-                    to="/admin"
+                    to="/admin" end
+                    className={getLinkClass}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Strona główna
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/admin/rezerwacje"
                     className={getLinkClass}
                     onClick={() => setMenuOpen(false)}
                   >
@@ -204,7 +213,7 @@ const Navbar: React.FC = () => {
                 </li>
                 <li>
                   <NavLink
-                    to="/admin/vouchers"
+                    to="/admin/vouchery"
                     className={getLinkClass}
                     onClick={() => setMenuOpen(false)}
                   >
@@ -213,7 +222,7 @@ const Navbar: React.FC = () => {
                 </li>
                 <li>
                   <NavLink
-                    to="/admin/manage"
+                    to="/admin/zarzadzanie"
                     className={getLinkClass}
                     onClick={() => setMenuOpen(false)}
                   >
