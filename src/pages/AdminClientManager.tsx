@@ -77,12 +77,13 @@ const AdminClientManager: React.FC = () => {
   }, [customPriceEnabled, duration, peopleCount]);
 
   useEffect(() => {
-    if (customStartEnabled) {
-      const now = DateTime.now(); // Używamy UTC zamiast lokalnego czasu
-      setCustomHour(now.hour); // Ustawiamy godzinę na bieżącą w UTC
-      setCustomMinute(now.minute); // Ustawiamy minutę na bieżącą w UTC
-    }
-  }, [customStartEnabled]);
+  // UWAGA: jeśli edytujemy klienta, NIE nadpisuje godziny startowej
+  if (customStartEnabled && !editId) {
+    const now = DateTime.now();
+    setCustomHour(now.hour);
+    setCustomMinute(now.minute);
+  }
+}, [customStartEnabled, editId]);
 
   const resetForm = () => {
     setName("");
@@ -119,10 +120,10 @@ const AdminClientManager: React.FC = () => {
       };
     }
 
-    const diffMinutes = Math.floor(diffSeconds / 60);
+    const diffMinutes = Math.ceil(diffSeconds / 60);
 
     return {
-      text: diffMinutes > 0 ? `${diffMinutes} min` : "mniej niż minutę",
+      text: `${diffMinutes} min`,
       minutes: diffMinutes,
       isOver: false,
     };
@@ -630,15 +631,13 @@ const AdminClientManager: React.FC = () => {
                                 : "text-gray-500"
                             }`}
                             title={
-                              clientsInSlot[0].comment
-                                ? ""
-                                : "Dodaj komentarz"
+                              clientsInSlot[0].comment ? "" : "Dodaj komentarz"
                             }
                           >
                             <FaCommentDots />
                           </button>
                           {clientsInSlot[0].comment && (
-                            <span className="absolute left-7 top-1/2 -translate-y-1/2 bg-[#222] text-white px-3 py-1 rounded z-10 text-xs opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line min-w-[180px] max-w-[400px] transition-opacity duration-200">
+                            <span className="absolute left-7 top-1/2 -translate-y-1/2 bg-[#222] text-white px-3 py-1 rounded z-10 text-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line min-w-[180px] max-w-[400px] transition-opacity duration-200">
                               {clientsInSlot[0].comment}
                             </span>
                           )}
@@ -883,11 +882,7 @@ const AdminClientManager: React.FC = () => {
                                 ? "text-green-500"
                                 : "text-gray-500"
                             }`}
-                            title={
-                              client.comment
-                                ? ""
-                                : "Dodaj komentarz"
-                            }
+                            title={client.comment ? "" : "Dodaj komentarz"}
                             style={{ padding: 0 }}
                           >
                             <FaCommentDots />
