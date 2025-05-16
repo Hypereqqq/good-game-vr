@@ -163,20 +163,38 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
-              Wielki update boiii
+              Małe poprawki i zmiany
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">17 maja 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                System liczenia pozostałego czasu został naprawiony, teraz czas wyświetla się poprawnie
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>Naprawiono błąd występujący przy edycji klienta jeśli miał już wcześniej ustawioną niestandardową godzinę (wtedy wówczas znów ustawiała się aktualna godzina zamiast pozostawienia wcześniej ustawionej) <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              
+              <li>Zwiększono rozmiar czcionki w podglądzie komentarza <span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
+              Komentarze i sortowanie
             </h3>
             <p className="text-xs text-gray-400 mb-2">16 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
                 Dodano sortowanie tabeli klientów według różnych kryteriów
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
-              <li>Nowy popup potwierdzający usuwanie klienta</li>
-              <li>Ulepszony wygląd kafelków</li>
-              <li>Dodano obsługe komentarzy, ich edycję oraz pop-up po najechaniu</li>
-              <li>Poprawki wizualne i UX</li>
+              <li>Nowy popup potwierdzający usuwanie klienta <span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li>Ulepszony wygląd kafelków <span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li>Dodano obsługe komentarzy, ich edycję oraz pop-up po najechaniu <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              
               <li>
                 Poprawienie liczenia czasu (problem z{" "}
-                <span className="text-red-400 font-bold">Koniec gry</span>)
+                <span className="text-red-400 font-bold">Koniec gry</span>) <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
             </ul>
           </div>
