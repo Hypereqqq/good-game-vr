@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { clientsAtom } from "../store/clients";
 import { v4 as uuidv4 } from "uuid";
 import { ClientGame } from "../types/types";
 import { DateTime } from "luxon";
-import { FaTrash, FaEdit } from "react-icons/fa";
+import { FaTrash, FaEdit, FaCommentDots } from "react-icons/fa";
 
 const stanowiskoLabels: Record<number, string> = {
   1: "Zielone",
@@ -30,7 +30,22 @@ const AdminClientManager: React.FC = () => {
   const [customMinute, setCustomMinute] = useState(0); // domyślnie 0 min
   const [customPriceEnabled, setCustomPriceEnabled] = useState(false);
   const [customPrice, setCustomPrice] = useState<number | null>(null);
+  const [addComment, setAddComment] = useState(false);
+  const [comment, setComment] = useState<string>("");
   const [, setTick] = useState(0); // tylko do triggerowania re-renderu
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<ClientGame | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [sortConfig, setSortConfig] = useState<{
+    key: string | null;
+    direction: "asc" | "desc" | null;
+  }>({ key: null, direction: null });
+
+  const [, setOriginalClients] = useState<ClientGame[]>([]);
+
+  useEffect(() => {
+    setOriginalClients(clients);
+  }, [clients]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -41,7 +56,6 @@ const AdminClientManager: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Jeśli edytujemy — nie modyfikujemy slots
     if (editId) return;
 
     const usedSlots = clients.flatMap((c) => c.stations);
@@ -81,6 +95,8 @@ const AdminClientManager: React.FC = () => {
     setCustomMinute(0);
     setCustomPrice(null);
     setCustomPriceEnabled(false);
+    setAddComment(false);
+    setComment("");
   };
 
   const calculateEndTime = (startTime: string, duration: number) => {
@@ -93,11 +109,22 @@ const AdminClientManager: React.FC = () => {
   ): { text: string; minutes: number; isOver: boolean } => {
     const now = DateTime.now();
     const end = DateTime.fromISO(startTime).plus({ minutes: duration });
-    const diff = Math.floor(end.diff(now, "minutes").minutes);
+    const diffSeconds = Math.floor(end.diff(now, "seconds").seconds);
+
+    if (diffSeconds <= 0) {
+      return {
+        text: "Koniec gry",
+        minutes: 0,
+        isOver: true,
+      };
+    }
+
+    const diffMinutes = Math.floor(diffSeconds / 60);
+
     return {
-      text: diff > 0 ? `${diff} min` : "Koniec gry",
-      minutes: diff,
-      isOver: diff <= 0,
+      text: diffMinutes > 0 ? `${diffMinutes} min` : "mniej niż minutę",
+      minutes: diffMinutes,
+      isOver: false,
     };
   };
 
@@ -186,6 +213,7 @@ const AdminClientManager: React.FC = () => {
                   ? customPrice ?? undefined
                   : undefined,
                 customStart: customStartEnabled,
+                comment: addComment ? comment : undefined,
               }
             : client
         )
@@ -202,6 +230,7 @@ const AdminClientManager: React.FC = () => {
         paid,
         customPrice: customPriceEnabled ? customPrice ?? undefined : undefined,
         customStart: customStartEnabled,
+        comment: addComment ? comment : undefined,
       };
       setClients((prev) => [...prev, newClient]);
     }
@@ -210,12 +239,7 @@ const AdminClientManager: React.FC = () => {
   };
 
   const handleDeleteClient = (id: string) => {
-    const confirmDelete = window.confirm(
-      "Czy na pewno chcesz usunąć tego klienta?"
-    );
-    if (confirmDelete) {
-      setClients((prev) => prev.filter((client) => client.id !== id));
-    }
+    setClients((prev) => prev.filter((client) => client.id !== id));
   };
 
   const handleEditClient = (client: ClientGame) => {
@@ -238,6 +262,8 @@ const AdminClientManager: React.FC = () => {
       setCustomStartEnabled(client.customStart ?? false);
       setCustomHour(start.hour);
       setCustomMinute(start.minute);
+      setAddComment(!!client.comment);
+      setComment(client.comment ?? "");
     }
   };
 
@@ -253,6 +279,92 @@ const AdminClientManager: React.FC = () => {
   const allStationsTaken = !editId && takenStationsCount >= 8;
 
   const sortedStationOrder = [1, 2, 5, 6, 8, 7, 3, 4];
+
+  const getSortedClients = () => {
+    if (!sortConfig.key || !sortConfig.direction) return clients;
+
+    const sorted = [...clients];
+
+    sorted.sort((a, b) => {
+      switch (sortConfig.key) {
+        case "players":
+          return sortConfig.direction === "asc"
+            ? a.players - b.players
+            : b.players - a.players;
+        case "stations":
+          const aStations = a.stations
+            .map((s) => stanowiskoLabels[s])
+            .join(", ");
+          const bStations = b.stations
+            .map((s) => stanowiskoLabels[s])
+            .join(", ");
+          return sortConfig.direction === "asc"
+            ? aStations.localeCompare(bStations)
+            : bStations.localeCompare(aStations);
+        case "duration":
+          return sortConfig.direction === "asc"
+            ? a.duration - b.duration
+            : b.duration - a.duration;
+        case "start":
+          return sortConfig.direction === "asc"
+            ? DateTime.fromISO(a.startTime).toMillis() -
+                DateTime.fromISO(b.startTime).toMillis()
+            : DateTime.fromISO(b.startTime).toMillis() -
+                DateTime.fromISO(a.startTime).toMillis();
+        case "end":
+          const aEnd = calculateEndTime(a.startTime, a.duration).toMillis();
+          const bEnd = calculateEndTime(b.startTime, b.duration).toMillis();
+          return sortConfig.direction === "asc" ? aEnd - bEnd : bEnd - aEnd;
+        case "remaining":
+          const aRem = getRemainingTime(a.startTime, a.duration).minutes;
+          const bRem = getRemainingTime(b.startTime, b.duration).minutes;
+          return sortConfig.direction === "asc" ? aRem - bRem : bRem - aRem;
+        case "paid":
+          // Najpierw opłacone, potem nieopłacone (asc), odwrotnie (desc)
+          if (a.paid !== b.paid) {
+            return sortConfig.direction === "asc"
+              ? a.paid
+                ? -1
+                : 1
+              : a.paid
+              ? 1
+              : -1;
+          }
+          // Jeśli oba nieopłacone, sortuj po kwocie malejąco
+          const aAmount =
+            a.customPrice != null
+              ? a.customPrice * a.players
+              : getPaymentAmount(a.duration, a.startTime, a.players);
+          const bAmount =
+            b.customPrice != null
+              ? b.customPrice * b.players
+              : getPaymentAmount(b.duration, b.startTime, b.players);
+          return bAmount - aAmount;
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  };
+
+  const handleSort = (key: string, twoWay = false) => {
+    setSortConfig((prev) => {
+      if (prev.key !== key) {
+        // Pierwsze kliknięcie: sortowanie domyślne (rosnąco lub wg specyfikacji)
+        return { key, direction: "asc" };
+      } else if (prev.direction === "asc") {
+        // Drugie kliknięcie: sortowanie odwrotne
+        return { key, direction: twoWay ? "desc" : null };
+      } else if (prev.direction === "desc") {
+        // Trzecie kliknięcie: powrót do domyślnego
+        return { key: null, direction: null };
+      } else {
+        // Powrót do domyślnego
+        return { key: null, direction: null };
+      }
+    });
+  };
 
   return (
     <section className="bg-[#0f1525] text-white px-6 py-10 min-h-screen">
@@ -432,6 +544,27 @@ const AdminClientManager: React.FC = () => {
           </div>
 
           <div className="mb-4">
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input
+                type="checkbox"
+                checked={addComment}
+                onChange={() => setAddComment((v) => !v)}
+              />
+              Dodaj komentarz
+            </label>
+            {addComment && (
+              <textarea
+                ref={commentInputRef}
+                className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                placeholder="Wpisz komentarz..."
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows={2}
+              />
+            )}
+          </div>
+
+          <div className="mb-4">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -475,6 +608,42 @@ const AdminClientManager: React.FC = () => {
                     </div>
                     {clientsInSlot.length > 0 && (
                       <div className="flex gap-2">
+                        <span className="relative group flex items-center mr-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleEditClient(clientsInSlot[0]);
+                              if (!clientsInSlot[0].comment) {
+                                setAddComment(true);
+                                setTimeout(() => {
+                                  commentInputRef.current?.focus();
+                                }, 0);
+                              } else {
+                                setTimeout(() => {
+                                  commentInputRef.current?.focus();
+                                }, 0);
+                              }
+                            }}
+                            className={`text-gray-500 hover:text-green-500/80 ${
+                              clientsInSlot[0].comment
+                                ? "text-green-500"
+                                : "text-gray-500"
+                            }`}
+                            title={
+                              clientsInSlot[0].comment
+                                ? ""
+                                : "Dodaj komentarz"
+                            }
+                          >
+                            <FaCommentDots />
+                          </button>
+                          {clientsInSlot[0].comment && (
+                            <span className="absolute left-7 top-1/2 -translate-y-1/2 bg-[#222] text-white px-3 py-1 rounded z-10 text-xs opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line min-w-[180px] max-w-[400px] transition-opacity duration-200">
+                              {clientsInSlot[0].comment}
+                            </span>
+                          )}
+                        </span>
+
                         <button
                           onClick={() => handleEditClient(clientsInSlot[0])}
                           className={`text-gray-500 hover:text-yellow-500 ${
@@ -487,9 +656,10 @@ const AdminClientManager: React.FC = () => {
                           <FaEdit />
                         </button>
                         <button
-                          onClick={() =>
-                            handleDeleteClient(clientsInSlot[0].id)
-                          }
+                          onClick={() => {
+                            setClientToDelete(clientsInSlot[0]);
+                            setShowDeleteModal(true);
+                          }}
                           className="text-gray-500 hover:text-red-600"
                           title="Usuń klienta"
                         >
@@ -573,23 +743,72 @@ const AdminClientManager: React.FC = () => {
             })}
           </div>
 
-          <div className="overflow-x-auto mt-10">
+          <div className="overflow-x-auto lg:overflow-x-visible mt-10">
             <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
               <thead>
                 <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
                   <th className="p-3">Nazwa</th>
-                  <th className="p-3">Liczba graczy</th>
-                  <th className="p-3">Stanowiska</th>
-                  <th className="p-3">Czas</th>
-                  <th className="p-3">Start</th>
-                  <th className="p-3">Koniec</th>
-                  <th className="p-3">Pozostało</th>
-                  <th className="p-3">Płatność</th>
+                  <th
+                    className={`p-3 cursor-pointer select-none transition ${
+                      sortConfig.key === "players" ? "bg-[#193a4d]" : ""
+                    } hover:bg-[#193a4d]/40`}
+                    onClick={() => handleSort("players", true)}
+                  >
+                    Liczba graczy
+                  </th>
+                  <th
+                    className={`p-3 cursor-pointer select-none transition ${
+                      sortConfig.key === "stations" ? "bg-[#193a4d]" : ""
+                    } hover:bg-[#193a4d]/40`}
+                    onClick={() => handleSort("stations")}
+                  >
+                    Stanowiska
+                  </th>
+                  <th
+                    className={`p-3 cursor-pointer select-none transition ${
+                      sortConfig.key === "duration" ? "bg-[#193a4d]" : ""
+                    } hover:bg-[#193a4d]/40`}
+                    onClick={() => handleSort("duration", true)}
+                  >
+                    Czas
+                  </th>
+                  <th
+                    className={`p-3 cursor-pointer select-none transition ${
+                      sortConfig.key === "start" ? "bg-[#193a4d]" : ""
+                    } hover:bg-[#193a4d]/40`}
+                    onClick={() => handleSort("start", true)}
+                  >
+                    Start
+                  </th>
+                  <th
+                    className={`p-3 cursor-pointer select-none transition ${
+                      sortConfig.key === "end" ? "bg-[#193a4d]" : ""
+                    } hover:bg-[#193a4d]/40`}
+                    onClick={() => handleSort("end", true)}
+                  >
+                    Koniec
+                  </th>
+                  <th
+                    className={`p-3 cursor-pointer select-none transition ${
+                      sortConfig.key === "remaining" ? "bg-[#193a4d]" : ""
+                    } hover:bg-[#193a4d]/40`}
+                    onClick={() => handleSort("remaining", true)}
+                  >
+                    Pozostało
+                  </th>
+                  <th
+                    className={`p-3 cursor-pointer select-none transition ${
+                      sortConfig.key === "paid" ? "bg-[#193a4d]" : ""
+                    } hover:bg-[#193a4d]/40`}
+                    onClick={() => handleSort("paid", true)}
+                  >
+                    Płatność
+                  </th>
                   <th className="p-3">Akcje</th>
                 </tr>
               </thead>
               <tbody>
-                {clients.map((client) => {
+                {getSortedClients().map((client) => {
                   const end = calculateEndTime(
                     client.startTime,
                     client.duration
@@ -642,7 +861,43 @@ const AdminClientManager: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td className="p-3 flex gap-2">
+                      <td className="p-3 flex gap-2 items-center">
+                        <span className="relative group flex items-center">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleEditClient(client);
+                              if (!client.comment) {
+                                setAddComment(true);
+                                setTimeout(() => {
+                                  commentInputRef.current?.focus();
+                                }, 0);
+                              } else {
+                                setTimeout(() => {
+                                  commentInputRef.current?.focus();
+                                }, 0);
+                              }
+                            }}
+                            className={`text-gray-500 hover:text-green-500/80 ${
+                              client.comment
+                                ? "text-green-500"
+                                : "text-gray-500"
+                            }`}
+                            title={
+                              client.comment
+                                ? ""
+                                : "Dodaj komentarz"
+                            }
+                            style={{ padding: 0 }}
+                          >
+                            <FaCommentDots />
+                          </button>
+                          {client.comment && (
+                            <span className="absolute left-7 top-1/2 -translate-y-1/2 bg-[#222] text-white px-3 py-1 rounded z-10 text-xs opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line min-w-[120px] max-w-[300px] transition-opacity duration-200">
+                              {client.comment}
+                            </span>
+                          )}
+                        </span>
                         <button
                           onClick={() => handleEditClient(client)}
                           className={`text-gray-500 hover:text-yellow-500 ${
@@ -655,8 +910,11 @@ const AdminClientManager: React.FC = () => {
                           <FaEdit />
                         </button>
                         <button
-                          onClick={() => handleDeleteClient(client.id)}
-                          className=" text-gray-500 hover:text-red-600"
+                          onClick={() => {
+                            setClientToDelete(client);
+                            setShowDeleteModal(true);
+                          }}
+                          className="text-gray-500 hover:text-red-600"
                           title="Usuń"
                         >
                           <FaTrash />
@@ -670,6 +928,64 @@ const AdminClientManager: React.FC = () => {
           </div>
         </div>
       </div>
+      {showDeleteModal && clientToDelete && (
+        <div
+          className="fixed left-0 top-0 w-full h-full z-50 flex items-center justify-center backdrop-blur-sm"
+          onClick={() => {
+            setShowDeleteModal(false);
+            setClientToDelete(null);
+          }}
+        >
+          <div
+            className="bg-[#1e2636] p-6 rounded-lg shadow-lg min-w-[320px] border border-[#00d9ff]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-4 text-[#00d9ff]">
+              Potwierdź usunięcie
+            </h3>
+            <p className="mb-2 text-white">
+              Czy na pewno chcesz usunąć klienta
+              {clientToDelete.name ? (
+                <>
+                  {" "}
+                  <span className="font-semibold">{clientToDelete.name}</span>?
+                </>
+              ) : (
+                "?"
+              )}
+            </p>
+            <p className="mb-6 text-white">
+              Stanowiska:{" "}
+              <span className="font-semibold text-[#00d9ff]">
+                {clientToDelete.stations
+                  .map((s) => stanowiskoLabels[s])
+                  .join(", ")}
+              </span>
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setClientToDelete(null);
+                }}
+                className="px-4 py-2 rounded bg-gray-600 text-white hover:bg-gray-700 transition"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={() => {
+                  handleDeleteClient(clientToDelete.id);
+                  setShowDeleteModal(false);
+                  setClientToDelete(null);
+                }}
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-900 hover:scale-105 hover:shadow-lg font-bold transition"
+              >
+                Usuń
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
