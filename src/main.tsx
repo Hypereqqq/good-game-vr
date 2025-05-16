@@ -25,6 +25,8 @@ import Regulamin from './pages/Regulamin'
 import AdminLogin from './pages/AdminLogin';
 import AdminPanel from './pages/AdminPanel';
 import AdminClientManager from './pages/AdminClientManager';
+import AdminVoucher from './pages/AdminVoucher';
+import AdminReservations from './pages/AdminReservations';
 
 
 
@@ -121,6 +123,16 @@ const router = createBrowserRouter([
       {
         path: '/admin/zarzadzanie',
         element: <AdminClientManager />,
+      },
+
+      {
+        path: '/admin/vouchery',
+        element: <AdminVoucher />,
+      },
+
+      {
+        path: '/admin/rezerwacje',
+        element: <AdminReservations />,
       },
     ],
     errorElement: <Error404 />,
