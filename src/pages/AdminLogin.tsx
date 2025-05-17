@@ -1,17 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useAtom } from "jotai";
-import { isAdminLoggedInAtom } from "../store/auth";
+import { isAdminLoggedInAtom, setAdminLoggedInAtom } from "../store/auth";
 import { useNavigate } from "react-router-dom";
 
 const AdminLogin: React.FC = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useAtom(isAdminLoggedInAtom);
+  const [isLoggedIn] = useAtom(isAdminLoggedInAtom);
+  const [, setIsLoggedIn] = useAtom(setAdminLoggedInAtom);
   const navigate = useNavigate();
 
   // Automatyczne przekierowanie, jeśli już jesteś zalogowany
-useEffect(() => {
+  useEffect(() => {
     if (isLoggedIn) {
       navigate("/admin");
     }
@@ -28,7 +29,9 @@ useEffect(() => {
   return (
     <section className="bg-[#0f1525] text-white px-6 py-16 min-h-screen flex items-center justify-center">
       <div className="bg-[#1e2636] p-8 rounded-lg shadow-lg w-full max-w-md ">
-        <h1 className="text-2xl font-bold text-[#00d9ff] mb-6 text-center uppercase">Panel administracyjny</h1>
+        <h1 className="text-2xl font-bold text-[#00d9ff] mb-6 text-center uppercase">
+          Panel administracyjny
+        </h1>
 
         <div className="flex flex-col gap-4">
           <input
