@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { useAtom } from "jotai";
-import { isAdminLoggedInAtom } from "../store/auth";
+import { isAdminLoggedInAtom, setAdminLoggedInAtom } from "../store/auth";
 import { useNavigate } from "react-router-dom";
 import { Link, NavLink } from "react-router-dom";
 import Logo from "../assets/MATERIAŁY/LOGA/GGVR - NIEBIESKO BIAŁE.png";
 
 const Navbar: React.FC = () => {
-  const [isLoggedIn, setIsLoggedIn] = useAtom(isAdminLoggedInAtom);
+  const [isLoggedIn] = useAtom(isAdminLoggedInAtom);
+  const [, setIsLoggedIn] = useAtom(setAdminLoggedInAtom);
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -25,7 +26,7 @@ const Navbar: React.FC = () => {
 
   const handleLogout = () => {
     setIsLoggedIn(false);
-    navigate("/");
+    navigate("/login");
   };
 
   return (
@@ -59,42 +60,42 @@ const Navbar: React.FC = () => {
         {/* DESKTOP NAV */}
         {isLoggedIn ? (
           <div className="hidden lg:flex items-center justify-between w-full">
-          {/* ŚRODEK - Wyśrodkowane linki admina */}
-          <div className="flex-1 flex justify-center">
-            <ul className="flex gap-5 text-sm uppercase">
-              <li>
-                <NavLink to="/admin" end className={getLinkClass}>
-                  Strona główna
-                </NavLink>
-              </li>
-              <li>
-                <NavLink to="/admin/rezerwacje" className={getLinkClass}>
-                  Rezerwacje
-                </NavLink>
-              </li>
-              <li>
-                <NavLink to="/admin/vouchery" className={getLinkClass}>
-                  Vouchery
-                </NavLink>
-              </li>
-              <li>
-                <NavLink to="/admin/zarzadzanie" className={getLinkClass}>
-                  Zarządzanie
-                </NavLink>
-              </li>
-            </ul>
+            {/* ŚRODEK - Wyśrodkowane linki admina */}
+            <div className="flex-1 flex justify-center">
+              <ul className="flex gap-5 text-sm uppercase">
+                <li>
+                  <NavLink to="/admin" end className={getLinkClass}>
+                    Strona główna
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/admin/rezerwacje" className={getLinkClass}>
+                    Rezerwacje
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/admin/vouchery" className={getLinkClass}>
+                    Vouchery
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/admin/zarzadzanie" className={getLinkClass}>
+                    Zarządzanie
+                  </NavLink>
+                </li>
+              </ul>
+            </div>
+
+            {/* PRAWA - przycisk wyloguj */}
+            <div className="ml-4">
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 text-[#000000] font-bold uppercase text-[15px] tracking-wide bg-[#00d9ff] hover:bg-[#ffcc00] hover:text-[#000000] hover:scale-105 rounded transition duration-200"
+              >
+                Wyloguj
+              </button>
+            </div>
           </div>
-        
-          {/* PRAWA - przycisk wyloguj */}
-          <div className="ml-4">
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-[#000000] font-bold uppercase text-[15px] tracking-wide bg-[#00d9ff] hover:bg-[#ffcc00] hover:text-[#000000] hover:scale-105 rounded transition duration-200"
-            >
-              Wyloguj
-            </button>
-          </div>
-        </div>
         ) : (
           <>
             <ul className="hidden lg:flex gap-5 items-center text-sm uppercase">
@@ -195,7 +196,8 @@ const Navbar: React.FC = () => {
                 <li className="text-xs text-gray-400">— PANEL ADMINA —</li>
                 <li>
                   <NavLink
-                    to="/admin" end
+                    to="/admin"
+                    end
                     className={getLinkClass}
                     onClick={() => setMenuOpen(false)}
                   >
