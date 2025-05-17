@@ -164,6 +164,43 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              Poprawki i zmiany
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano nowe przyciski do dodawania ceny 
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano zabezpieczenie, aby wykrywać zdwojone stanowiska podczas dodawania klientów, wraz z odpowiednim komunikatem
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano automatyczne zawijanie tekstu w polu dodatkowych informacji w voucherze
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano automatyczną zamiane wielkości liter w kodzie vouchera
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Został naprawiony błąd, gdy admin był zalgowany i po odświeżeniu strony następowało wylogowanie
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Został naprawiony błąd, gdy po odświeżeniu strony nie było widać aktualnych klientów
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               Nowy generator voucherów
             </h3>
             <p className="text-xs text-gray-400 mb-2">17 maja 2025</p>
