@@ -40,8 +40,13 @@ const AdminClientManager: React.FC = () => {
     key: string | null;
     direction: "asc" | "desc" | null;
   }>({ key: null, direction: null });
-
   const [, setOriginalClients] = useState<ClientGame[]>([]);
+
+  const LOCAL_STORAGE_KEY = "ggvr_clients";
+
+  useEffect(() => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(clients));
+  }, [clients]);
 
   useEffect(() => {
     setOriginalClients(clients);
@@ -77,13 +82,13 @@ const AdminClientManager: React.FC = () => {
   }, [customPriceEnabled, duration, peopleCount]);
 
   useEffect(() => {
-  // UWAGA: jeśli edytujemy klienta, NIE nadpisuje godziny startowej
-  if (customStartEnabled && !editId) {
-    const now = DateTime.now();
-    setCustomHour(now.hour);
-    setCustomMinute(now.minute);
-  }
-}, [customStartEnabled, editId]);
+    // UWAGA: jeśli edytujemy klienta, NIE nadpisuje godziny startowej
+    if (customStartEnabled && !editId) {
+      const now = DateTime.now();
+      setCustomHour(now.hour);
+      setCustomMinute(now.minute);
+    }
+  }, [customStartEnabled, editId]);
 
   const resetForm = () => {
     setName("");
@@ -444,6 +449,30 @@ const AdminClientManager: React.FC = () => {
               onChange={(e) => setDuration(parseInt(e.target.value))}
               className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
             />
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[30, 15, 5, 1].map((val) => (
+                <button
+                  key={`plus-${val}`}
+                  onClick={() => setDuration((prev) => prev + val)}
+                  className="px-3 py-1 bg-[#0d7a25] hover:bg-green-600 text-white text-sm rounded"
+                  type="button"
+                >
+                  +{val}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {[30, 15, 5, 1].map((val) => (
+                <button
+                  key={`minus-${val}`}
+                  onClick={() => setDuration((prev) => Math.max(1, prev - val))}
+                  className="px-3 py-1 bg-[#911e1e] hover:bg-red-600 text-white text-sm rounded"
+                  type="button"
+                >
+                  -{val}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="mb-4">
@@ -523,7 +552,7 @@ const AdminClientManager: React.FC = () => {
                       onClick={() =>
                         setCustomPrice((prev) => (prev ?? 0) + val)
                       }
-                      className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded"
+                      className="px-3 py-1 bg-[#0d7a25] hover:bg-green-600 text-white text-sm rounded"
                     >
                       +{val}
                     </button>
@@ -534,7 +563,7 @@ const AdminClientManager: React.FC = () => {
                       onClick={() =>
                         setCustomPrice((prev) => Math.max(0, (prev ?? 0) - val))
                       }
-                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded"
+                      className="px-3 py-1 bg-[#911e1e] hover:bg-red-600 text-white text-sm rounded"
                     >
                       -{val}
                     </button>
