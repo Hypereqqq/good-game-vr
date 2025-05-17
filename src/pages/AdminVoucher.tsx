@@ -20,16 +20,16 @@ const playersOptions = Array.from({ length: 8 }, (_, i) => i + 1);
 // Dla dodatkowych informacji
 const infoPlayersOptions = [
   { value: "", label: "Wybierz ilość osób" },
-  { value: "1", label: "1 osoba" },
-  { value: "2", label: "2 osoby" },
+  { value: 1, label: "1 osoba" },
+  { value: 2, label: "2 osoby" },
 ];
 const ridesOptions = [
   { value: "", label: "Wybierz ilość przejazdów" },
-  { value: "1", label: "1 przejazd 5D" },
-  { value: "2", label: "2 przejazdy 5D" },
-  { value: "3", label: "3 przejazdy 5D" },
-  { value: "4", label: "4 przejazdy 5D" },
-  { value: "5", label: "5 przejazdów 5D" },
+  { value: 1, label: "1 przejazd 5D" },
+  { value: 2, label: "2 przejazdy 5D" },
+  { value: 3, label: "3 przejazdy 5D" },
+  { value: 4, label: "4 przejazdy 5D" },
+  { value: 5, label: "5 przejazdów 5D" },
 ];
 
 const AdminVoucher: React.FC = () => {
@@ -84,9 +84,13 @@ const AdminVoucher: React.FC = () => {
       let autoInfo = "";
       if (infoPlayers && rides) {
         if (infoPlayers === "1") {
-          autoInfo = ridesOptions.find(opt => opt.value === rides)?.label || "";
+          autoInfo =
+            ridesOptions.find((opt) => String(opt.value) === rides)?.label ||
+            "";
         } else if (infoPlayers === "2") {
-          const rideLabel = ridesOptions.find(opt => opt.value === rides)?.label || "";
+          const rideLabel =
+            ridesOptions.find((opt) => String(opt.value) === rides)?.label ||
+            "";
           const [przejazdy] = rideLabel.split(" 5D");
           autoInfo = `2 x ${przejazdy.trim()} 5D`;
         }
@@ -95,33 +99,30 @@ const AdminVoucher: React.FC = () => {
     }
   }, [infoPlayers, rides]);
 
+  // Eksport do PNG
   const handleExportPNG = () => {
-  if (!stageRef.current) return;
-  const uri = stageRef.current.toDataURL({ pixelRatio: 1 });
-  const fileName = code
-    ? `${code}_VOUCHER_GGVR.png`
-    : "VOUCHER_GGVR.png";
-  const link = document.createElement("a");
-  link.download = fileName;
-  link.href = uri;
-  link.click();
-};
+    if (!stageRef.current) return;
+    const uri = stageRef.current.toDataURL({ pixelRatio: 1 });
+    const fileName = code ? `${code}_VOUCHER_GGVR.png` : "VOUCHER_GGVR.png";
+    const link = document.createElement("a");
+    link.download = fileName;
+    link.href = uri;
+    link.click();
+  };
 
-// Eksport do PDF
-const handleExportPDF = () => {
-  if (!stageRef.current) return;
-  const uri = stageRef.current.toDataURL({ pixelRatio: 1 });
-  const fileName = code
-    ? `${code}_VOUCHER_GGVR.pdf`
-    : "VOUCHER_GGVR.pdf";
-  const pdf = new jsPDF({
-    orientation: "landscape",
-    unit: "px",
-    format: [VOUCHER_WIDTH, VOUCHER_HEIGHT],
-  });
-  pdf.addImage(uri, "PNG", 0, 0, VOUCHER_WIDTH, VOUCHER_HEIGHT);
-  pdf.save(fileName);
-};
+  // Eksport do PDF
+  const handleExportPDF = () => {
+    if (!stageRef.current) return;
+    const uri = stageRef.current.toDataURL({ pixelRatio: 1 });
+    const fileName = code ? `${code}_VOUCHER_GGVR.pdf` : "VOUCHER_GGVR.pdf";
+    const pdf = new jsPDF({
+      orientation: "landscape",
+      unit: "px",
+      format: [VOUCHER_WIDTH, VOUCHER_HEIGHT],
+    });
+    pdf.addImage(uri, "PNG", 0, 0, VOUCHER_WIDTH, VOUCHER_HEIGHT);
+    pdf.save(fileName);
+  };
 
   return (
     <section className="bg-[#0f1525] text-white px-6 py-10 min-h-screen">
@@ -196,7 +197,7 @@ const handleExportPDF = () => {
             <input
               type="text"
               value={code}
-              onChange={(e) => setCode(e.target.value)}
+              onChange={(e) => setCode(e.target.value.toUpperCase())}
               className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
               placeholder="Wklej kod"
             />
@@ -228,12 +229,7 @@ const handleExportPDF = () => {
                 className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
               >
                 {infoPlayersOptions.map((opt) => (
-                  <option
-                    key={opt.value}
-                    value={opt.value}
-                    disabled={opt.value === ""}
-                    style={opt.value === "" ? { color: "#9ca3af" } : {}}
-                  >
+                  <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
                 ))}
@@ -250,12 +246,7 @@ const handleExportPDF = () => {
                 className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
               >
                 {ridesOptions.map((opt) => (
-                  <option
-                    key={opt.value}
-                    value={opt.value}
-                    disabled={opt.value === ""}
-                    style={opt.value === "" ? { color: "#9ca3af" } : {}}
-                  >
+                  <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
                 ))}
@@ -385,9 +376,9 @@ const handleExportPDF = () => {
                     {info && (
                       <Text
                         text={info}
-                        x={525}
+                        x={1340} 
                         y={1430}
-                        width={VOUCHER_WIDTH}
+                        width={375} 
                         align="center"
                         fontSize={35}
                         fill="#000000"
