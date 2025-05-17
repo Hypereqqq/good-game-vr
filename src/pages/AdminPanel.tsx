@@ -9,7 +9,6 @@ import { isAdminLoggedInAtom } from "../store/auth";
 import { reservationsAtom } from "../store/store";
 import { clientsAtom } from "../store/clients";
 
-
 const AdminPanel: React.FC = () => {
   const [isLoggedIn] = useAtom(isAdminLoggedInAtom);
   const [reservations] = useAtom(reservationsAtom);
@@ -161,6 +160,47 @@ const AdminPanel: React.FC = () => {
             </div>
           </div>
 
+          {/* Lista aktualizacji */}
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
+              Nowy generator voucherów
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">17 maja 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano nowy, przejrzysty generator voucherów z podziałem na
+                sekcje
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Umożliwiono wpisanie imienia i nazwiska osoby, dla której
+                wystawiany jest voucher
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano wybór czasu gry oraz liczby graczy z listy lub możliwość
+                wpisania własnego tekstu
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano pole na kod vouchera oraz dodatkowe informacje z
+                automatycznymi podpowiedziami (np. ilość osób i przejazdów)
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Wprowadzono eksport vouchera do pliku PDF lub PNG z automatyczną
+                nazwą pliku zawierającą kod vouchera, jeśli został podany
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Dodano podgląd na żywo – wygląd vouchera aktualizuje się
+                natychmiast podczas edycji
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+            </ul>
+          </div>
+
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Małe poprawki i zmiany
@@ -168,13 +208,27 @@ const AdminPanel: React.FC = () => {
             <p className="text-xs text-gray-400 mb-2">17 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
-                System liczenia pozostałego czasu został naprawiony, teraz czas wyświetla się poprawnie
+                System liczenia pozostałego czasu został naprawiony, teraz czas
+                wyświetla się poprawnie
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
-              <li>Naprawiono błąd występujący przy edycji klienta jeśli miał już wcześniej ustawioną niestandardową godzinę (wtedy wówczas znów ustawiała się aktualna godzina zamiast pozostawienia wcześniej ustawionej) <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
-              
-              <li>Zwiększono rozmiar czcionki w podglądzie komentarza <span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+              <li>
+                Naprawiono błąd występujący przy edycji klienta jeśli miał już
+                wcześniej ustawioną niestandardową godzinę (wtedy wówczas znów
+                ustawiała się aktualna godzina zamiast pozostawienia wcześniej
+                ustawionej){" "}
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
 
+              <li>
+                Zwiększono rozmiar czcionki w podglądzie komentarza{" "}
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Naprawiono błąd w nawigacji (podkreślenie) podczas zmiany
+                podstrony{" "}
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
             </ul>
           </div>
 
@@ -188,13 +242,23 @@ const AdminPanel: React.FC = () => {
                 Dodano sortowanie tabeli klientów według różnych kryteriów
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
-              <li>Nowy popup potwierdzający usuwanie klienta <span className="text-[#16da9f] font-bold"> [UI]</span></li>
-              <li>Ulepszony wygląd kafelków <span className="text-[#16da9f] font-bold"> [UI]</span></li>
-              <li>Dodano obsługe komentarzy, ich edycję oraz pop-up po najechaniu <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
-              
+              <li>
+                Nowy popup potwierdzający usuwanie klienta{" "}
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Ulepszony wygląd kafelków{" "}
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano obsługe komentarzy, ich edycję oraz pop-up po najechaniu{" "}
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+
               <li>
                 Poprawienie liczenia czasu (problem z{" "}
-                <span className="text-red-400 font-bold">Koniec gry</span>) <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-red-400 font-bold">Koniec gry</span>){" "}
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
             </ul>
           </div>
