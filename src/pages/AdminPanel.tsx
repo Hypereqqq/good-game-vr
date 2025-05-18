@@ -164,6 +164,38 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              Dzielenie grup
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano podział grup na mniejsze grupy 
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Dodano zabezpieczenie, aby wykrywać zdwojone stanowiska podczas dzielenia grup, wraz z odpowiednim komunikatem
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano możliwość wyboru ilości grup, na które ma być podzielona grupa
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano opcje wyboru stanowisk w każdej grupie
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano możliwość wyboru ilości osób w każdej grupie
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               Poprawki i zmiany
             </h3>
             <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
@@ -183,7 +215,7 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
               <li>
-                Dodano automatyczną zamiane wielkości liter w kodzie vouchera
+                Dodano automatyczną zamianę wielkości liter w kodzie vouchera
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
               <li>
@@ -194,6 +226,29 @@ const AdminPanel: React.FC = () => {
               <li>
                 Został naprawiony błąd, gdy po odświeżeniu strony nie było widać aktualnych klientów
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Zmieniono wygląd checkboxów
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Zmieniono wygląd przycisków odpowiedzialnych za zmianę liczby osób
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Zmieniono sposób wyświatlania się komunikatu o braku unikalnych stanowisk oraz dodano zaznaczenie, gdzie występuje błąd
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Zmieniono sposób podświetlania kafelków, które są edytowane
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Naprawiono błąd, gdy podczas edycji klienta został on usunięty - panel zostawał w trybie edycji
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
             </ul>
