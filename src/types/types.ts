@@ -32,3 +32,7 @@ export interface Reservation {
   // mozna dodac staystyki
   // dodanie stopera
   // dodanie powiadomien np po 15 minutach zeby zmienic gre
+
+
+  // usunac z grupy i zapytac czy dodac do kolejki platnosci, zrobic kolejke
+  // dodac laczenie w grupy
