@@ -32,6 +32,15 @@ const AdminClientManager: React.FC = () => {
   const [customPrice, setCustomPrice] = useState<number | null>(null);
   const [addComment, setAddComment] = useState(false);
   const [comment, setComment] = useState<string>("");
+  const [duplicateSlots, setDuplicateSlots] = useState<number[]>([]);
+  const [showDuplicateError, setShowDuplicateError] = useState(false);
+  const [splitEnabled, setSplitEnabled] = useState(false);
+  const [splitGroupsCount, setSplitGroupsCount] = useState<number | "">("");
+  const [splitGroups, setSplitGroups] = useState<
+    { players: number; stations: number[] }[]
+  >([]);
+  const [splitError, setSplitError] = useState(false);
+
   const [, setTick] = useState(0); // tylko do triggerowania re-renderu
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<ClientGame | null>(null);
@@ -51,6 +60,13 @@ const AdminClientManager: React.FC = () => {
   useEffect(() => {
     setOriginalClients(clients);
   }, [clients]);
+
+  useEffect(() => {
+    if (editId && !clients.some((c) => c.id === editId)) {
+      setEditId(null);
+      resetForm();
+    }
+  }, [clients, editId]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -177,9 +193,19 @@ const AdminClientManager: React.FC = () => {
   const handleAddClient = () => {
     const uniqueSlots = new Set(slots);
     if (uniqueSlots.size !== slots.length) {
-      alert("Wszystkie stanowiska muszą być unikalne!");
+      // znajdź indeksy duplikatów
+      const duplicates: number[] = [];
+      slots.forEach((val, idx) => {
+        if (slots.indexOf(val) !== idx && !duplicates.includes(idx)) {
+          duplicates.push(idx);
+        }
+      });
+      setDuplicateSlots(duplicates);
+      setShowDuplicateError(true);
       return;
     }
+    setDuplicateSlots([]);
+    setShowDuplicateError(false);
 
     const now = customStartEnabled
       ? DateTime.now()
@@ -257,6 +283,18 @@ const AdminClientManager: React.FC = () => {
       setEditId(client.id);
       setName(client.name);
       setPeopleCount(client.players);
+      setSplitEnabled(false);
+      setSplitGroupsCount(2);
+      setSplitGroups(
+        Array.from({ length: 2 }, (_, i) => ({
+          players:
+            i === 0
+              ? Math.ceil(client.players / 2)
+              : Math.floor(client.players / 2),
+          stations: [client.stations[i] ?? null],
+        }))
+      );
+      setSplitError(false);
       setSlots(client.stations);
       setDuration(client.duration);
       setPaid(client.paid);
@@ -271,6 +309,39 @@ const AdminClientManager: React.FC = () => {
       setAddComment(!!client.comment);
       setComment(client.comment ?? "");
     }
+  };
+
+  const handleSplitGroup = () => {
+    const sum = splitGroups.reduce((a, g) => a + g.players, 0);
+    const allStations = splitGroups.flatMap((g) => g.stations);
+    const duplicates: number[] = [];
+    allStations.forEach((val, idx) => {
+      if (allStations.indexOf(val) !== idx && !duplicates.includes(idx)) {
+        duplicates.push(idx);
+      }
+    });
+    if (
+      sum !== peopleCount ||
+      allStations.some((s) => s == null) ||
+      new Set(allStations).size !== allStations.length
+    ) {
+      setSplitError(true);
+      return;
+    }
+    // Podziel grupę
+    if (!editId) return;
+    const client = clients.find((c) => c.id === editId);
+    if (!client) return;
+    const newGroups = splitGroups.map((g) => ({
+      ...client,
+      id: uuidv4(),
+      players: g.players,
+      stations: g.stations,
+    }));
+    setClients((prev) => prev.filter((c) => c.id !== editId).concat(newGroups));
+    setEditId(null);
+    setSplitEnabled(false);
+    resetForm();
   };
 
   const occupiedStations = clients
@@ -385,16 +456,25 @@ const AdminClientManager: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => handlePeopleChange(-1)}
-                className="px-2 py-1 bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50"
+                className="w-7 h-7 flex items-center justify-center bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50 transition"
                 disabled={peopleCount <= 1}
+                style={{ minWidth: "1rem", minHeight: "1rem" }}
+                type="button"
               >
                 -
               </button>
-              <span>{peopleCount}</span>
+              <span
+                className="inline-flex items-center justify-center text-lg font-bold"
+                style={{ width: "1.25rem", textAlign: "center" }}
+              >
+                {peopleCount}
+              </span>
               <button
                 onClick={() => handlePeopleChange(1)}
-                className="px-2 py-1 bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50"
+                className="w-7 h-7 flex items-center justify-center bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50 transition"
                 disabled={peopleCount >= 8 || allStationsTaken}
+                style={{ minWidth: "1rem", minHeight: "1rem" }}
+                type="button"
               >
                 +
               </button>
@@ -423,8 +503,14 @@ const AdminClientManager: React.FC = () => {
                   const updated = [...slots];
                   updated[i] = parseInt(e.target.value);
                   setSlots(updated);
+                  setDuplicateSlots([]); // reset błędu po zmianie
+                  setShowDuplicateError(false);
                 }}
-                className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                className={`w-full p-2 rounded bg-[#0f1525] border ${
+                  duplicateSlots.includes(i)
+                    ? "border-red-500"
+                    : "border-gray-600"
+                } text-white`}
               >
                 {sortedStationOrder
                   .filter(
@@ -440,6 +526,12 @@ const AdminClientManager: React.FC = () => {
               </select>
             </div>
           ))}
+
+          {showDuplicateError && (
+            <div className="mb-4 text-red-500 text-sm">
+              Wszystkie stanowiska muszą być unikalne!
+            </div>
+          )}
 
           <div className="mb-4">
             <label className="block mb-1 text-sm">Czas gry (minuty):</label>
@@ -481,6 +573,7 @@ const AdminClientManager: React.FC = () => {
                 type="checkbox"
                 checked={customStartEnabled}
                 onChange={() => setCustomStartEnabled(!customStartEnabled)}
+                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
               />
               Niestandardowa godzina rozpoczęcia
             </label>
@@ -529,6 +622,7 @@ const AdminClientManager: React.FC = () => {
                 type="checkbox"
                 checked={customPriceEnabled}
                 onChange={() => setCustomPriceEnabled(!customPriceEnabled)}
+                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
               />
               Niestandardowa kwota
             </label>
@@ -579,6 +673,7 @@ const AdminClientManager: React.FC = () => {
                 type="checkbox"
                 checked={addComment}
                 onChange={() => setAddComment((v) => !v)}
+                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
               />
               Dodaj komentarz
             </label>
@@ -600,10 +695,227 @@ const AdminClientManager: React.FC = () => {
                 type="checkbox"
                 checked={paid}
                 onChange={() => setPaid(!paid)}
+                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
               />{" "}
               Opłacone
             </label>
           </div>
+
+          {editId && peopleCount > 1 && (
+            <>
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={splitEnabled}
+                    onChange={() => setSplitEnabled((v) => !v)}
+                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                  />
+                  Podziel grupę
+                </label>
+              </div>
+              {splitEnabled && (
+                <div className="mb-4 mt-2 p-3 rounded  border border-[#00d9ff]">
+                  <div className="font-semibold text-[#00d9ff] mb-2">
+                    Podział grupy {peopleCount} osobowej
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="text-sm">Liczba grup:</label>
+                    <select
+                      value={splitGroupsCount}
+                      onChange={(e) => {
+                        const val =
+                          e.target.value === "" ? "" : Number(e.target.value);
+                        setSplitGroupsCount(val);
+                        if (val === "" || isNaN(Number(val))) {
+                          setSplitGroups([]);
+                          return;
+                        }
+                        const base = Math.floor(peopleCount / Number(val));
+                        const rest = peopleCount % Number(val);
+                        setSplitGroups(
+                          Array.from({ length: Number(val) }, (_, i) => ({
+                            players: i < rest ? base + 1 : base,
+                            stations: Array(i < rest ? base + 1 : base).fill(
+                              null
+                            ),
+                          }))
+                        );
+                        setSplitError(false);
+                      }}
+                      className="w-24 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                    >
+                      <option value="">Wybierz...</option>
+                      {Array.from(
+                        { length: peopleCount - 1 },
+                        (_, i) => i + 2
+                      ).map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {splitGroupsCount !== "" && (
+                    <>
+                      <table className="w-full text-sm mb-4 bg-[#1e2636] rounded">
+                        <thead>
+                          <tr>
+                            <th className="p-2 text-left border-b border-gray-600">
+                              Grupa
+                            </th>
+                            <th className="p-2 text-left border-b border-gray-600">
+                              Liczba osób
+                            </th>
+                            <th className="p-2 text-left border-b border-gray-600">
+                              Stanowiska
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {splitGroups.map((group, idx) => (
+                            <tr key={idx} className="border-b border-gray-700">
+                              <td className="p-2 font-semibold align-top">
+                                Grupa {idx + 1}
+                              </td>
+                              <td className="p-2 align-top">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  max={peopleCount}
+                                  value={group.players}
+                                  onChange={(e) => {
+                                    const val = Math.max(
+                                      1,
+                                      Math.min(
+                                        peopleCount,
+                                        Number(e.target.value)
+                                      )
+                                    );
+                                    const updated = [...splitGroups];
+                                    const sumOther = updated.reduce(
+                                      (acc, g, i2) =>
+                                        i2 === idx ? acc : acc + g.players,
+                                      0
+                                    );
+                                    updated[idx].players = Math.max(
+                                      1,
+                                      Math.min(val, peopleCount - sumOther)
+                                    );
+                                    if (
+                                      updated[idx].stations.length >
+                                      updated[idx].players
+                                    ) {
+                                      updated[idx].stations = updated[
+                                        idx
+                                      ].stations.slice(0, updated[idx].players);
+                                    } else {
+                                      updated[idx].stations = [
+                                        ...updated[idx].stations,
+                                        ...Array(
+                                          updated[idx].players -
+                                            updated[idx].stations.length
+                                        ).fill(null),
+                                      ];
+                                    }
+                                    setSplitGroups(updated);
+                                  }}
+                                  className="w-16 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                                />
+                              </td>
+                              <td className="p-2">
+                                <div className="flex flex-col gap-2">
+                                  {Array.from({ length: group.players }).map(
+                                    (_, pIdx) => {
+                                      const stationValue = group.stations[pIdx];
+                                      const allStations = splitGroups.flatMap(
+                                        (g) => g.stations
+                                      );
+                                      const isDuplicate =
+                                        stationValue &&
+                                        allStations.filter(
+                                          (s) => s === stationValue
+                                        ).length > 1 &&
+                                        stationValue !== null;
+
+                                      return (
+                                        <select
+                                          key={pIdx}
+                                          value={stationValue ?? ""}
+                                          onChange={(e) => {
+                                            const updated = [...splitGroups];
+                                            updated[idx].stations[pIdx] =
+                                              Number(e.target.value);
+                                            setSplitGroups(updated);
+                                            setSplitError(false);
+                                          }}
+                                          className={`w-28 p-1 rounded bg-[#0f1525] border ${
+                                            isDuplicate
+                                              ? "border-red-500"
+                                              : "border-gray-600"
+                                          } text-white`}
+                                        >
+                                          <option value="">Stanowisko</option>
+                                          {slots.map((s) => (
+                                            <option key={s} value={s}>
+                                              {stanowiskoLabels[s]}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      );
+                                    }
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {splitError && (
+                        <div className="mb-2 mt-2 text-red-500 text-sm">
+                          Każde stanowisko musi być unikalne!
+                        </div>
+                      )}
+                      {splitGroups.some((g) => g.stations.some((s) => !s)) && (
+                        <div className="mb-2 mt-2 text-red-500 text-sm">
+                          Wszystkie stanowiska muszą zostać wybrane!
+                        </div>
+                      )}
+                      {splitGroups.reduce((a, b) => a + b.players, 0) <
+                        peopleCount && (
+                        <div className="mb-2 mt-2 text-red-500 text-sm">
+                          Wybrano za mało osób w grupach!
+                        </div>
+                      )}
+
+                      <button
+                        className="mt-2 px-4 py-1 rounded bg-[#00d9ff] text-black font-bold hover:bg-[#ffcc00] transition"
+                        onClick={handleSplitGroup}
+                        disabled={
+                          splitGroups.some(
+                            (g) =>
+                              g.players < 1 ||
+                              !g.stations ||
+                              g.stations.length !== g.players ||
+                              g.stations.some((s) => !s)
+                          ) ||
+                          splitGroups.reduce((a, b) => a + b.players, 0) !==
+                            peopleCount
+                        }
+                      >
+                        Podziel grupę
+                      </button>
+                    </>
+                  )}
+                  {splitGroupsCount === "" && (
+                    <div className="mb-2 mt-2 text-red-500 text-sm">
+                      Wybierz liczbę grup!
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          )}
 
           <button
             onClick={handleAddClient}
@@ -627,10 +939,18 @@ const AdminClientManager: React.FC = () => {
                 client.stations.includes(slotIndex)
               );
 
+              const isEditing = clientsInSlot.some(
+                (client) => editId === client.id
+              );
+
               return (
                 <div
                   key={index}
-                  className="bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words"
+                  className={`bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words transition
+                              ${isEditing ? "ring-1 ring-[#00d9ff] z-10" : ""}`}
+                  style={{
+                    transition: "transform 0.2s, box-shadow 0.2s",
+                  }}
                 >
                   <div className="flex justify-between items-center mb-2">
                     <div className="text-sm font-bold text-[#00d9ff]">
@@ -699,14 +1019,8 @@ const AdminClientManager: React.FC = () => {
 
                   {clientsInSlot.length > 0 ? (
                     clientsInSlot.map((client, i) => {
-                      const isEditing = editId === client.id;
                       return (
-                        <div
-                          key={i}
-                          className={`text-sm text-blue-300 mb-2 ${
-                            isEditing ? "bg-[#2a354a] rounded " : ""
-                          }`}
-                        >
+                        <div key={i} className="text-sm text-blue-300 mb-2">
                           <div className="font-semibold">
                             {client.name} – {client.duration} min
                           </div>
