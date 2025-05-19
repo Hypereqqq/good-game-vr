@@ -23,6 +23,10 @@ type RemoveOption = {
 };
 
 const AdminClientManager: React.FC = () => {
+
+  const LOCAL_STORAGE_KEY = "ggvr_clients";
+  const QUEUE_LOCAL_STORAGE_KEY = "ggvr_queueClients";
+  
   const [clients, setClients] = useAtom(clientsAtom);
   const [peopleCount, setPeopleCount] = useState(1);
   const [name, setName] = useState("");
@@ -50,7 +54,10 @@ const AdminClientManager: React.FC = () => {
   const [removeCount, setRemoveCount] = useState<number | "">("");
   const [removeStations, setRemoveStations] = useState<number[]>([]);
   const [removeOptions, setRemoveOptions] = useState<RemoveOption[]>([]);
-  const [queueClients, setQueueClients] = useState<ClientGame[]>([]);
+  const [queueClients, setQueueClients] = useState<ClientGame[]>(() => {
+  const stored = localStorage.getItem(QUEUE_LOCAL_STORAGE_KEY);
+  return stored ? JSON.parse(stored) : [];
+});
   const [removeNames, setRemoveNames] = useState<string[]>([]);
   const [removePrices, setRemovePrices] = useState<(number | "")[]>([]);
 
@@ -68,11 +75,15 @@ const AdminClientManager: React.FC = () => {
   }>({ key: null, direction: null });
   const [, setOriginalClients] = useState<ClientGame[]>([]);
 
-  const LOCAL_STORAGE_KEY = "ggvr_clients";
+  
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(clients));
   }, [clients]);
+
+  useEffect(() => {
+  localStorage.setItem(QUEUE_LOCAL_STORAGE_KEY, JSON.stringify(queueClients));
+}, [queueClients]);
 
   useEffect(() => {
     setOriginalClients(clients);
