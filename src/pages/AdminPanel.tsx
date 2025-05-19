@@ -164,6 +164,40 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              Usuwanie osób z grupy + dodatkowe funkcjonalności
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">19 maja 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano możliwość usuwania osób z grupy wraz z możlwością wyboru sposobu usunięcia
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Dodano kolejke osób do zapłaty, które grały w danej grupie wraz z edycją i usuwaniem
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Dodano automatyczne obliczanie kwoty do zapłaty (lub wpisanie własnej)
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Dodano automatyczny komentarz dla grupy, w której usunnięto osobę
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Naprawiono błąd ze zdwojoną opcją
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               Dzielenie grup
             </h3>
             <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
