@@ -34,3 +34,7 @@ export interface Reservation {
   
   // dodanie powiadomien np po 15 minutach zeby zmienic gre
   // mozna dodac staystyki
+
+  // w kolecje niech sie pokazuje czas jaki faktycznie gral
+  // usuwanie z grupy X osobowej
+  // komentarz dla kolejki, czas kiedy gral dla kolejki
