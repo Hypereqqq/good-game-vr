@@ -17,6 +17,11 @@ const stanowiskoLabels: Record<number, string> = {
   8: "Tył 1",
 };
 
+type RemoveOption = {
+  type: "paid" | "toPay";
+  toPayOption?: "addToGroup" | "addToQueue";
+};
+
 const AdminClientManager: React.FC = () => {
   const [clients, setClients] = useAtom(clientsAtom);
   const [peopleCount, setPeopleCount] = useState(1);
@@ -40,6 +45,18 @@ const AdminClientManager: React.FC = () => {
     { players: number; stations: number[] }[]
   >([]);
   const [splitError, setSplitError] = useState(false);
+
+  const [removeFromGroupEnabled, setRemoveFromGroupEnabled] = useState(false);
+  const [removeCount, setRemoveCount] = useState<number | "">("");
+  const [removeStations, setRemoveStations] = useState<number[]>([]);
+  const [removeOptions, setRemoveOptions] = useState<RemoveOption[]>([]);
+  const [queueClients, setQueueClients] = useState<ClientGame[]>([]);
+  const [removeNames, setRemoveNames] = useState<string[]>([]);
+  const [removePrices, setRemovePrices] = useState<(number | "")[]>([]);
+
+  const [editingQueueId, setEditingQueueId] = useState<string | null>(null);
+  const [editingQueueName, setEditingQueueName] = useState("");
+  const [editingQueuePrice, setEditingQueuePrice] = useState<number | "">("");
 
   const [, setTick] = useState(0); // tylko do triggerowania re-renderu
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -341,6 +358,87 @@ const AdminClientManager: React.FC = () => {
     setClients((prev) => prev.filter((c) => c.id !== editId).concat(newGroups));
     setEditId(null);
     setSplitEnabled(false);
+    resetForm();
+  };
+
+  const handleRemoveFromGroup = (names: string[], prices: (number | "")[]) => {
+    if (!editId) return;
+    const client = clients.find((c) => c.id === editId);
+    if (!client) return;
+
+    let updatedStations = [...client.stations];
+    let updatedPlayers = client.players;
+    let updatedPaid = client.paid;
+    let updatedCustomPrice = client.customPrice;
+
+    let queueToAdd: ClientGame[] = [];
+    let removedNames: string[] = [];
+
+    removeStations.forEach((station, idx) => {
+      const option = removeOptions[idx];
+      if (option?.type === "paid") {
+        updatedStations = updatedStations.filter((s) => s !== station);
+        updatedPlayers--;
+      } else if (option?.type === "toPay") {
+        updatedStations = updatedStations.filter((s) => s !== station);
+        updatedPlayers--;
+        const now = DateTime.now().toISO();
+        // Użyj nazwy stanowiska do komentarza
+        const stationLabel =
+          stanowiskoLabels[station] || `Stanowisko ${station}`;
+        removedNames.push(stationLabel);
+        queueToAdd.push({
+          id: uuidv4(),
+          name: names[idx] !== undefined ? names[idx] : "",
+          stations: [station],
+          players: 1,
+          duration: client.duration,
+          startTime: now,
+          paid: false,
+          customPrice: prices[idx] !== "" ? Number(prices[idx]) : undefined,
+          customStart: client.customStart,
+          comment: "Do zapłaty (kolejka)",
+          queue: true,
+        } as any);
+      }
+    });
+
+    // Dodaj lub doklej komentarz do pozostałych osób w grupie
+    setClients((prev) =>
+      prev
+        .map((c) => {
+          if (c.id === editId) {
+            let newComment = c.comment || "";
+            if (removedNames.length) {
+              const newPart = `W kolejce oczekuje płatność za: ${removedNames.join(
+                " + "
+              )}`;
+              if (!newComment) {
+                newComment = newPart;
+              } else if (!newComment.includes(newPart)) {
+                newComment = `${newComment} + ${newPart}`;
+              }
+            }
+            return {
+              ...c,
+              stations: updatedStations,
+              players: updatedPlayers,
+              paid: updatedPaid,
+              customPrice: updatedCustomPrice,
+              comment: newComment,
+            };
+          }
+          return c;
+        })
+        .filter((c) => c.players > 0)
+    );
+
+    setQueueClients((prev) => [...prev, ...queueToAdd]);
+    setRemoveFromGroupEnabled(false);
+    setRemoveCount("");
+    setRemoveStations([]);
+    setRemoveOptions([]);
+    setEditId(null);
     resetForm();
   };
 
@@ -689,18 +787,6 @@ const AdminClientManager: React.FC = () => {
             )}
           </div>
 
-          <div className="mb-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={paid}
-                onChange={() => setPaid(!paid)}
-                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-              />{" "}
-              Opłacone
-            </label>
-          </div>
-
           {editId && peopleCount > 1 && (
             <>
               <div className="mb-4">
@@ -917,6 +1003,286 @@ const AdminClientManager: React.FC = () => {
             </>
           )}
 
+          {editId && peopleCount > 1 && (
+            <>
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={removeFromGroupEnabled}
+                    onChange={() => {
+                      setRemoveFromGroupEnabled((v) => !v);
+                      setRemoveCount("");
+                      setRemoveStations([]);
+                      setRemoveOptions([]);
+                    }}
+                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                  />
+                  Usuń z grupy
+                </label>
+              </div>
+              {removeFromGroupEnabled && (
+                <div className="mb-4 p-3 rounded border-2 border-[#ff0000]/40 bg-[#1e2636]">
+                  <div className="font-semibold text-[#ff0000] mb-2">
+                    Usuwanie osób z grupy
+                  </div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <label className="text-sm">Ile osób usunąć:</label>
+                    <select
+                      value={removeCount}
+                      onChange={(e) => {
+                        const val =
+                          e.target.value === "" ? "" : Number(e.target.value);
+                        setRemoveCount(val);
+                        setRemoveStations(
+                          val === "" ? [] : Array(val).fill(null)
+                        );
+                        setRemoveOptions(
+                          val === "" ? [] : Array(val).fill({ type: "paid" })
+                        );
+                        setRemoveNames(val === "" ? [] : Array(val).fill(""));
+                        setRemovePrices(val === "" ? [] : Array(val).fill(""));
+                      }}
+                      className="w-24 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                    >
+                      <option value="">Wybierz...</option>
+                      {Array.from({ length: peopleCount }, (_, i) => i + 1).map(
+                        (n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
+                  {removeCount !== "" && (
+                    <>
+                      <div className="mt-2 flex flex-col gap-4">
+                        {Array.from({ length: Number(removeCount) }).map(
+                          (_, idx) => {
+                            const station = removeStations[idx];
+                            const client = clients.find((c) => c.id === editId);
+                            let startTime = "";
+                            let duration = "";
+                            let nowTime = "";
+                            let played = "";
+                            let defaultPrice = "";
+                            if (client && station) {
+                              startTime = DateTime.fromISO(
+                                client.startTime
+                              ).toFormat("HH:mm");
+                              duration = client.duration + " min";
+                              nowTime = DateTime.now().toFormat("HH:mm");
+                              const playedMinutes = Math.max(
+                                0,
+                                Math.floor(
+                                  DateTime.now().diff(
+                                    DateTime.fromISO(client.startTime),
+                                    "minutes"
+                                  ).minutes
+                                )
+                              );
+                              played = playedMinutes + " min";
+
+                              // Wylicz kwotę za faktycznie zagrany czas
+                              const start = DateTime.fromISO(client.startTime);
+                              const isWeekend = [5, 6, 7].includes(
+                                start.weekday
+                              );
+                              const rate = isWeekend ? 45 : 39;
+                              defaultPrice = (
+                                (rate / 30) *
+                                playedMinutes
+                              ).toFixed(2);
+                            }
+                            return (
+                              <div
+                                key={idx}
+                                className="flex flex-col gap-1 border-b border-gray-700 pb-2"
+                              >
+                                <label className="text-sm">
+                                  Stanowisko do usunięcia {idx + 1}:
+                                </label>
+                                <select
+                                  value={removeStations[idx] ?? ""}
+                                  onChange={(e) => {
+                                    const updated = [...removeStations];
+                                    updated[idx] = Number(e.target.value);
+                                    setRemoveStations(updated);
+                                    const pricesUpd = [...removePrices];
+                                    const client = clients.find(
+                                      (c) => c.id === editId
+                                    );
+                                    const c = client
+                                      ? (() => {
+                                          const playedMinutes = Math.max(
+                                            0,
+                                            Math.floor(
+                                              DateTime.now().diff(
+                                                DateTime.fromISO(
+                                                  client.startTime
+                                                ),
+                                                "minutes"
+                                              ).minutes
+                                            )
+                                          );
+                                          const start = DateTime.fromISO(
+                                            client.startTime
+                                          );
+                                          const isWeekend = [5, 6, 7].includes(
+                                            start.weekday
+                                          );
+                                          const rate = isWeekend ? 45 : 39;
+                                          return (
+                                            (rate / 30) *
+                                            playedMinutes
+                                          ).toFixed(2);
+                                        })()
+                                      : "";
+                                    pricesUpd[idx] = c === "" ? "" : Number(c);
+                                    setRemovePrices(pricesUpd);
+                                  }}
+                                  className="w-28 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                                >
+                                  <option value="">Stanowisko</option>
+                                  {slots.map((s) => (
+                                    <option key={s} value={s}>
+                                      {stanowiskoLabels[s]}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="flex gap-4 mt-1">
+                                  <label className="flex items-center gap-1 text-xs">
+                                    <input
+                                      type="radio"
+                                      checked={
+                                        removeOptions[idx]?.type === "paid"
+                                      }
+                                      onChange={() => {
+                                        const updated = [...removeOptions];
+                                        updated[idx] = { type: "paid" };
+                                        setRemoveOptions(updated);
+                                      }}
+                                    />
+                                    Opłacone
+                                  </label>
+                                  <label className="flex items-center gap-1 text-xs">
+                                    <input
+                                      type="radio"
+                                      checked={
+                                        removeOptions[idx]?.type === "toPay"
+                                      }
+                                      onChange={() => {
+                                        const updated = [...removeOptions];
+                                        updated[idx] = { type: "toPay" };
+                                        setRemoveOptions(updated);
+                                      }}
+                                    />
+                                    Do opłacenia
+                                  </label>
+                                </div>
+                                {/* INPUTY i info tylko dla opcji do zapłaty */}
+                                {removeOptions[idx]?.type === "toPay" && (
+                                  <>
+                                    <div className="text-xs text-gray-300 mt-2 mb-1">
+                                      <div>
+                                        <span className="font-semibold">
+                                          Czas gry:
+                                        </span>{" "}
+                                        {duration}
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold">
+                                          Start:
+                                        </span>{" "}
+                                        {startTime}
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold">
+                                          Teraz:
+                                        </span>{" "}
+                                        {nowTime}
+                                      </div>
+                                      <div>
+                                        <span className="font-semibold">
+                                          Grano:
+                                        </span>{" "}
+                                        {played}
+                                      </div>
+                                    </div>
+                                    <label className="block text-xs font-semibold mt-1 mb-0.5">
+                                      Nazwa
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="Nazwa (opcjonalnie)"
+                                      value={removeNames[idx] ?? ""}
+                                      onChange={(e) => {
+                                        const updated = [...removeNames];
+                                        updated[idx] = e.target.value;
+                                        setRemoveNames(updated);
+                                      }}
+                                      className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                                    />
+                                    <label className="block text-xs font-semibold mt-2 mb-0.5">
+                                      Kwota do zapłaty
+                                    </label>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      step="0.01"
+                                      placeholder="Kwota"
+                                      value={removePrices[idx] ?? defaultPrice}
+                                      onChange={(e) => {
+                                        const updated = [...removePrices];
+                                        updated[idx] =
+                                          e.target.value === ""
+                                            ? ""
+                                            : Number(e.target.value);
+                                        setRemovePrices(updated);
+                                      }}
+                                      className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                                    />
+                                  </>
+                                )}
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                      <button
+                        className="mt-4 px-4 py-2 rounded bg-red-600 text-white font-bold hover:bg-red-800 transition disabled:opacity-50"
+                        disabled={
+                          removeStations.length !== Number(removeCount) ||
+                          removeStations.some((s) => !s) ||
+                          removeOptions.length !== Number(removeCount) ||
+                          removeOptions.some((opt) => !opt.type)
+                        }
+                        onClick={() => {
+                          handleRemoveFromGroup(removeNames, removePrices);
+                        }}
+                      >
+                        Usuń wybrane osoby
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="mb-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={paid}
+                onChange={() => setPaid(!paid)}
+                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+              />{" "}
+              Opłacone
+            </label>
+          </div>
+
           <button
             onClick={handleAddClient}
             disabled={allStationsTaken}
@@ -1086,6 +1452,195 @@ const AdminClientManager: React.FC = () => {
           </div>
 
           <div className="overflow-x-auto lg:overflow-x-visible mt-10">
+            {queueClients.length > 0 && (
+              <div className="mt-8 mb-8">
+                <h3 className="text-lg font-bold text-[#00d9ff] mb-2">
+                  Kolejka do zapłaty
+                </h3>
+                <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
+                  <thead>
+                    <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
+                      <th className="p-3">Nazwa</th>
+                      <th className="p-3">Stanowisko</th>
+                      <th className="p-3">Czas</th>
+                      <th className="p-3">Kwota</th>
+                      <th className="p-3">Opłacone</th>
+                      <th className="p-3">Akcje</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {queueClients.map((client) => {
+                      const isEditing = editingQueueId === client.id;
+                      return (
+                        <tr
+                          key={client.id}
+                          className="border-b border-gray-700 hover:bg-[#2b3242]"
+                        >
+                          <td className="p-3 text-white">
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editingQueueName}
+                                onChange={(e) =>
+                                  setEditingQueueName(e.target.value)
+                                }
+                                className="w-40 p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                              />
+                            ) : (
+                              client.name
+                            )}
+                          </td>
+                          <td className="p-3 text-white">
+                            {client.stations
+                              .map((s) => stanowiskoLabels[s])
+                              .join(", ")}
+                          </td>
+                          <td className="p-3 text-white">
+                            {client.duration} min
+                          </td>
+                          <td className="p-3 text-white ">
+                            {isEditing ? (
+                              <input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={editingQueuePrice}
+                                onChange={(e) =>
+                                  setEditingQueuePrice(
+                                    e.target.value === ""
+                                      ? ""
+                                      : Number(e.target.value)
+                                  )
+                                }
+                                className="w-24 p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                              />
+                            ) : (
+                              (client.customPrice != null
+                                ? client.customPrice
+                                : getSinglePlayerAmount(
+                                    client.duration,
+                                    client.startTime
+                                  )
+                              ).toFixed(2) + " zł"
+                            )}
+                          </td>
+                          <td className="p-3 text-white">
+                            <label className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={!!client.paid}
+                                onChange={(e) => {
+                                  const updated = [...queueClients];
+                                  const idx = updated.findIndex(
+                                    (c) => c.id === client.id
+                                  );
+                                  updated[idx] = {
+                                    ...client,
+                                    paid: e.target.checked,
+                                  };
+                                  setQueueClients(updated);
+                                }}
+                                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                                disabled={isEditing}
+                              />
+                              <span
+                                className={
+                                  client.paid
+                                    ? "text-green-400 font-bold"
+                                    : "text-red-400 font-bold"
+                                }
+                                style={{
+                                  minWidth: 90,
+                                  display: "inline-block",
+                                }}
+                              >
+                                {client.paid ? "Opłacone" : "Do zapłaty"}
+                              </span>
+                            </label>
+                          </td>
+                          <td className="p-3">
+                            {isEditing ? (
+                              <div className="flex gap-2">
+                                <button
+                                  className="px-3 py-1 rounded bg-gray-600 text-white hover:bg-gray-700"
+                                  onClick={() => setEditingQueueId(null)}
+                                >
+                                  Anuluj
+                                </button>
+                                <button
+                                  className="px-3 py-1 rounded bg-[#00d9ff] text-black font-bold hover:bg-[#ffcc00]"
+                                  onClick={() => {
+                                    setQueueClients(
+                                      queueClients.map((q) =>
+                                        q.id === client.id
+                                          ? {
+                                              ...q,
+                                              name: editingQueueName,
+                                              customPrice:
+                                                editingQueuePrice === ""
+                                                  ? undefined
+                                                  : Number(editingQueuePrice),
+                                            }
+                                          : q
+                                      )
+                                    );
+                                    setEditingQueueId(null);
+                                  }}
+                                >
+                                  Zapisz
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  className="text-gray-500 hover:text-yellow-500 transition"
+                                  onClick={() => {
+                                    setEditingQueueId(client.id);
+                                    setEditingQueueName(client.name ?? "");
+                                    setEditingQueuePrice(
+                                      client.customPrice != null
+                                        ? client.customPrice
+                                        : getSinglePlayerAmount(
+                                            client.duration,
+                                            client.startTime
+                                          )
+                                    );
+                                  }}
+                                  title="Edytuj"
+                                  disabled={client.paid}
+                                >
+                                  <FaEdit />
+                                </button>
+                                <button
+                                  className={`text-gray-500 hover:text-red-600 ml-2 transition ${
+                                    !client.paid
+                                      ? "opacity-50 cursor-not-allowed"
+                                      : ""
+                                  }`}
+                                  onClick={() => {
+                                    if (!client.paid) return;
+                                    setQueueClients(
+                                      queueClients.filter(
+                                        (q) => q.id !== client.id
+                                      )
+                                    );
+                                  }}
+                                  title="Usuń"
+                                  disabled={!client.paid}
+                                >
+                                  <FaTrash />
+                                </button>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
               <thead>
                 <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
