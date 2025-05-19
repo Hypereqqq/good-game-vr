@@ -190,6 +190,10 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
               <li>
+                Naprawiono błąd, gdy po odświeżeniu strony nie było widać kolejki do zapłaty
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
                 Naprawiono błąd ze zdwojoną opcją
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
