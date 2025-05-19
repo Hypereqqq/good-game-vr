@@ -29,10 +29,8 @@ export interface Reservation {
   // TO DO
   // mozliwosc rozdzielenia grupy na wybrany rozmiar ze np grupe 4 osobowa podzielic na 2 grupy po 2 osoby!!!!!!!
   // mozliwosc zmiany liczby graczy w przypadku grup - ze np w trakcie kogos usunac i dodac do kolejki zeby zaplacil za tyle ile gral
-  // mozna dodac staystyki
   // dodanie stopera
+  
+  
   // dodanie powiadomien np po 15 minutach zeby zmienic gre
-
-
-  // usunac z grupy i zapytac czy dodac do kolejki platnosci, zrobic kolejke
-  // dodac laczenie w grupy
+  // mozna dodac staystyki
