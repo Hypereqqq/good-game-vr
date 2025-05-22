@@ -9,6 +9,8 @@ export interface Reservation {
     service: "Stanowisko VR" | "Symulator VR - 1 osoba" | "Symulator VR - 2 osoby";
     people: number;
     duration: number; // w minutach: 30, 60, 90, 120
+    whoCreated: string; // kto stworzył rezerwację (admin, klient)
+    cancelled: boolean; // czy rezerwacja została anulowana
   }
 
   export interface ClientGame {
@@ -22,19 +24,20 @@ export interface Reservation {
     customPrice?: number
     customStart?: boolean;
     comment?: string;
+    playedMinutes?: number;
   }
   
 
 
   // TO DO
-  // mozliwosc rozdzielenia grupy na wybrany rozmiar ze np grupe 4 osobowa podzielic na 2 grupy po 2 osoby!!!!!!!
-  // mozliwosc zmiany liczby graczy w przypadku grup - ze np w trakcie kogos usunac i dodac do kolejki zeby zaplacil za tyle ile gral
   // dodanie stopera
-  
-  
   // dodanie powiadomien np po 15 minutach zeby zmienic gre
   // mozna dodac staystyki
-
-  // w kolecje niech sie pokazuje czas jaki faktycznie gral
-  // usuwanie z grupy X osobowej
   // komentarz dla kolejki, czas kiedy gral dla kolejki
+
+  // szukaj rezerwacji
+  // dodaj rezerwacje i edytuj rezerwacje
+  // ilosc miejsc
+  // powiadomienia dzwoneczki
+  // popupy np usuniecie itp
+
