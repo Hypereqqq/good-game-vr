@@ -164,33 +164,136 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              System rezerwacji - aktualizacja 
+              <span className="text-red-400 font-bold"> (ON NADAL NIE DZIALA - DANE SĄ Z DUPY)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">21 maja 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano panel rezerwacji z listą wszystkich rezerwacji oraz
+                szczegółami każdej rezerwacji
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Możliwość filtrowania rezerwacji po imieniu, nazwisku oraz
+                rodzaju usługi
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano wybór zakresu dat – z możliwością wyboru daty od-do oraz
+                podglądem rezerwacji na wybrany dzień lub tydzień
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano wykres liczby rezerwacji w wybranym zakresie dat
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Możliwość przełączania widoku: rezerwacje na dziś / rezerwacje
+                na najbliższy tydzień
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano przełącznik (suwak) „Pokaż tylko przyszłe” – domyślnie
+                aktywny, filtruje rezerwacje na dziś
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano szczegółowe informacje o rezerwacji w formie popupu
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano przycisk edycji rezerwacji 
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano przycisk „Dodaj rezerwację” 
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano modal potwierdzający usunięcie rezerwacji
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Licznik anulowanych rezerwacji aktualizuje się automatycznie po
+                usunięciu rezerwacji
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Dodano kolorowy pasek po lewej stronie kafelka rezerwacji
+                zależny od typu usługi (niebieski dla VR, czerwony dla
+                symulatora)
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Poprawiono wyświetlanie godzin 
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Zaimplementowano pełny dark mode dla kalendarza wyboru daty
+                (react-datepicker) wraz z polskimi nazwami dni i miesięcy
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">Małe poprawki</h3>
+            <p className="text-xs text-gray-400 mb-2">20 maja 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                W kolecje do płatności zmieniono czas całej rezerwacji na
+                faktycznie przegrany czas
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Podczas usuwania klientów z grupy dodano infomracje o ilości
+                osób w grupie
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               Usuwanie osób z grupy + dodatkowe funkcjonalności
             </h3>
             <p className="text-xs text-gray-400 mb-2">19 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
-                Dodano możliwość usuwania osób z grupy wraz z możlwością wyboru sposobu usunięcia
+                Dodano możliwość usuwania osób z grupy wraz z możlwością wyboru
+                sposobu usunięcia
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
               <li>
-                Dodano kolejke osób do zapłaty, które grały w danej grupie wraz z edycją i usuwaniem
+                Dodano kolejke osób do zapłaty, które grały w danej grupie wraz
+                z edycją i usuwaniem
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
               <li>
-                Dodano automatyczne obliczanie kwoty do zapłaty (lub wpisanie własnej)
+                Dodano automatyczne obliczanie kwoty do zapłaty (lub wpisanie
+                własnej)
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
               <li>
-                Dodano automatyczny komentarz dla grupy, w której usunnięto osobę
+                Dodano automatyczny komentarz dla grupy, w której usunnięto
+                osobę
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
               <li>
-                Naprawiono błąd, gdy po odświeżeniu strony nie było widać kolejki do zapłaty
+                Naprawiono błąd, gdy po odświeżeniu strony nie było widać
+                kolejki do zapłaty
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
@@ -201,24 +304,24 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
-            <h3 className="text-xl font-bold text-white">
-              Dzielenie grup
-            </h3>
+            <h3 className="text-xl font-bold text-white">Dzielenie grup</h3>
             <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
-                Dodano podział grup na mniejsze grupy 
+                Dodano podział grup na mniejsze grupy
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
               <li>
-                Dodano zabezpieczenie, aby wykrywać zdwojone stanowiska podczas dzielenia grup, wraz z odpowiednim komunikatem
+                Dodano zabezpieczenie, aby wykrywać zdwojone stanowiska podczas
+                dzielenia grup, wraz z odpowiednim komunikatem
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
-                Dodano możliwość wyboru ilości grup, na które ma być podzielona grupa
+                Dodano możliwość wyboru ilości grup, na które ma być podzielona
+                grupa
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
               <li>
@@ -233,23 +336,23 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
-            <h3 className="text-xl font-bold text-white">
-              Poprawki i zmiany
-            </h3>
+            <h3 className="text-xl font-bold text-white">Poprawki i zmiany</h3>
             <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
-                Dodano nowe przyciski do dodawania ceny 
+                Dodano nowe przyciski do dodawania ceny
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
-                Dodano zabezpieczenie, aby wykrywać zdwojone stanowiska podczas dodawania klientów, wraz z odpowiednim komunikatem
+                Dodano zabezpieczenie, aby wykrywać zdwojone stanowiska podczas
+                dodawania klientów, wraz z odpowiednim komunikatem
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
-                Dodano automatyczne zawijanie tekstu w polu dodatkowych informacji w voucherze
+                Dodano automatyczne zawijanie tekstu w polu dodatkowych
+                informacji w voucherze
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
               <li>
@@ -257,12 +360,14 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
               <li>
-                Został naprawiony błąd, gdy admin był zalgowany i po odświeżeniu strony następowało wylogowanie
+                Został naprawiony błąd, gdy admin był zalgowany i po odświeżeniu
+                strony następowało wylogowanie
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
               <li>
-                Został naprawiony błąd, gdy po odświeżeniu strony nie było widać aktualnych klientów
+                Został naprawiony błąd, gdy po odświeżeniu strony nie było widać
+                aktualnych klientów
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
@@ -271,11 +376,13 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
-                Zmieniono wygląd przycisków odpowiedzialnych za zmianę liczby osób
+                Zmieniono wygląd przycisków odpowiedzialnych za zmianę liczby
+                osób
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
-                Zmieniono sposób wyświatlania się komunikatu o braku unikalnych stanowisk oraz dodano zaznaczenie, gdzie występuje błąd
+                Zmieniono sposób wyświatlania się komunikatu o braku unikalnych
+                stanowisk oraz dodano zaznaczenie, gdzie występuje błąd
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
@@ -285,7 +392,8 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
               <li>
-                Naprawiono błąd, gdy podczas edycji klienta został on usunięty - panel zostawał w trybie edycji
+                Naprawiono błąd, gdy podczas edycji klienta został on usunięty -
+                panel zostawał w trybie edycji
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
