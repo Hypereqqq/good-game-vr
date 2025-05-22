@@ -23,10 +23,9 @@ type RemoveOption = {
 };
 
 const AdminClientManager: React.FC = () => {
-
   const LOCAL_STORAGE_KEY = "ggvr_clients";
   const QUEUE_LOCAL_STORAGE_KEY = "ggvr_queueClients";
-  
+
   const [clients, setClients] = useAtom(clientsAtom);
   const [peopleCount, setPeopleCount] = useState(1);
   const [name, setName] = useState("");
@@ -55,9 +54,9 @@ const AdminClientManager: React.FC = () => {
   const [removeStations, setRemoveStations] = useState<number[]>([]);
   const [removeOptions, setRemoveOptions] = useState<RemoveOption[]>([]);
   const [queueClients, setQueueClients] = useState<ClientGame[]>(() => {
-  const stored = localStorage.getItem(QUEUE_LOCAL_STORAGE_KEY);
-  return stored ? JSON.parse(stored) : [];
-});
+    const stored = localStorage.getItem(QUEUE_LOCAL_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  });
   const [removeNames, setRemoveNames] = useState<string[]>([]);
   const [removePrices, setRemovePrices] = useState<(number | "")[]>([]);
 
@@ -75,15 +74,13 @@ const AdminClientManager: React.FC = () => {
   }>({ key: null, direction: null });
   const [, setOriginalClients] = useState<ClientGame[]>([]);
 
-  
-
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(clients));
   }, [clients]);
 
   useEffect(() => {
-  localStorage.setItem(QUEUE_LOCAL_STORAGE_KEY, JSON.stringify(queueClients));
-}, [queueClients]);
+    localStorage.setItem(QUEUE_LOCAL_STORAGE_KEY, JSON.stringify(queueClients));
+  }, [queueClients]);
 
   useEffect(() => {
     setOriginalClients(clients);
@@ -398,6 +395,15 @@ const AdminClientManager: React.FC = () => {
         const stationLabel =
           stanowiskoLabels[station] || `Stanowisko ${station}`;
         removedNames.push(stationLabel);
+
+        const playedMinutes = Math.max(
+          0,
+          Math.floor(
+            DateTime.now().diff(DateTime.fromISO(client.startTime), "minutes")
+              .minutes
+          )
+        );
+
         queueToAdd.push({
           id: uuidv4(),
           name: names[idx] !== undefined ? names[idx] : "",
@@ -410,6 +416,7 @@ const AdminClientManager: React.FC = () => {
           customStart: client.customStart,
           comment: "Do zapłaty (kolejka)",
           queue: true,
+          playedMinutes,
         } as any);
       }
     });
@@ -1035,7 +1042,7 @@ const AdminClientManager: React.FC = () => {
               {removeFromGroupEnabled && (
                 <div className="mb-4 p-3 rounded border-2 border-[#ff0000]/40 bg-[#1e2636]">
                   <div className="font-semibold text-[#ff0000] mb-2">
-                    Usuwanie osób z grupy
+                    Usuwanie osób z grupy {peopleCount} osobowej
                   </div>
                   <div className="flex items-center gap-2 mb-2">
                     <label className="text-sm">Ile osób usunąć:</label>
@@ -1507,7 +1514,9 @@ const AdminClientManager: React.FC = () => {
                               .join(", ")}
                           </td>
                           <td className="p-3 text-white">
-                            {client.duration} min
+                            {client.playedMinutes != null
+                              ? `${client.playedMinutes} min`
+                              : "-"}
                           </td>
                           <td className="p-3 text-white ">
                             {isEditing ? (

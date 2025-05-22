@@ -164,6 +164,8 @@ const Reservation: React.FC = () => {
           | "Symulator VR - 2 osoby",
         people: peopleToStore,
         duration: parseInt(duration),
+        whoCreated: "Klient",
+        cancelled: false,
       };
 
       addReservation(newReservation);
