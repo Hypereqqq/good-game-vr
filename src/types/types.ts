@@ -36,8 +36,5 @@ export interface Reservation {
   // komentarz dla kolejki, czas kiedy gral dla kolejki
 
   // szukaj rezerwacji
-  // dodaj rezerwacje i edytuj rezerwacje
-  // ilosc miejsc
   // powiadomienia dzwoneczki
-  // popupy np usuniecie itp
 
