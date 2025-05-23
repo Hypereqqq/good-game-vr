@@ -112,3 +112,16 @@
   font-weight: bold;
 }
 
+/* Animacja popupów admina */
+@keyframes popup-in {
+  from { opacity: 0; transform: translateY(60px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes popup-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(60px) scale(0.95); }
+}
+.animate-popup-in-out {
+  animation: popup-in 0.4s cubic-bezier(.4,2,.6,1), popup-out 0.4s cubic-bezier(.4,2,.6,1) 2.6s forwards;
+}
+
