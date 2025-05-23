@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useImperativeHandle } from "react";
 import { DateTime } from "luxon";
-import { useAtom } from "jotai";
-import { reservationsAtom } from "../store/store";
+import { useAtom, useSetAtom, useAtomValue } from "jotai";
+import { reservationsAtom, addReservationAtom } from "../store/store";
 import { settingsAtom } from "../store/settings";
 import {
   FaUserFriends,
@@ -21,9 +21,10 @@ import DatePicker from "react-datepicker";
 import { pl } from "date-fns/locale";
 import "react-datepicker/dist/react-datepicker.css";
 import { registerLocale } from "react-datepicker";
+import { v4 as uuidv4 } from "uuid";
 registerLocale("pl", pl);
 
-type SubpageType = "main" | "calendar" | "settings" | "add";
+type SubpageType = "main" | "calendar" | "settings" | "add" | "edit";
 
 const AdminReservations: React.FC = () => {
   const [settings, setSettings] = useAtom(settingsAtom);
@@ -62,10 +63,29 @@ const AdminReservations: React.FC = () => {
   const [dayModal, setDayModal] = useState<null | { date: string }>(null);
   const [modalServiceFilter, setModalServiceFilter] = useState("");
   const [hideFree, setHideFree] = useState(false);
+  const [editReservation, setEditReservation] = useState<any | null>(null);
+
+  // --- POPUPY NOTYFIKACJI ---
+  type PopupType = "add" | "delete" | "edit";
+  const [popup, setPopup] = useState<{
+    type: PopupType;
+    message: string;
+  } | null>(null);
+
+  function showPopup(type: PopupType) {
+    if (type === "add") setPopup({ type, message: "Dodano rezerwację!" });
+    if (type === "delete") setPopup({ type, message: "Usunięto rezerwację!" });
+    if (type === "edit") setPopup({ type, message: "Zedytowano rezerwację!" });
+    setTimeout(() => setPopup(null), 3000);
+  }
 
   useEffect(() => {
     if (!editSettings) setTempSettings(settings);
   }, [settings, editSettings]);
+
+  useEffect(() => {
+    console.log(reservations);
+  }, [reservations]);
 
   // Rezerwacje na wybrany dzień do modala
   const modalReservationsAll = dayModal
@@ -87,24 +107,36 @@ const AdminReservations: React.FC = () => {
   // Wyznacz sloty czasowe
   let modalTimeSlots: string[] = [];
   if (dayModal) {
-    if (
+    const date = DateTime.fromISO(dayModal.date);
+    const isSunday = date.weekday === 7;
+    const isSimulator =
       modalServiceFilter === "Symulator VR - 1 osoba" ||
-      modalServiceFilter === "Symulator VR - 2 osoby"
-    ) {
-      // co 15 min
-      let t = DateTime.fromISO(dayModal.date).set({ hour: 10, minute: 0 });
-      const end = t.set({ hour: 22, minute: 0 });
+      modalServiceFilter === "Symulator VR - 2 osoby";
+
+    if (isSimulator) {
+      // Symulator: co 15 min
+      const startHour = isSunday ? 10 : 9;
+      const endHour = isSunday ? 19 : 20;
+      const endMinute = 45;
+      let t = date.set({ hour: startHour, minute: 0 });
+      const end = date.set({ hour: endHour, minute: endMinute });
       while (t <= end) {
         modalTimeSlots.push(t.toFormat("HH:mm"));
         t = t.plus({ minutes: 15 });
       }
     } else {
-      // co 30 min, ale jeśli są symulatory, dodaj sloty 15-minutowe dla symulatorów
-      let t = DateTime.fromISO(dayModal.date).set({ hour: 10, minute: 0 });
-      const end = t.set({ hour: 22, minute: 0 });
+      // Stanowisko VR: co 30 min, ale jeśli są symulatory, dodaj sloty 15-minutowe dla symulatorów
+      const startHour = isSunday ? 10 : 9;
+      const endHour = isSunday ? 19 : 20;
+      const endMinute = isSunday ? 30 : 30;
+      let t = date.set({ hour: startHour, minute: 0 });
+      const end = date.set({ hour: endHour, minute: endMinute });
+
+      // Zbierz godziny symulatorów w tym dniu
       const simTimes = modalReservationsAll
         .filter((r) => r.service.startsWith("Symulator"))
         .map((r) => DateTime.fromISO(r.reservationDate).toFormat("HH:mm"));
+
       while (t <= end) {
         modalTimeSlots.push(t.toFormat("HH:mm"));
         // Dodaj slot 15-minutowy jeśli jest symulator w tym dniu na ten czas
@@ -168,7 +200,14 @@ const AdminReservations: React.FC = () => {
   const statAll = filteredForStats.length;
   const statAccepted = filteredForStats.length - cancelledCount;
   const statCancelled = cancelledCount;
-  const statNewClients = 0; // przykładowo
+  const statNewClients = new Set(
+    filteredForStats.map(
+      (r) =>
+        `${(r.firstName || "").trim().toLowerCase()}|${(r.lastName || "")
+          .trim()
+          .toLowerCase()}`
+    )
+  ).size;
 
   // Wykres - dane tylko po dacie i wybranych selectach
   const daysInRange = [];
@@ -358,6 +397,7 @@ const AdminReservations: React.FC = () => {
   const handleDelete = (id: string) => {
     setReservations((prev) => prev.filter((r) => r.id !== id));
     setCancelledCount((prev) => prev + 1);
+    showPopup("delete");
   };
 
   // Kolor paska po lewej stronie
@@ -378,10 +418,13 @@ const AdminReservations: React.FC = () => {
     setSubpage(previousSubpage);
   };
 
+  // Dodaj ref do formularza
+  const addFormRef = useRef<null | { submitForm: () => void }>(null);
+
   // --- GŁÓWNY PANEL NAWIGACYJNY ---
   return (
     <section className="bg-[#0f1525] text-white px-2 py-8 min-h-screen">
-      {/* Pasek nawigacyjny */}
+      {/* Pasek nawigowy */}
       <div className="max-w-6xl mx-auto flex flex-col gap-4 mb-6">
         {/* Pasek z ikonami, wyszukiwaniem i przyciskiem dodaj */}
         <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
@@ -446,12 +489,6 @@ const AdminReservations: React.FC = () => {
             ) : (
               <div className="flex gap-2">
                 <button
-                  className="bg-[#00d9ff] text-black font-bold px-4 py-2 rounded shadow hover:bg-[#ffcc00] transition"
-                  // onClick={handleAddReservation} // Dodasz obsługę później
-                >
-                  Dodaj
-                </button>
-                <button
                   className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded shadow transition"
                   onClick={handleBackFromAdd}
                 >
@@ -466,12 +503,41 @@ const AdminReservations: React.FC = () => {
       {/* ZAWARTOŚĆ PODSTRON */}
 
       {subpage === "add" && (
-        <div className="max-w-3xl mx-auto bg-[#1e2636] rounded-lg shadow p-8 mt-4">
-          {/* Tutaj wstawisz formularz dodawania rezerwacji */}
-          <h2 className="text-2xl font-bold mb-6 text-[#00d9ff]">
+        <div className="max-w-6xl mx-auto bg-[#1e2636] rounded-lg shadow p-8 mt-4">
+          <h2 className="text-2xl font-bold mb-6 text-white">
             Dodaj rezerwację
           </h2>
-          {/* ...formularz...robmiy to od nowa, zrob ten modal dokladnie tak samo jak zostlao to zrobione w reservation.tsx, przy czym pozbadzmy sie drugiego kroku i przeniesmy do na poczatek (mam na mysli podaniewanie imenia i nazwisko emaila i numeru telefonu, selecta z usluga zostawmy dokladnie takiego samego), zmienmy tez wybor daty, w adminie ma nie byc takiego kalendarza jak tam, tylko bazowo ma byc wybrany dzisiejszy dzien i od razu maja sie pokazywac godziny w takim styl w jakim ci pisalem wyzej czyli pod soba, nad godzinai ma byc dostepny datapicker do zmiany dnia, zachowaj walidacje i wgl wszystko z tamtego pliku, dodwaj rezerwacje za pomoca atomu  */}
+          <AdminAddReservationFormWithRef
+            ref={addFormRef}
+            onSuccess={() => {
+              handleBackFromAdd();
+              showPopup("add");
+            }}
+            onCancel={handleBackFromAdd}
+          />
+        </div>
+      )}
+
+      {subpage === "edit" && editReservation && (
+        <div className="max-w-6xl mx-auto bg-[#1e2636] rounded-lg shadow p-8 mt-4">
+          <h2 className="text-2xl font-bold mb-6 text-white">
+            Edytuj rezerwację
+          </h2>
+          <AdminEditReservationForm
+            reservation={editReservation}
+            onCancel={() => {
+              setSubpage(previousSubpage);
+              setEditReservation(null);
+            }}
+            onSave={(updated) => {
+              setReservations((prev) =>
+                prev.map((r) => (r.id === updated.id ? updated : r))
+              );
+              setSubpage(previousSubpage);
+              setEditReservation(null);
+              showPopup("edit");
+            }}
+          />
         </div>
       )}
 
@@ -675,80 +741,87 @@ const AdminReservations: React.FC = () => {
                   Brak nadchodzących rezerwacji...
                 </div>
               ) : (
-                todayReservations.map((r) => {
-                  const dt = DateTime.fromISO(r.reservationDate);
-                  const end = dt.plus({ minutes: r.duration });
-                  return (
-                    <div
-                      key={r.id}
-                      className="flex flex-col md:flex-row items-center border-y border-gray-700 py-4 gap-4 relative pl-4"
-                    >
-                      {/* Pasek kolorowy */}
+                todayReservations
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      DateTime.fromISO(a.reservationDate).toMillis() -
+                      DateTime.fromISO(b.reservationDate).toMillis()
+                  )
+                  .map((r) => {
+                    const dt = DateTime.fromISO(r.reservationDate);
+                    const end = dt.plus({ minutes: r.duration });
+                    return (
                       <div
-                        className={`absolute left-0 top-0 h-full w-1 rounded-l ${getBarColor(
-                          r.service
-                        )}`}
-                      ></div>
-                      {/* Godziny */}
-                      <div className="flex flex-col items-center min-w-[110px]">
-                        <span className="text-base">
-                          {dt.toFormat("HH:mm")} - {end.toFormat("HH:mm")}
-                        </span>
-                      </div>
-                      {/* Imię i nazwisko + kontakt */}
-                      <div className="flex-1 flex flex-col">
-                        <span className="font-bold">
-                          {r.firstName} {r.lastName}
-                        </span>
-                        <div className="flex items-center gap-2 mt-1 text-gray-300">
-                          <FaUserFriends /> {r.people}
-                          <div className="relative group">
-                            <FaPhone className="cursor-pointer" />
-                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#08172c] text-s text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
-                              {r.phone}
-                            </span>
-                          </div>
-                          <div className="relative group">
-                            <FaEnvelope className="cursor-pointer" />
-                            <span className="absolute  left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#08172c] text-s text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
-                              {r.email}
-                            </span>
+                        key={r.id}
+                        className="flex flex-col md:flex-row items-center border-y border-gray-700 py-4 gap-4 relative pl-4"
+                      >
+                        {/* Pasek kolorowy */}
+                        <div
+                          className={`absolute left-0 top-0 h-full w-1 rounded-l ${getBarColor(
+                            r.service
+                          )}`}
+                        ></div>
+                        {/* Godziny */}
+                        <div className="flex flex-col items-center min-w-[110px]">
+                          <span className="text-base">
+                            {dt.toFormat("HH:mm")} - {end.toFormat("HH:mm")}
+                          </span>
+                        </div>
+                        {/* Imię i nazwisko + kontakt */}
+                        <div className="flex-1 flex flex-col">
+                          <span className="font-bold">
+                            {r.firstName} {r.lastName}
+                          </span>
+                          <div className="flex items-center gap-2 mt-1 text-gray-300">
+                            <FaUserFriends /> {r.people}
+                            <div className="relative group">
+                              <FaPhone className="cursor-pointer" />
+                              <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#08172c] text-s text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                                {r.phone}
+                              </span>
+                            </div>
+                            <div className="relative group">
+                              <FaEnvelope className="cursor-pointer" />
+                              <span className="absolute  left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#08172c] text-s text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                                {r.email}
+                              </span>
+                            </div>
                           </div>
                         </div>
+                        {/* Data i czas */}
+                        <div className="flex flex-col items-center justify-center min-w-[180px] lg:mr-20">
+                          <span className="text-gray-300 text-center">
+                            {dt.setLocale("pl").toFormat("cccc, d LLLL yyyy")}
+                          </span>
+                          <span className="text-gray-400 text-sm text-center">
+                            ({r.duration} min)
+                          </span>
+                        </div>
+                        {/* Usługa */}
+                        <div className=" min-w-[120px] text-right lg:mr-20">
+                          {r.service}
+                        </div>
+                        {/* Akcje */}
+                        <div className="flex gap-2">
+                          <button
+                            className="bg-red-800 hover:bg-red-600 text-white p-2 rounded"
+                            title="Usuń rezerwację"
+                            onClick={() => setDeleteModal({ id: r.id })}
+                          >
+                            <FaTrash />
+                          </button>
+                          <button
+                            className="bg-gray-500 hover:bg-gray-600 text-white p-2 rounded"
+                            title="Informacje"
+                            onClick={() => setInfoModal(r)}
+                          >
+                            <FaInfoCircle />
+                          </button>
+                        </div>
                       </div>
-                      {/* Data i czas */}
-                      <div className="flex flex-col items-center justify-center min-w-[180px] lg:mr-20">
-                        <span className="text-gray-300 text-center">
-                          {dt.setLocale("pl").toFormat("cccc, d LLLL yyyy")}
-                        </span>
-                        <span className="text-gray-400 text-sm text-center">
-                          ({r.duration} min)
-                        </span>
-                      </div>
-                      {/* Usługa */}
-                      <div className=" min-w-[120px] text-right lg:mr-20">
-                        {r.service}
-                      </div>
-                      {/* Akcje */}
-                      <div className="flex gap-2">
-                        <button
-                          className="bg-red-800 hover:bg-red-600 text-white p-2 rounded"
-                          title="Usuń rezerwację"
-                          onClick={() => setDeleteModal({ id: r.id })}
-                        >
-                          <FaTrash />
-                        </button>
-                        <button
-                          className="bg-gray-500 hover:bg-gray-600 text-white p-2 rounded"
-                          title="Informacje"
-                          onClick={() => setInfoModal(r)}
-                        >
-                          <FaInfoCircle />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })
               )}
             </div>
           )}
@@ -767,7 +840,7 @@ const AdminReservations: React.FC = () => {
                     className={`px-4 py-2 rounded ${
                       selectedWeekDay === d.toISODate()
                         ? "bg-[#00d9ff] text-black font-bold"
-                        : "bg-[#223a5f] text-white"
+                        : "bg-[#181f2c] text-gray-400 hover:bg-[#454d5a]"
                     }`}
                     onClick={() => setSelectedWeekDay(d.toISODate() ?? "")}
                   >
@@ -781,80 +854,87 @@ const AdminReservations: React.FC = () => {
                   Brak rezerwacji na ten dzień...
                 </div>
               ) : (
-                weekReservations(selectedWeekDay).map((r) => {
-                  const dt = DateTime.fromISO(r.reservationDate);
-                  const end = dt.plus({ minutes: r.duration });
-                  return (
-                    <div
-                      key={r.id}
-                      className="flex flex-col md:flex-row items-center justify-between border-b border-gray-700 py-4 gap-4 relative pl-4"
-                    >
-                      {/* Pasek kolorowy */}
+                weekReservations(selectedWeekDay)
+                  .slice()
+                  .sort(
+                    (a, b) =>
+                      DateTime.fromISO(a.reservationDate).toMillis() -
+                      DateTime.fromISO(b.reservationDate).toMillis()
+                  )
+                  .map((r) => {
+                    const dt = DateTime.fromISO(r.reservationDate);
+                    const end = dt.plus({ minutes: r.duration });
+                    return (
                       <div
-                        className={`absolute left-0 top-0 h-full w-1 rounded-l ${getBarColor(
-                          r.service
-                        )}`}
-                      ></div>
-                      {/* Godziny */}
-                      <div className="flex flex-col items-center min-w-[110px]">
-                        <span className="text-base">
-                          {dt.toFormat("HH:mm")} - {end.toFormat("HH:mm")}
-                        </span>
-                      </div>
-                      {/* Imię i nazwisko + kontakt */}
-                      <div className="flex-1 flex flex-col">
-                        <span className="font-bold">
-                          {r.firstName} {r.lastName}
-                        </span>
-                        <div className="flex items-center gap-2 mt-1 text-gray-300">
-                          <FaUserFriends /> {r.people}
-                          <div className="relative group">
-                            <FaPhone className="cursor-pointer" />
-                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#223a5f] text-xs text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
-                              {r.phone}
-                            </span>
-                          </div>
-                          <div className="relative group">
-                            <FaEnvelope className="cursor-pointer" />
-                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#223a5f] text-xs text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
-                              {r.email}
-                            </span>
+                        key={r.id}
+                        className="flex flex-col md:flex-row items-center justify-between border-b border-gray-700 py-4 gap-4 relative pl-4"
+                      >
+                        {/* Pasek kolorowy */}
+                        <div
+                          className={`absolute left-0 top-0 h-full w-1 rounded-l ${getBarColor(
+                            r.service
+                          )}`}
+                        ></div>
+                        {/* Godziny */}
+                        <div className="flex flex-col items-center min-w-[110px]">
+                          <span className="text-base">
+                            {dt.toFormat("HH:mm")} - {end.toFormat("HH:mm")}
+                          </span>
+                        </div>
+                        {/* Imię i nazwisko + kontakt */}
+                        <div className="flex-1 flex flex-col">
+                          <span className="font-bold">
+                            {r.firstName} {r.lastName}
+                          </span>
+                          <div className="flex items-center gap-2 mt-1 text-gray-300">
+                            <FaUserFriends /> {r.people}
+                            <div className="relative group">
+                              <FaPhone className="cursor-pointer" />
+                              <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#223a5f] text-xs text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                                {r.phone}
+                              </span>
+                            </div>
+                            <div className="relative group">
+                              <FaEnvelope className="cursor-pointer" />
+                              <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#223a5f] text-xs text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                                {r.email}
+                              </span>
+                            </div>
                           </div>
                         </div>
+                        {/* Data i czas */}
+                        <div className="flex flex-col items-center justify-center min-w-[180px] lg:mr-20">
+                          <span className="text-gray-300 text-center">
+                            {dt.setLocale("pl").toFormat("cccc, d LLLL yyyy")}
+                          </span>
+                          <span className="text-gray-400 text-sm text-center">
+                            ({r.duration} min)
+                          </span>
+                        </div>
+                        {/* Usługa */}
+                        <div className="min-w-[120px] text-right lg:mr-20">
+                          {r.service}
+                        </div>
+                        {/* Akcje */}
+                        <div className="flex gap-2">
+                          <button
+                            className="bg-red-600 hover:bg-red-700 text-white p-2 rounded"
+                            title="Usuń rezerwację"
+                            onClick={() => setDeleteModal({ id: r.id })}
+                          >
+                            <FaTrash />
+                          </button>
+                          <button
+                            className="bg-gray-500 hover:bg-gray-600 text-white p-2 rounded"
+                            title="Informacje"
+                            onClick={() => setInfoModal(r)}
+                          >
+                            <FaInfoCircle />
+                          </button>
+                        </div>
                       </div>
-                      {/* Data i czas */}
-                      <div className="flex flex-col items-center justify-center min-w-[180px] lg:mr-20">
-                        <span className="text-gray-300 text-center">
-                          {dt.setLocale("pl").toFormat("cccc, d LLLL yyyy")}
-                        </span>
-                        <span className="text-gray-400 text-sm text-center">
-                          ({r.duration} min)
-                        </span>
-                      </div>
-                      {/* Usługa */}
-                      <div className="min-w-[120px] text-right lg:mr-20">
-                        {r.service}
-                      </div>
-                      {/* Akcje */}
-                      <div className="flex gap-2">
-                        <button
-                          className="bg-red-600 hover:bg-red-700 text-white p-2 rounded"
-                          title="Usuń rezerwację"
-                          onClick={() => setDeleteModal({ id: r.id })}
-                        >
-                          <FaTrash />
-                        </button>
-                        <button
-                          className="bg-gray-500 hover:bg-gray-600 text-white p-2 rounded"
-                          title="Informacje"
-                          onClick={() => setInfoModal(r)}
-                        >
-                          <FaInfoCircle />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
+                    );
+                  })
               )}
             </div>
           )}
@@ -1121,7 +1201,17 @@ const AdminReservations: React.FC = () => {
               <span className="font-bold">Usługa:</span> {infoModal.service}
             </div>
             <div className="flex gap-4 mt-6">
-              <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold">
+              <button
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-bold"
+                onClick={() => {
+                  setInfoModal(null);
+                  setDeleteModal(null);
+                  setDayModal(null);
+                  setEditReservation(infoModal);
+                  setPreviousSubpage(subpage);
+                  setSubpage("edit");
+                }}
+              >
                 Edytuj
               </button>
               <button
@@ -1269,11 +1359,17 @@ const AdminReservations: React.FC = () => {
                     slot
                 );
 
-                const slotTime = DateTime.fromISO(`${dayModal.date}T${slot}`);
+                const slotTime = DateTime.fromISO(
+                  `${dayModal.date}T${slot}`
+                ).startOf("minute");
                 const ongoing = modalReservations.filter((r) => {
-                  const start = DateTime.fromISO(r.reservationDate);
-                  const end = start.plus({ minutes: r.duration });
-                  return start < slotTime && end > slotTime;
+                  const start = DateTime.fromISO(r.reservationDate).startOf(
+                    "minute"
+                  );
+                  const end = start
+                    .plus({ minutes: r.duration })
+                    .startOf("minute");
+                  return start < slotTime && slotTime < end;
                 });
                 const ongoingCount = ongoing.length;
                 const ongoingPeople = ongoing.reduce(
@@ -1285,7 +1381,7 @@ const AdminReservations: React.FC = () => {
                 return (
                   <div
                     key={slot}
-                    className={`flex items-start gap-4 border-b border-gray-700 py-2
+                    className={`flex items-start gap-4 border-b border-gray-700 py-2 
                       ${ongoingCount > 0 ? "bg-[#2a3a4d]" : ""}`}
                   >
                     <div className="min-w-[60px] text-right text-[#00d9ff] font-bold">
@@ -1301,7 +1397,7 @@ const AdminReservations: React.FC = () => {
                           return (
                             <div
                               key={r.id}
-                              className="flex flex-col md:flex-row mr-2 items-center border-y border-gray-700 py-2 gap-2 relative pl-2 text-sm"
+                              className="flex bg-[#1e2636] flex-col md:flex-row  items-center border-y border-gray-700 py-2 gap-2 relative pl-2 mr-2 pr-2 text-sm"
                               style={{ fontSize: "0.92em" }}
                             >
                               {/* Pasek kolorowy */}
@@ -1401,8 +1497,969 @@ const AdminReservations: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* POPUP NOTYFIKACJI */}
+      {popup && (
+        <>
+          <div
+            className={`fixed left-1/2 -translate-x-1/2 bottom-6 z-[200] px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 text-white text-lg font-bold animate-popup-in-out ${
+              popup.type === "add"
+                ? "bg-green-600"
+                : popup.type === "delete"
+                ? "bg-red-700"
+                : "bg-orange-500"
+            }`}
+            style={{
+              minWidth: 260,
+              transition: "all 0.4s cubic-bezier(.4,2,.6,1)",
+            }}
+          >
+            {popup.type === "add" && (
+              <FaCheckCircle className="text-xl text-white" />
+            )}
+            {popup.type === "delete" && (
+              <FaTrash className="text-xl text-white" />
+            )}
+            {popup.type === "edit" && (
+              <FaSlidersH className="text-xl text-white" />
+            )}
+            <span>{popup.message}</span>
+          </div>
+        </>
+      )}
     </section>
   );
 };
 
 export default AdminReservations;
+
+type AdminAddReservationFormHandle = { submitForm: () => void };
+
+// --- FORWARD REF DLA FORMULARZA ---
+const AdminAddReservationForm = (
+  { onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void },
+  ref: React.Ref<AdminAddReservationFormHandle>
+) => {
+  const [firstName, setFirstName] = React.useState("");
+  const [lastName, setLastName] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [countryCode, setCountryCode] = React.useState("+48");
+  const [service, setService] = React.useState("Stanowisko VR");
+  const [duration, setDuration] = React.useState("30");
+  const [people, setPeople] = React.useState(1);
+  const [selectedDate, setSelectedDate] = React.useState(new Date());
+  const [selectedHour, setSelectedHour] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
+  const [touched, setTouched] = React.useState({
+    firstName: false,
+    lastName: false,
+    email: false,
+    phone: false,
+  });
+  const addReservation = useSetAtom(addReservationAtom);
+  const reservations = useAtomValue(reservationsAtom);
+
+  // --- Walidacja ---
+  function validateEmail(email: string) {
+    if (!email) return true; // dla admina puste pole jest OK
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  }
+  function validateForm() {
+    return (
+      firstName.trim() &&
+      lastName.trim() &&
+      validateEmail(email) &&
+      phone.trim() &&
+      selectedDate &&
+      selectedHour
+    );
+  }
+
+  // --- Obsługa zmiany usługi ---
+  React.useEffect(() => {
+    if (service === "Symulator VR - 1 osoba") {
+      setPeople(1);
+      setDuration("15");
+    } else if (service === "Symulator VR - 2 osoby") {
+      setPeople(2);
+      setDuration("15");
+    } else {
+      setDuration("30");
+    }
+  }, [service]);
+
+  // --- Generowanie slotów godzinowych ---
+  function generateHourSlots() {
+    const date = DateTime.fromJSDate(selectedDate).setZone("Europe/Warsaw");
+    const isSunday = date.weekday === 7;
+    const isSimulator = service.includes("Symulator");
+    const step = isSimulator ? 15 : 30;
+    const slots: string[] = [];
+    const startHour = isSunday ? (isSimulator ? 10 : 10) : 9;
+    const endHour = isSunday ? (isSimulator ? 19 : 19) : 20;
+    const endMinute = isSimulator ? 45 : 30;
+    let t = date.set({ hour: startHour, minute: 0 });
+    const end = date.set({ hour: endHour, minute: endMinute });
+    while (t <= end) {
+      slots.push(t.toFormat("HH:mm"));
+      t = t.plus({ minutes: step });
+    }
+    return slots;
+  }
+
+  // --- Sprawdzenie dostępności slotu ---
+  // Pobierz settings przez useAtomValue, bo komponent jest forwardRef
+  const settings = useAtomValue(settingsAtom);
+  function isHourAvailable(hour: string) {
+    const dateISO = DateTime.fromJSDate(selectedDate).toISODate();
+    const stations = settings?.stations || 8;
+    const seats = settings?.seats || 2;
+    // Wyznacz czas rozpoczęcia i zakończenia slotu (zaokrąglij do minuty)
+    const slotStart = DateTime.fromJSDate(selectedDate)
+      .set({
+        hour: Number(hour.split(":")[0]),
+        minute: Number(hour.split(":")[1]),
+        second: 0,
+        millisecond: 0,
+      })
+      .startOf("minute");
+    const slotEnd = slotStart
+      .plus({ minutes: parseInt(duration) })
+      .startOf("minute");
+    // Zbierz rezerwacje na ten dzień
+    const dayReservations = reservations.filter((r: any) =>
+      r.reservationDate.startsWith(dateISO)
+    );
+    if (service === "Stanowisko VR") {
+      // Suma osób we wszystkich rezerwacjach VR, które zachodzą na ten slot
+      const totalPeople = dayReservations
+        .filter((r: any) => r.service === "Stanowisko VR")
+        .filter((r: any) => {
+          const resStart = DateTime.fromISO(r.reservationDate).startOf(
+            "minute"
+          );
+          const resEnd = resStart
+            .plus({ minutes: r.duration })
+            .startOf("minute");
+          return resStart < slotEnd && slotStart < resEnd;
+        })
+        .reduce((sum: number, r: any) => sum + (r.people || 0), 0);
+      return totalPeople + people <= stations;
+    } else if (
+      service === "Symulator VR - 1 osoba" ||
+      service === "Symulator VR - 2 osoby"
+    ) {
+      // Jeśli jakakolwiek rezerwacja symulatora zachodzi na ten slot, slot jest zajęty
+      const anySimulator = dayReservations.some((r: any) => {
+        if (
+          r.service !== "Symulator VR - 1 osoba" &&
+          r.service !== "Symulator VR - 2 osoby"
+        )
+          return false;
+        const resStart = DateTime.fromISO(r.reservationDate).startOf("minute");
+        const resEnd = resStart.plus({ minutes: r.duration }).startOf("minute");
+        return resStart < slotEnd && slotStart < resEnd;
+      });
+      return !anySimulator && seats > 0;
+    }
+    return true;
+  }
+
+  // --- Obsługa submit ---
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setTouched({ firstName: true, lastName: true, email: true, phone: true });
+    if (!validateForm()) {
+      setError("Uzupełnij poprawnie wszystkie wymagane pola!");
+      return;
+    }
+    if (!isHourAvailable(selectedHour!)) {
+      setError("Wybrana godzina jest już zajęta!");
+      return;
+    }
+    const createdAt = DateTime.now().setZone("Europe/Warsaw").toISO() || "";
+    const reservationDateTime =
+      DateTime.fromJSDate(selectedDate)
+        .set({
+          hour: Number(selectedHour!.split(":")[0]),
+          minute: Number(selectedHour!.split(":")[1]),
+        })
+        .toISO() || "";
+    const newReservation = {
+      id: uuidv4(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim() || "salon@goodgamevr.pl",
+      phone: `${countryCode}${phone.trim()}`,
+      createdAt,
+      reservationDate: reservationDateTime,
+      service: service as
+        | "Stanowisko VR"
+        | "Symulator VR - 1 osoba"
+        | "Symulator VR - 2 osoby",
+      people,
+      duration: parseInt(duration),
+      whoCreated: "Good Game VR",
+      cancelled: false,
+    };
+    addReservation(newReservation);
+    onSuccess();
+  }
+
+  // --- UI ---
+  // Dodaj ref do form
+  const formRef = React.useRef<HTMLFormElement>(null);
+  useImperativeHandle(ref, () => ({
+    submitForm: () => {
+      if (formRef.current) {
+        formRef.current.dispatchEvent(
+          new Event("submit", { cancelable: true, bubbles: true })
+        );
+      }
+    },
+  }));
+
+  return (
+    <form
+      ref={formRef}
+      className="flex flex-col lg:flex-row gap-6"
+      onSubmit={handleSubmit}
+    >
+      {/* LEWA KOLUMNA: dane osobowe, usługa, osoby */}
+      <div className="flex-1 flex flex-col gap-4 min-w-[260px]">
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-semibold mb-1">
+              Imię <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Jan"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, firstName: true }))}
+              className={`w-full p-2 text-base rounded bg-[#0f1525] border ${
+                touched.firstName && !firstName
+                  ? "border-red-500"
+                  : "border-gray-600"
+              } text-white`}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-semibold mb-1">
+              Nazwisko <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Kowalski"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, lastName: true }))}
+              className={`w-full p-2 text-base rounded bg-[#0f1525] border ${
+                touched.lastName && !lastName
+                  ? "border-red-500"
+                  : "border-gray-600"
+              } text-white`}
+            />
+          </div>
+        </div>
+        <div className="flex-row">
+          <label className="block text-sm font-semibold mb-1">
+            Adres email <span className="text-gray-400">(opcjonalnie)</span>
+          </label>
+          <input
+            type="email"
+            placeholder="Adres email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+            className={`w-full p-2 text-base rounded bg-[#0f1525] border ${
+              touched.email && email && !validateEmail(email)
+                ? "border-red-500"
+                : "border-gray-600"
+            } text-white`}
+          />
+        </div>
+        {touched.email && email && !validateEmail(email) && (
+          <p className="text-red-500 text-xs">Wprowadź poprawny adres email</p>
+        )}
+        <div className="">
+          <label className="block text-sm font-semibold mb-1">
+            Numer telefonu<span className="text-red-500"> *</span>
+          </label>
+          <div className="flex gap-2">
+            <select
+              value={countryCode}
+              onChange={(e) => setCountryCode(e.target.value)}
+              className="p-2 text-base rounded bg-[#0f1525] border border-gray-600 text-white w-24"
+            >
+              <option value="+48">🇵🇱 +48</option>
+              <option value="+49">🇩🇪 +49</option>
+              <option value="+44">🇬🇧 +44</option>
+              <option value="+1">🇺🇸 +1</option>
+            </select>
+            <input
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="Numer telefonu"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+              onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
+              className={`flex-1 p-2 text-base rounded bg-[#0f1525] border ${
+                touched.phone && !phone ? "border-red-500" : "border-gray-600"
+              } text-white`}
+            />
+          </div>
+        </div>
+        {/* Usługa, czas, osoby */}
+        <div>
+          <label className="block text-sm font-semibold mb-1">
+            Wybierz usługę<span className="text-red-500"> *</span>
+          </label>
+          <select
+            className="w-full p-2 text-base rounded bg-[#0f1525] border border-gray-600 text-white"
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+          >
+            <option>Stanowisko VR</option>
+            <option>Symulator VR - 1 osoba</option>
+            <option>Symulator VR - 2 osoby</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold mb-1">
+            Czas trwania<span className="text-red-500"> *</span>
+          </label>
+          {service === "Stanowisko VR" ? (
+            <select
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="w-full p-2 text-base rounded bg-[#0f1525] border border-gray-600 text-white"
+            >
+              <option value="30">
+                30 min - 39 zł za osobę (Pon. - Czw.) | 45 zł za osobę (Pt. -
+                Niedz.)
+              </option>
+              <option value="60">
+                60 min - 78 zł za osobę (Pon. - Czw.) | 90 zł za osobę (Pt. -
+                Niedz.)
+              </option>
+              <option value="90">
+                90 min - 117 zł za osobę (Pon. - Czw.) | 135 zł za osobę (Pt. -
+                Niedz.)
+              </option>
+              <option value="120">
+                120 min - 156 zł za osobę (Pon. - Czw.) | 180 zł za osobę (Pt. -
+                Niedz.)
+              </option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              disabled
+              value="15 min"
+              className="w-full p-2 text-base rounded bg-[#1a1a1a] border border-gray-600 text-white"
+            />
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-semibold mb-1 mt-1">
+            Liczba osób<span className="text-red-500"> *</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setPeople((prev: number) => {
+                  if (service === "Symulator VR - 1 osoba") return 1;
+                  if (service === "Symulator VR - 2 osoby") return 2;
+                  return Math.max(1, prev - 1);
+                })
+              }
+              className="bg-[#0f1525] border border-[#00d9ff] text-[#00d9ff] px-2 py-1 rounded text-xs hover:bg-[#1a1a1a]"
+              disabled={service !== "Stanowisko VR"}
+            >
+              –
+            </button>
+            <span className="text-lg">{people}</span>
+            <button
+              type="button"
+              onClick={() =>
+                setPeople((prev: number) => {
+                  if (service === "Symulator VR - 1 osoba") return 1;
+                  if (service === "Symulator VR - 2 osoby") return 2;
+                  return Math.min(8, prev + 1);
+                })
+              }
+              className="bg-[#0f1525] border border-[#00d9ff] text-[#00d9ff] px-2 py-1 rounded text-xs hover:bg-[#1a1a1a]"
+              disabled={service !== "Stanowisko VR"}
+            >
+              +
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            {service === "Stanowisko VR" &&
+              `Preferowana liczba osób: 1 - ${settings?.stations || 8}`}
+            {service === "Symulator VR - 1 osoba" &&
+              "Preferowana liczba osób: 1"}
+            {service === "Symulator VR - 2 osoby" &&
+              "Preferowana liczba osób: 2"}
+          </p>
+        </div>
+      </div>
+      {/* PRAWA KOLUMNA: data i godzina */}
+      <div className="flex-1 flex flex-col gap-4 min-w-[260px]">
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-semibold mb-1">
+              Data rezerwacji<span className="text-red-500"> *</span>
+            </label>
+            <DatePicker
+              locale={pl}
+              selected={selectedDate}
+              onChange={(date) => {
+                setSelectedDate(date!);
+                setSelectedHour(null);
+              }}
+              dateFormat="yyyy-MM-dd"
+              className="p-2 text-base rounded bg-[#0f1525] border border-gray-600 text-white w-full"
+              calendarClassName="bg-[#1e2636] text-white border border-[#00d9ff]"
+            />
+          </div>
+          {/* Podsumowanie wyboru */}
+          {selectedHour && (
+            <div className="flex-1 text-center">
+              <div className="bg-[#0f1525] border border-gray-600 rounded p-2.5 text-sm font-semibold text-[#00d9ff]">
+                {DateTime.fromJSDate(selectedDate)
+                  .setLocale("pl")
+                  .toFormat("cccc, d LLLL")}
+                , godz. {selectedHour}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="">
+          <label className="block text-sm font-semibold mb-1">
+            Wybierz godzinę<span className="text-red-500"> *</span>
+          </label>
+          <div className="flex flex-col gap-1 max-h-80 overflow-y-auto">
+            {generateHourSlots().map((hour) => {
+              const available = isHourAvailable(hour);
+              const selected = selectedHour === hour;
+              return (
+                <button
+                  type="button"
+                  key={hour}
+                  onClick={() => available && setSelectedHour(hour)}
+                  className={`flex items-center mr-2 gap-2 px-4 py-2 rounded transition text-left text-base font-medium
+              ${
+                !available
+                  ? "bg-[#1a1a1a] text-gray-600 border border-[rgb(26,26,26)] cursor-not-allowed"
+                  : selected
+                  ? "bg-[#00d9ff] text-black border border-[#00d9ff]"
+                  : "bg-[#0f1525] border border-gray-600 text-white hover:bg-[#00d9ff] hover:text-black"
+              }`}
+                  disabled={!available}
+                >
+                  <span className="flex-1">{hour}</span>
+                  {selected ? (
+                    <FaCheckCircle className="text-black" />
+                  ) : (
+                    <span className="text-xs">Wybierz</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {/* Akcje i error na dole w jednym rzędzie */}
+        <div className="flex flex-row gap-2 mt-4 justify-end items-center">
+          {error && (
+            <div className="bg-red-700 text-white rounded p-3 text-xs font-bold text-center animate-fade-in mr-auto">
+              {error}
+            </div>
+          )}
+          <button
+            type="button"
+            className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded shadow transition text-base"
+            onClick={onCancel}
+          >
+            Anuluj
+          </button>
+          <button
+            type="submit"
+            className="bg-[#00d9ff] text-black font-bold px-4 py-2 rounded shadow hover:bg-[#ffcc00] transition text-base"
+          >
+            Dodaj
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+};
+
+const AdminAddReservationFormWithRef = React.forwardRef(
+  AdminAddReservationForm
+);
+
+// --- EDYCJA REZERWACJI ---
+const AdminEditReservationForm: React.FC<{
+  reservation: any;
+  onCancel: () => void;
+  onSave: (r: any) => void;
+}> = ({ reservation, onCancel, onSave }) => {
+  const [firstName, setFirstName] = React.useState(reservation.firstName || "");
+  const [lastName, setLastName] = React.useState(reservation.lastName || "");
+  const [email, setEmail] = React.useState(reservation.email || "");
+  const [phone, setPhone] = React.useState(() => {
+    // Jeśli numer zaczyna się od +XX, odetnij tylko prefix kraju, resztę zostaw
+    if (reservation.phone) {
+      const match = reservation.phone.match(/^(\+\d{1,3})(.*)$/);
+      if (match) {
+        return match[2] || "";
+      }
+      return reservation.phone;
+    }
+    return "";
+  });
+  const [countryCode, setCountryCode] = React.useState(() => {
+    if (reservation.phone) {
+      const match = reservation.phone.match(/^(\+\d{1,3})/);
+      if (match) return match[1];
+    }
+    return "+48";
+  });
+  const [service, setService] = React.useState(
+    reservation.service || "Stanowisko VR"
+  );
+  const [duration, setDuration] = React.useState(
+    String(reservation.duration || 30)
+  );
+  const [people, setPeople] = React.useState(reservation.people || 1);
+  const [selectedDate, setSelectedDate] = React.useState(
+    reservation.reservationDate
+      ? new Date(reservation.reservationDate)
+      : new Date()
+  );
+  const [selectedHour, setSelectedHour] = React.useState(
+    reservation.reservationDate
+      ? DateTime.fromISO(reservation.reservationDate).toFormat("HH:mm")
+      : null
+  );
+  const [error, setError] = React.useState<string | null>(null);
+  const [touched, setTouched] = React.useState({
+    firstName: false,
+    lastName: false,
+    email: false,
+    phone: false,
+  });
+  const reservations = useAtomValue(reservationsAtom);
+  const settings = useAtomValue(settingsAtom);
+
+  React.useEffect(() => {
+    if (service === "Symulator VR - 1 osoba") {
+      setPeople(1);
+      setDuration("15");
+    } else if (service === "Symulator VR - 2 osoby") {
+      setPeople(2);
+      setDuration("15");
+    } else {
+      setDuration("30");
+    }
+  }, [service]);
+
+  function validateEmail(email: string) {
+    if (!email) return true;
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return regex.test(email);
+  }
+  function validateForm() {
+    return (
+      firstName.trim() &&
+      lastName.trim() &&
+      validateEmail(email) &&
+      phone.trim() &&
+      selectedDate &&
+      selectedHour
+    );
+  }
+  function generateHourSlots() {
+    const date = DateTime.fromJSDate(selectedDate).setZone("Europe/Warsaw");
+    const isSunday = date.weekday === 7;
+    const isSimulator = service.includes("Symulator");
+    const step = isSimulator ? 15 : 30;
+    const slots: string[] = [];
+    const startHour = isSunday ? (isSimulator ? 10 : 10) : 9;
+    const endHour = isSunday ? (isSimulator ? 19 : 19) : 20;
+    const endMinute = isSimulator ? 45 : 30;
+    let t = date.set({ hour: startHour, minute: 0 });
+    const end = date.set({ hour: endHour, minute: endMinute });
+    while (t <= end) {
+      slots.push(t.toFormat("HH:mm"));
+      t = t.plus({ minutes: step });
+    }
+    return slots;
+  }
+  function isHourAvailable(hour: string) {
+    const dateISO = DateTime.fromJSDate(selectedDate).toISODate();
+    const stations = settings?.stations || 8;
+    const seats = settings?.seats || 2;
+    const slotStart = DateTime.fromJSDate(selectedDate)
+      .set({
+        hour: Number(hour.split(":")[0]),
+        minute: Number(hour.split(":")[1]),
+        second: 0,
+        millisecond: 0,
+      })
+      .startOf("minute");
+    const slotEnd = slotStart
+      .plus({ minutes: parseInt(duration) })
+      .startOf("minute");
+    const dayReservations = reservations.filter(
+      (r: any) =>
+        r.reservationDate.startsWith(dateISO) && r.id !== reservation.id
+    );
+    if (service === "Stanowisko VR") {
+      const totalPeople = dayReservations
+        .filter((r: any) => r.service === "Stanowisko VR")
+        .filter((r: any) => {
+          const resStart = DateTime.fromISO(r.reservationDate).startOf(
+            "minute"
+          );
+          const resEnd = resStart
+            .plus({ minutes: r.duration })
+            .startOf("minute");
+          return resStart < slotEnd && slotStart < resEnd;
+        })
+        .reduce((sum: number, r: any) => sum + (r.people || 0), 0);
+      return totalPeople + people <= stations;
+    } else if (
+      service === "Symulator VR - 1 osoba" ||
+      service === "Symulator VR - 2 osoby"
+    ) {
+      const anySimulator = dayReservations.some((r: any) => {
+        if (
+          r.service !== "Symulator VR - 1 osoba" &&
+          r.service !== "Symulator VR - 2 osoby"
+        )
+          return false;
+        const resStart = DateTime.fromISO(r.reservationDate).startOf("minute");
+        const resEnd = resStart.plus({ minutes: r.duration }).startOf("minute");
+        return resStart < slotEnd && slotStart < resEnd;
+      });
+      return !anySimulator && seats > 0;
+    }
+    return true;
+  }
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setTouched({ firstName: true, lastName: true, email: true, phone: true });
+    if (!validateForm()) {
+      setError("Uzupełnij poprawnie wszystkie wymagane pola!");
+      return;
+    }
+    if (!isHourAvailable(selectedHour!)) {
+      setError("Wybrana godzina jest już zajęta!");
+      return;
+    }
+    const reservationDateTime =
+      DateTime.fromJSDate(selectedDate)
+        .set({
+          hour: Number(selectedHour!.split(":")[0]),
+          minute: Number(selectedHour!.split(":")[1]),
+        })
+        .toISO() || "";
+    const updated = {
+      ...reservation,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim() || "salon@goodgamevr.pl",
+      phone: `${countryCode}${phone.trim()}`,
+      reservationDate: reservationDateTime,
+      service: service as
+        | "Stanowisko VR"
+        | "Symulator VR - 1 osoba"
+        | "Symulator VR - 2 osoby",
+      people,
+      duration: parseInt(duration),
+    };
+    onSave(updated);
+  }
+  return (
+    <form className="flex flex-col lg:flex-row gap-6" onSubmit={handleSubmit}>
+      {/* LEWA KOLUMNA: dane osobowe, usługa, osoby */}
+      <div className="flex-1 flex flex-col gap-4 min-w-[260px]">
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <label className="block text-sm font-semibold mb-1">
+              Imię <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Jan"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, firstName: true }))}
+              className={`w-full p-2 text-base rounded bg-[#0f1525] border ${
+                touched.firstName && !firstName
+                  ? "border-red-500"
+                  : "border-gray-600"
+              } text-white`}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-semibold mb-1">
+              Nazwisko <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              placeholder="Kowalski"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, lastName: true }))}
+              className={`w-full p-2 text-base rounded bg-[#0f1525] border ${
+                touched.lastName && !lastName
+                  ? "border-red-500"
+                  : "border-gray-600"
+              } text-white`}
+            />
+          </div>
+        </div>
+        <div className="flex-row">
+          <label className="block text-sm font-semibold mb-1">
+            Adres email <span className="text-gray-400">(opcjonalnie)</span>
+          </label>
+          <input
+            type="email"
+            placeholder="Adres email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => setTouched((t) => ({ ...t, email: true }))}
+            className={`w-full p-2 text-base rounded bg-[#0f1525] border ${
+              touched.email && email && !validateEmail(email)
+                ? "border-red-500"
+                : "border-gray-600"
+            } text-white`}
+          />
+        </div>
+        {touched.email && email && !validateEmail(email) && (
+          <p className="text-red-500 text-xs">Wprowadź poprawny adres email</p>
+        )}
+        <div className="">
+          <label className="block text-sm font-semibold mb-1">
+            Numer telefonu<span className="text-red-500"> *</span>
+          </label>
+          <div className="flex gap-2">
+            <select
+              value={countryCode}
+              onChange={(e) => setCountryCode(e.target.value)}
+              className="p-2 text-base rounded bg-[#0f1525] border border-gray-600 text-white w-24"
+            >
+              <option value="+48">🇵🇱 +48</option>
+              <option value="+49">🇩🇪 +49</option>
+              <option value="+44">🇬🇧 +44</option>
+              <option value="+1">🇺🇸 +1</option>
+            </select>
+            <input
+              type="tel"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="Numer telefonu"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+              onBlur={() => setTouched((t) => ({ ...t, phone: true }))}
+              className={`flex-1 p-2 text-base rounded bg-[#0f1525] border ${
+                touched.phone && !phone ? "border-red-500" : "border-gray-600"
+              } text-white`}
+            />
+          </div>
+        </div>
+        {/* Usługa, czas, osoby */}
+        <div>
+          <label className="block text-sm font-semibold mb-1">
+            Wybierz usługę<span className="text-red-500"> *</span>
+          </label>
+          <select
+            className="w-full p-2 text-base rounded bg-[#0f1525] border border-gray-600 text-white"
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+          >
+            <option>Stanowisko VR</option>
+            <option>Symulator VR - 1 osoba</option>
+            <option>Symulator VR - 2 osoby</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-semibold mb-1">
+            Czas trwania<span className="text-red-500"> *</span>
+          </label>
+          {service === "Stanowisko VR" ? (
+            <select
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              className="w-full p-2 text-base rounded bg-[#0f1525] border border-gray-600 text-white"
+            >
+              <option value="30">
+                30 min - 39 zł za osobę (Pon. - Czw.) | 45 zł za osobę (Pt. -
+                Niedz.)
+              </option>
+              <option value="60">
+                60 min - 78 zł za osobę (Pon. - Czw.) | 90 zł za osobę (Pt. -
+                Niedz.)
+              </option>
+              <option value="90">
+                90 min - 117 zł za osobę (Pon. - Czw.) | 135 zł za osobę (Pt. -
+                Niedz.)
+              </option>
+              <option value="120">
+                120 min - 156 zł za osobę (Pon. - Czw.) | 180 zł za osobę (Pt. -
+                Niedz.)
+              </option>
+            </select>
+          ) : (
+            <input
+              type="text"
+              disabled
+              value="15 min"
+              className="w-full p-2 text-base rounded bg-[#1a1a1a] border border-gray-600 text-white"
+            />
+          )}
+        </div>
+        <div>
+          <label className="block text-sm font-semibold mb-1 mt-1">
+            Liczba osób<span className="text-red-500"> *</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setPeople((prev: number) => {
+                  if (service === "Symulator VR - 1 osoba") return 1;
+                  if (service === "Symulator VR - 2 osoby") return 2;
+                  return Math.max(1, prev - 1);
+                })
+              }
+              className="bg-[#0f1525] border border-[#00d9ff] text-[#00d9ff] px-2 py-1 rounded text-xs hover:bg-[#1a1a1a]"
+              disabled={service !== "Stanowisko VR"}
+            >
+              –
+            </button>
+            <span className="text-lg">{people}</span>
+            <button
+              type="button"
+              onClick={() =>
+                setPeople((prev: number) => {
+                  if (service === "Symulator VR - 1 osoba") return 1;
+                  if (service === "Symulator VR - 2 osoby") return 2;
+                  return Math.min(8, prev + 1);
+                })
+              }
+              className="bg-[#0f1525] border border-[#00d9ff] text-[#00d9ff] px-2 py-1 rounded text-xs hover:bg-[#1a1a1a]"
+              disabled={service !== "Stanowisko VR"}
+            >
+              +
+            </button>
+          </div>
+          <p className="text-xs text-gray-400 mt-2">
+            {service === "Stanowisko VR" &&
+              `Preferowana liczba osób: 1 - ${settings?.stations || 8}`}
+            {service === "Symulator VR - 1 osoba" &&
+              "Preferowana liczba osób: 1"}
+            {service === "Symulator VR - 2 osoby" &&
+              "Preferowana liczba osób: 2"}
+          </p>
+        </div>
+      </div>
+      {/* PRAWA KOLUMNA: data i godzina */}
+      <div className="flex-1 flex flex-col gap-4 min-w-[260px]">
+        <div className="flex gap-4 items-end">
+          <div className="flex-1">
+            <label className="block text-sm font-semibold mb-1">
+              Data rezerwacji<span className="text-red-500"> *</span>
+            </label>
+            <DatePicker
+              locale={pl}
+              selected={selectedDate}
+              onChange={(date) => {
+                setSelectedDate(date!);
+                setSelectedHour(null);
+              }}
+              dateFormat="yyyy-MM-dd"
+              className="p-2 text-base rounded bg-[#0f1525] border border-gray-600 text-white w-full"
+              calendarClassName="bg-[#1e2636] text-white border border-[#00d9ff]"
+            />
+          </div>
+          {/* Podsumowanie wyboru */}
+          {selectedHour && (
+            <div className="flex-1 text-center">
+              <div className="bg-[#0f1525] border border-gray-600 rounded p-2.5 text-sm font-semibold text-[#00d9ff]">
+                {DateTime.fromJSDate(selectedDate)
+                  .setLocale("pl")
+                  .toFormat("cccc, d LLLL")}
+                , godz. {selectedHour}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="">
+          <label className="block text-sm font-semibold mb-1">
+            Wybierz godzinę<span className="text-red-500"> *</span>
+          </label>
+          <div className="flex flex-col gap-1 max-h-80 overflow-y-auto">
+            {generateHourSlots().map((hour) => {
+              const available = isHourAvailable(hour);
+              const selected = selectedHour === hour;
+              return (
+                <button
+                  type="button"
+                  key={hour}
+                  onClick={() => available && setSelectedHour(hour)}
+                  className={`flex items-center mr-2 gap-2 px-4 py-2 rounded transition text-left text-base font-medium
+              ${
+                !available
+                  ? "bg-[#1a1a1a] text-gray-600 border border-[rgb(26,26,26)] cursor-not-allowed"
+                  : selected
+                  ? "bg-[#00d9ff] text-black border border-[#00d9ff]"
+                  : "bg-[#0f1525] border border-gray-600 text-white hover:bg-[#00d9ff] hover:text-black"
+              }`}
+                  disabled={!available}
+                >
+                  <span className="flex-1">{hour}</span>
+                  {selected ? (
+                    <FaCheckCircle className="text-black" />
+                  ) : (
+                    <span className="text-xs">Wybierz</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        {/* Akcje i error na dole w jednym rzędzie */}
+        <div className="flex flex-row gap-2 mt-4 justify-end items-center">
+          {error && (
+            <div className="bg-red-700 text-white rounded p-3 text-xs font-bold text-center animate-fade-in mr-auto">
+              {error}
+            </div>
+          )}
+          <button
+            type="button"
+            className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-4 py-2 rounded shadow transition text-base"
+            onClick={onCancel}
+          >
+            Anuluj
+          </button>
+          <button
+            type="submit"
+            className="bg-[#00d9ff] text-black font-bold px-4 py-2 rounded shadow hover:bg-[#ffcc00] transition text-base"
+          >
+            Zapisz
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+};
