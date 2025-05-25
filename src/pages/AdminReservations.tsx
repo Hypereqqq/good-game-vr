@@ -1628,6 +1628,13 @@ const AdminAddReservationForm = (
     const slotEnd = slotStart
       .plus({ minutes: parseInt(duration) })
       .startOf("minute");
+
+    // --- NOWA LOGIKA: wyłącz przeszłe godziny ---
+    const now = DateTime.now().setZone("Europe/Warsaw");
+    if (slotStart < now) {
+      return false;
+    }
+
     // Zbierz rezerwacje na ten dzień
     const dayReservations = reservations.filter((r: any) =>
       r.reservationDate.startsWith(dateISO)
@@ -1743,7 +1750,7 @@ const AdminAddReservationForm = (
               className={`w-full p-2 text-base rounded bg-[#0f1525] border ${
                 touched.firstName && !firstName
                   ? "border-red-500"
-                  : "border-gray-600"
+                                   : "border-gray-600"
               } text-white`}
             />
           </div>
@@ -2118,6 +2125,13 @@ const AdminEditReservationForm: React.FC<{
     const slotEnd = slotStart
       .plus({ minutes: parseInt(duration) })
       .startOf("minute");
+
+    // --- NOWA LOGIKA: wyłącz przeszłe godziny ---
+    const now = DateTime.now().setZone("Europe/Warsaw");
+    if (slotStart < now) {
+      return false;
+    }
+
     const dayReservations = reservations.filter(
       (r: any) =>
         r.reservationDate.startsWith(dateISO) && r.id !== reservation.id

@@ -38,3 +38,6 @@ export interface Reservation {
   // szukaj rezerwacji
   // powiadomienia dzwoneczki
 
+// DODAC SZCZEGOLOWY UPDATE
+
+// DODANIE KLIENT I ADMIN, UPDATE ADMIN, DELETE ADMIN, BRAC WSZYSTKIE REZERWACJE I LADOWAC DO ATOMU

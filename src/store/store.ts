@@ -1,5 +1,6 @@
 import { atom } from "jotai";
 import { Reservation } from "../types/types";
+import { reservationService } from "../services/api";
 
 const localStorageKey = "reservations";
 
@@ -149,7 +150,6 @@ const mockReservations: Reservation[] = [
 const loadInitialReservations = (): Reservation[] => {
   const stored = localStorage.getItem(localStorageKey);
   const storedArr: Reservation[] = stored ? JSON.parse(stored) : [];
-  // Połącz mockowe i z localStorage, unikając duplikatów po id
   const all = [...mockReservations, ...storedArr];
   const unique = all.filter(
     (res, idx, arr) => arr.findIndex((r) => r.id === res.id) === idx
@@ -157,10 +157,8 @@ const loadInitialReservations = (): Reservation[] => {
   return unique;
 };
 
-// 2. Główny atom z listą rezerwacji
 export const reservationsAtom = atom<Reservation[]>(loadInitialReservations());
 
-// 3. Atom do dodawania nowej rezerwacji
 export const addReservationAtom = atom(
   null,
   (get, set, newReservation: Reservation) => {

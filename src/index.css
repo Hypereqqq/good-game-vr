@@ -79,7 +79,6 @@
 }
 
 /* Styl dla kafelków miesięcy i lat w trybie showMonthYearPicker */
-
 .react-datepicker__month-text,
 .react-datepicker__year-text {
   background: #1e2636 !important;
