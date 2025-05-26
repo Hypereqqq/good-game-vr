@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { addReservationAtom } from "../store/store";
-import { reservationsAtom } from "../store/store";
-import { v4 as uuidv4 } from "uuid";
+import { reservationsAtom, fetchReservationsAtom } from "../store/store";
 import { DateTime } from "luxon";
+import { reservationService } from "../services/api";
 
 const Reservation: React.FC = () => {
   const [people, setPeople] = useState(1);
@@ -27,13 +26,22 @@ const Reservation: React.FC = () => {
     email: false,
     phone: false,
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const addReservation = useSetAtom(addReservationAtom);
+  // Używamy atomu tylko do odczytu rezerwacji (aby sprawdzać dostępność terminów)
   const reservations = useAtomValue(reservationsAtom);
+  const fetchReservations = useSetAtom(fetchReservationsAtom);
 
   useEffect(() => {
-    console.log("Aktualne rezerwacje:", reservations);
-  }, [reservations]);
+    // Pobierz rezerwacje przy pierwszym renderowaniu
+    try {
+      fetchReservations();
+    } catch (fetchError) {
+      console.error("Błąd podczas pobierania rezerwacji:", fetchError);
+      return;
+    }
+  }, [fetchReservations]);
 
   useEffect(() => {
     if (service === "Symulator VR - 1 osoba") {
@@ -140,38 +148,113 @@ const Reservation: React.FC = () => {
     );
   };
 
-  const handleReservation = () => {
-    setTouched({ firstName: true, lastName: true, email: true, phone: true });
-    const peopleToStore = service === "Symulator VR - 1 osoba" ? 2 : people;
-    const createdAt = DateTime.now().setZone("Europe/Warsaw").toISO()!;
-    const reservationDateTime = DateTime.fromFormat(
-      `${selectedDate} ${selectedHour}`,
-      "d-M-yyyy HH:mm",
-      { zone: "Europe/Warsaw" }
-    );
-    if (validateSummary()) {
-      const newReservation = {
-        id: uuidv4(),
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: email.trim(),
-        phone: `${countryCode}${phone.trim()}`,
-        createdAt,
-        reservationDate: reservationDateTime.toISO()!,
-        service: service as
-          | "Stanowisko VR"
-          | "Symulator VR - 1 osoba"
-          | "Symulator VR - 2 osoby",
-        people: peopleToStore,
-        duration: parseInt(duration),
-        whoCreated: "Klient",
-        cancelled: false,
-      };
+  const handleReservation = async () => {
+    setTouched({ firstName: true, lastName: true, email: true, phone: false });
 
-      addReservation(newReservation);
-      alert("Rezerwacja została dodana!");
-      setStep("confirmation");
+    // Walidacja
+    if (!validateSummary()) {
+      setError("Proszę wypełnić wszystkie wymagane pola.");
+      return;
     }
+
+    const peopleToStore =
+      service === "Symulator VR - 1 osoba"
+        ? 1
+        : service === "Symulator VR - 2 osoby"
+        ? 2
+        : people;
+    const createdAt = DateTime.now().setZone("Europe/Warsaw").toISO()!;
+
+    // Sprawdź czy wymagane dane są dostępne
+    if (!selectedDate || !selectedHour) {
+      setError("Wybierz datę i godzinę rezerwacji");
+      return;
+    }
+
+    // Przetwarzanie daty i godziny rezerwacji
+    const [day, monthNum, yearNum] = selectedDate.split("-").map(Number);
+    const [hourPart, minutePart] = selectedHour.split(":").map(Number);
+
+    const reservationDateTime = DateTime.fromObject(
+      {
+        year: yearNum,
+        month: monthNum,
+        day: day,
+        hour: hourPart,
+        minute: minutePart,
+      },
+      { zone: "Europe/Warsaw" }
+    ).toISO();
+
+    // Wyodrębnienie liczby minut z łańcucha duration
+    let durationMinutes = 30; // domyślnie 30 minut
+    if (service.includes("Symulator")) {
+      durationMinutes = 15; // symulator zawsze 15 minut
+    } else {
+      // Dla stanowiska VR wyciągnij liczbę minut z wartości pola select
+      const durationMatch = duration.match(/^(\d+)/);
+      if (durationMatch && durationMatch[1]) {
+        durationMinutes = parseInt(durationMatch[1], 10);
+      }
+    }
+
+    // Tworzenie obiektu rezerwacji
+    const newReservation = {
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      email: email.trim() || "klient@goodgamevr.pl",
+      phone: `${countryCode}${phone.trim()}`,
+      createdAt,
+      reservationDate: reservationDateTime!,
+      service: service as
+        | "Stanowisko VR"
+        | "Symulator VR - 1 osoba"
+        | "Symulator VR - 2 osoby",
+      people: peopleToStore,
+      duration: durationMinutes,
+      whoCreated: "Klient", // oznaczamy, że rezerwacja została utworzona przez klienta
+      cancelled: false,
+    };
+
+    // Wysłanie rezerwacji bezpośrednio do API zamiast do atomu
+    console.log("Tworzenie rezerwacji:", newReservation);
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await reservationService.create(newReservation);
+
+      // Po sukcesie pobierz aktualizacje aby mieć aktualne dane w atomie
+      try {
+        fetchReservations();
+      } catch (fetchError) {
+        console.error("Błąd podczas pobierania rezerwacji:", fetchError);
+        setError(
+          "Wystąpił błąd podczas pobierania rezerwacji. Spróbuj ponownie później."
+        );
+        return;
+      }
+
+      // Po sukcesie przejdź do potwierdzenia
+      setStep("confirmation");
+    } catch (error) {
+      console.error("Błąd podczas dodawania rezerwacji:", error);
+      setError(
+        "Wystąpił błąd podczas tworzenia rezerwacji. Spróbuj ponownie później."
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Wyświetlanie błędu
+  const renderError = () => {
+    if (!error) return null;
+    return (
+      <div className="bg-red-600 text-white p-3 rounded mb-4 animate-fade-in">
+        {error}
+      </div>
+    );
   };
 
   const resetForm = () => {
@@ -289,11 +372,85 @@ const Reservation: React.FC = () => {
           { zone: "Europe/Warsaw" }
         );
 
-    return (
-      selectedDateTime >= now &&
-      selectedDateTime >= startHour &&
-      selectedDateTime <= endHour
+    // Sprawdź czy termin mieści się w godzinach otwarcia i nie jest w przeszłości
+    if (
+      !(
+        selectedDateTime >= now &&
+        selectedDateTime >= startHour &&
+        selectedDateTime <= endHour
+      )
+    ) {
+      return false;
+    }
+
+    // Sprawdź czy termin nie jest już zajęty przez inną rezerwację
+    const selectedDateISO = DateTime.fromObject(
+      { year, month, day },
+      { zone: "Europe/Warsaw" }
+    ).toISODate();
+
+    // Filtruj rezerwacje tylko z tego samego dnia
+    const dayReservations = reservations.filter(
+      (r) => DateTime.fromISO(r.reservationDate).toISODate() === selectedDateISO
     );
+
+    // Wyodrębnij czas trwania z tekstu wyboru (jeśli potrzebne)
+    let durMinutes = 30; // domyślnie 30 minut
+    if (isSimulator) {
+      durMinutes = 15;
+    } else {
+      // Próbuj wyodrębnić liczbę minut z wartości pola select
+      if (typeof duration === "string") {
+        const durationMatch = duration.match(/^(\d+)/);
+        if (durationMatch && durationMatch[1]) {
+          durMinutes = parseInt(durationMatch[1], 10);
+        }
+      } else {
+        durMinutes = parseInt(duration);
+      }
+    }
+
+    // Ustal czas rozpoczęcia i zakończenia tej rezerwacji
+    const slotStart = selectedDateTime.startOf("minute");
+    const slotEnd = slotStart.plus({ minutes: durMinutes }).startOf("minute");
+
+    // Sprawdź czy to stanowisko czy symulator
+    if (isSimulator) {
+      // Dla symulatorów tylko jedna rezerwacja na raz
+      const conflictingSimulator = dayReservations.some((r) => {
+        // Sprawdź tylko rezerwacje symulatora
+        if (!r.service.includes("Symulator")) return false;
+
+        const resStart = DateTime.fromISO(r.reservationDate).startOf("minute");
+        const resEnd = resStart.plus({ minutes: r.duration }).startOf("minute");
+
+        // Jeśli przedziały czasowe nachodzą się, jest konflikt
+        return resStart < slotEnd && slotStart < resEnd;
+      });
+
+      return !conflictingSimulator;
+    } else {
+      // Dla stanowisk VR - limit to 8 osób w tym samym czasie
+      const maxPeople = 8; // Maksymalna liczba osób na stanowisku
+
+      // Sprawdź ile osób jest już zarezerwowanych w tym przedziale czasowym
+      const bookedPeople = dayReservations
+        .filter((r) => r.service === "Stanowisko VR") // tylko rezerwacje stanowisk
+        .filter((r) => {
+          const resStart = DateTime.fromISO(r.reservationDate).startOf(
+            "minute"
+          );
+          const resEnd = resStart
+            .plus({ minutes: r.duration })
+            .startOf("minute");
+          // Jeśli przedziały czasowe nachodzą się
+          return resStart < slotEnd && slotStart < resEnd;
+        })
+        .reduce((sum, r) => sum + r.people, 0);
+
+      // Zwróć true, jeśli jest wystarczająco dużo miejsca
+      return bookedPeople + people <= maxPeople;
+    }
   };
 
   return (
@@ -305,6 +462,10 @@ const Reservation: React.FC = () => {
               <h1 className="text-3xl font-bold text-[#00d9ff] mb-4 text-center uppercase">
                 Zarezerwuj termin
               </h1>
+
+              {/* Wyświetlanie błędów */}
+              {renderError()}
+
               <div>
                 <label className="block text-sm font-semibold mb-1">
                   Wybierz usługę<span className="text-red-500"> *</span>
@@ -500,6 +661,10 @@ const Reservation: React.FC = () => {
               <h2 className="text-2xl font-bold text-[#00d9ff] text-center">
                 Twoje zamówienie
               </h2>
+
+              {/* Wyświetlanie błędów */}
+              {renderError()}
+
               <div className="bg-[#0f1525] p-4 rounded border border-gray-600">
                 <p>
                   <span className="text-[#00d9ff] font-semibold">Termin:</span>{" "}
@@ -624,9 +789,40 @@ const Reservation: React.FC = () => {
                 <div className="w-2/5">
                   <button
                     onClick={handleReservation}
-                    className="w-full bg-[#00d9ff] hover:bg-[#ffcc00] text-black font-bold py-2 rounded transition duration-300"
+                    disabled={isSubmitting}
+                    className={`w-full ${
+                      isSubmitting
+                        ? "bg-gray-400 cursor-not-allowed"
+                        : "bg-[#00d9ff] hover:bg-[#ffcc00]"
+                    } text-black font-bold py-2 rounded transition duration-300 flex items-center justify-center`}
                   >
-                    Zarezerwuj
+                    {isSubmitting ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Przetwarzanie...
+                      </>
+                    ) : (
+                      "Zarezerwuj"
+                    )}
                   </button>
                 </div>
               </div>
