@@ -2,7 +2,76 @@ import { atom } from "jotai";
 import { Reservation } from "../types/types";
 import { reservationService } from "../services/api";
 
-const localStorageKey = "reservations";
+
+// Początkowa wartość atomu to pusta tablica (dane zostaną pobrane później)
+export const reservationsAtom = atom<Reservation[]>([]);
+
+// Inicjalny atom do ładowania rezerwacji z API
+export const fetchReservationsAtom = atom(
+  null, 
+  async (_, set) => {
+    try {
+      const data = await reservationService.getAll();
+      set(reservationsAtom, data);
+      console.log("Pobrano rezerwacje:", data);
+    } catch (error) {
+      console.error("Błąd podczas pobierania rezerwacji:", error);
+      // Użyj mockowych danych jako fallback w przypadku błędu
+      set(reservationsAtom, mockReservations);
+    }
+  }
+);
+
+// Atom do dodawania rezerwacji
+export const addReservationAtom = atom(
+  null,
+  async (_, set, newReservation: Omit<Reservation, 'id'>) => {
+    try {
+      // Dodaj rezerwację przez API
+      await reservationService.create(newReservation);
+      
+      // Pobierz wszystkie rezerwacje na nowo
+      const updatedReservations = await reservationService.getAll();
+      set(reservationsAtom, updatedReservations);
+    } catch (error) {
+      console.error("Błąd podczas dodawania rezerwacji:", error);
+    }
+  }
+);
+
+// Atom do aktualizacji rezerwacji
+export const updateReservationAtom = atom(
+  null,
+  async (_, set, payload: { id: string, reservation: Partial<Reservation> }) => {
+    try {
+      // Aktualizuj rezerwację przez API
+      await reservationService.update(payload.id, payload.reservation);
+      
+      // Pobierz wszystkie rezerwacje na nowo
+      const updatedReservations = await reservationService.getAll();
+      set(reservationsAtom, updatedReservations);
+    } catch (error) {
+      console.error("Błąd podczas aktualizacji rezerwacji:", error);
+    }
+  }
+);
+
+// Atom do usuwania rezerwacji
+export const deleteReservationAtom = atom(
+  null,
+  async (_, set, id: string) => {
+    try {
+      // Usuń rezerwację przez API
+      await reservationService.delete(id);
+      
+      // Pobierz wszystkie rezerwacje na nowo
+      const updatedReservations = await reservationService.getAll();
+      set(reservationsAtom, updatedReservations);
+    } catch (error) {
+      console.error("Błąd podczas usuwania rezerwacji:", error);
+    }
+  }
+);
 
 const mockReservations: Reservation[] = [
   {
@@ -146,24 +215,3 @@ const mockReservations: Reservation[] = [
     cancelled: false,
   },
 ];
-
-const loadInitialReservations = (): Reservation[] => {
-  const stored = localStorage.getItem(localStorageKey);
-  const storedArr: Reservation[] = stored ? JSON.parse(stored) : [];
-  const all = [...mockReservations, ...storedArr];
-  const unique = all.filter(
-    (res, idx, arr) => arr.findIndex((r) => r.id === res.id) === idx
-  );
-  return unique;
-};
-
-export const reservationsAtom = atom<Reservation[]>(loadInitialReservations());
-
-export const addReservationAtom = atom(
-  null,
-  (get, set, newReservation: Reservation) => {
-    const updated = [...get(reservationsAtom), newReservation];
-    localStorage.setItem(localStorageKey, JSON.stringify(updated));
-    set(reservationsAtom, updated);
-  }
-);
