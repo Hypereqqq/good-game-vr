@@ -2,8 +2,9 @@ import React, { useEffect, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { CalendarClock, Users, LayoutDashboard } from "lucide-react";
 import { DateTime } from "luxon";
+import { fetchReservationsAtom } from "../store/store"
 
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import { isAdminLoggedInAtom } from "../store/auth";
 import { reservationsAtom } from "../store/store";
@@ -18,6 +19,12 @@ const AdminPanel: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(now.toFormat("HH:mm:ss"));
   const [clients] = useAtom(clientsAtom);
   const occupiedStations = new Set(clients.flatMap((c) => c.stations));
+  const fetchReservations = useSetAtom(fetchReservationsAtom);
+
+  useEffect(() => {
+      fetchReservations();
+      console.log("Pobrano rezerwacje w ADMIN PANEL:");
+    }, [fetchReservations]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -33,10 +40,6 @@ const AdminPanel: React.FC = () => {
       navigate("/login");
     }
   }, [isLoggedIn, navigate]);
-
-  useEffect(() => {
-    console.log("Aktualne rezerwacje:", reservations);
-  }, [reservations]);
 
   // Najbliższa rezerwacja
   const upcomingReservation = reservations
