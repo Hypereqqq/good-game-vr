@@ -13,7 +13,7 @@ export const fetchReservationsAtom = atom(
     try {
       const data = await reservationService.getAll();
       set(reservationsAtom, data);
-      console.log("Pobrano rezerwacje:", data);
+      console.log("Pobrano rezerwacje STORE:", data);
     } catch (error) {
       console.error("Błąd podczas pobierania rezerwacji:", error);
       // Użyj mockowych danych jako fallback w przypadku błędu
@@ -29,10 +29,11 @@ export const addReservationAtom = atom(
     try {
       // Dodaj rezerwację przez API
       await reservationService.create(newReservation);
-      
+      console.log("Dodano rezerwację STORE:", newReservation);
       // Pobierz wszystkie rezerwacje na nowo
       const updatedReservations = await reservationService.getAll();
       set(reservationsAtom, updatedReservations);
+      console.log("Zaktualizowano rezerwacje po dodaniu STORE:", updatedReservations);
     } catch (error) {
       console.error("Błąd podczas dodawania rezerwacji:", error);
     }
@@ -46,10 +47,11 @@ export const updateReservationAtom = atom(
     try {
       // Aktualizuj rezerwację przez API
       await reservationService.update(payload.id, payload.reservation);
-      
+      console.log("Zaktualizowano rezerwację STORE:", payload);
       // Pobierz wszystkie rezerwacje na nowo
       const updatedReservations = await reservationService.getAll();
       set(reservationsAtom, updatedReservations);
+      console.log("Zaktualizowano rezerwacje po aktualizacji STORE:", updatedReservations);
     } catch (error) {
       console.error("Błąd podczas aktualizacji rezerwacji:", error);
     }
@@ -63,10 +65,11 @@ export const deleteReservationAtom = atom(
     try {
       // Usuń rezerwację przez API
       await reservationService.delete(id);
-      
+      console.log("Usunięto rezerwację STORE:", id);
       // Pobierz wszystkie rezerwacje na nowo
       const updatedReservations = await reservationService.getAll();
       set(reservationsAtom, updatedReservations);
+      console.log("Zaktualizowano rezerwacje po usunięciu STORE:", updatedReservations);
     } catch (error) {
       console.error("Błąd podczas usuwania rezerwacji:", error);
     }
