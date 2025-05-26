@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { reservationsAtom, fetchReservationsAtom } from "../store/store";
+import { reservationsAtom, fetchReservationsAtom, addReservationAtom } from "../store/store";
 import { DateTime } from "luxon";
-import { reservationService } from "../services/api";
 
 const Reservation: React.FC = () => {
   const [people, setPeople] = useState(1);
@@ -28,10 +27,10 @@ const Reservation: React.FC = () => {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Używamy atomu tylko do odczytu rezerwacji (aby sprawdzać dostępność terminów)
+  // Używamy atomów do odczytu i modyfikacji rezerwacji
   const reservations = useAtomValue(reservationsAtom);
   const fetchReservations = useSetAtom(fetchReservationsAtom);
+  const setAddReservation = useSetAtom(addReservationAtom);
 
   useEffect(() => {
     // Pobierz rezerwacje przy pierwszym renderowaniu
@@ -212,33 +211,17 @@ const Reservation: React.FC = () => {
         | "Symulator VR - 2 osoby",
       people: peopleToStore,
       duration: durationMinutes,
-      whoCreated: "Klient", // oznaczamy, że rezerwacja została utworzona przez klienta
+      whoCreated: "Klient", 
       cancelled: false,
-    };
-
-    // Wysłanie rezerwacji bezpośrednio do API zamiast do atomu
-    console.log("Tworzenie rezerwacji:", newReservation);
+    };   
+    console.log("Tworzenie rezerwacji KLIENT:", newReservation);
     setIsSubmitting(true);
     setError(null);
 
     try {
-      await reservationService.create(newReservation);
-
-      // Po sukcesie pobierz aktualizacje aby mieć aktualne dane w atomie
-      try {
-        fetchReservations();
-      } catch (fetchError) {
-        console.error("Błąd podczas pobierania rezerwacji:", fetchError);
-        setError(
-          "Wystąpił błąd podczas pobierania rezerwacji. Spróbuj ponownie później."
-        );
-        return;
-      }
-
-      // Po sukcesie przejdź do potwierdzenia
+      await setAddReservation(newReservation);
       setStep("confirmation");
     } catch (error) {
-      console.error("Błąd podczas dodawania rezerwacji:", error);
       setError(
         "Wystąpił błąd podczas tworzenia rezerwacji. Spróbuj ponownie później."
       );
