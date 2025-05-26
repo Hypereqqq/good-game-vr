@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useImperativeHandle } from "react";
 import { DateTime } from "luxon";
 import { useAtom, useSetAtom, useAtomValue } from "jotai";
-import { reservationsAtom, addReservationAtom } from "../store/store";
+import { reservationsAtom, addReservationAtom, updateReservationAtom, deleteReservationAtom, fetchReservationsAtom } from "../store/store";
 import { settingsAtom } from "../store/settings";
 import {
   FaUserFriends,
@@ -21,7 +21,6 @@ import DatePicker from "react-datepicker";
 import { pl } from "date-fns/locale";
 import "react-datepicker/dist/react-datepicker.css";
 import { registerLocale } from "react-datepicker";
-import { v4 as uuidv4 } from "uuid";
 registerLocale("pl", pl);
 
 type SubpageType = "main" | "calendar" | "settings" | "add" | "edit";
@@ -32,7 +31,7 @@ const AdminReservations: React.FC = () => {
   const [tempSettings, setTempSettings] = useState(settings);
   const [subpage, setSubpage] = useState<SubpageType>("main");
   const [previousSubpage, setPreviousSubpage] = useState<SubpageType>("main");
-  const [reservations, setReservations] = useAtom(reservationsAtom);
+  const [reservations] = useAtom(reservationsAtom);
   const [tab, setTab] = useState<"today" | "week">("today");
   const [search, setSearch] = useState("");
   const [serviceFilter, setServiceFilter] = useState<string>("");
@@ -62,8 +61,12 @@ const AdminReservations: React.FC = () => {
 
   const [dayModal, setDayModal] = useState<null | { date: string }>(null);
   const [modalServiceFilter, setModalServiceFilter] = useState("");
-  const [hideFree, setHideFree] = useState(false);
-  const [editReservation, setEditReservation] = useState<any | null>(null);
+  const [hideFree, setHideFree] = useState(false);  const [editReservation, setEditReservation] = useState<any | null>(null);
+
+  // --- ATOMY CRUD ---
+  const setUpdateReservation = useSetAtom(updateReservationAtom);
+  const setDeleteReservation = useSetAtom(deleteReservationAtom);
+  const fetchReservations = useSetAtom(fetchReservationsAtom);
 
   // --- POPUPY NOTYFIKACJI ---
   type PopupType = "add" | "delete" | "edit";
@@ -78,14 +81,14 @@ const AdminReservations: React.FC = () => {
     if (type === "edit") setPopup({ type, message: "Zedytowano rezerwację!" });
     setTimeout(() => setPopup(null), 3000);
   }
+  // Pobierz rezerwacje przy pierwszym renderze
+  useEffect(() => {
+    fetchReservations();
+  }, [fetchReservations]);
 
   useEffect(() => {
     if (!editSettings) setTempSettings(settings);
   }, [settings, editSettings]);
-
-  useEffect(() => {
-    console.log(reservations);
-  }, [reservations]);
 
   // Rezerwacje na wybrany dzień do modala
   const modalReservationsAll = dayModal
@@ -393,9 +396,9 @@ const AdminReservations: React.FC = () => {
       (r) => DateTime.fromISO(r.reservationDate).toISODate() === dateISO
     );
 
-  // Usuwanie rezerwacji
-  const handleDelete = (id: string) => {
-    setReservations((prev) => prev.filter((r) => r.id !== id));
+  // Usuwanie rezerwacji  // Usuwanie rezerwacji przez API
+  const handleDelete = async (id: string) => {
+    await setDeleteReservation(id);
     setCancelledCount((prev) => prev + 1);
     showPopup("delete");
   };
@@ -528,11 +531,9 @@ const AdminReservations: React.FC = () => {
             onCancel={() => {
               setSubpage(previousSubpage);
               setEditReservation(null);
-            }}
-            onSave={(updated) => {
-              setReservations((prev) =>
-                prev.map((r) => (r.id === updated.id ? updated : r))
-              );
+            }}            onSave={(updated) => {
+              // Używamy atomu do aktualizacji przez API
+              setUpdateReservation({ id: updated.id, reservation: updated });
               setSubpage(previousSubpage);
               setEditReservation(null);
               showPopup("edit");
@@ -1550,15 +1551,13 @@ const AdminAddReservationForm = (
   const [people, setPeople] = React.useState(1);
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [selectedHour, setSelectedHour] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
-  const [touched, setTouched] = React.useState({
+  const [error, setError] = React.useState<string | null>(null);  const [touched, setTouched] = React.useState({
     firstName: false,
     lastName: false,
     email: false,
-    phone: false,
-  });
-  const addReservation = useSetAtom(addReservationAtom);
+    phone: false,  });
   const reservations = useAtomValue(reservationsAtom);
+  const setAddReservation = useSetAtom(addReservationAtom);
 
   // --- Walidacja ---
   function validateEmail(email: string) {
@@ -1673,9 +1672,8 @@ const AdminAddReservationForm = (
     }
     return true;
   }
-
   // --- Obsługa submit ---
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setTouched({ firstName: true, lastName: true, email: true, phone: true });
     if (!validateForm()) {
@@ -1693,9 +1691,8 @@ const AdminAddReservationForm = (
           hour: Number(selectedHour!.split(":")[0]),
           minute: Number(selectedHour!.split(":")[1]),
         })
-        .toISO() || "";
-    const newReservation = {
-      id: uuidv4(),
+        .toISO() || "";    const newReservation = {
+      // Usuwamy generowanie ID - backend sam nada ID
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim() || "salon@goodgamevr.pl",
@@ -1711,8 +1708,14 @@ const AdminAddReservationForm = (
       whoCreated: "Good Game VR",
       cancelled: false,
     };
-    addReservation(newReservation);
-    onSuccess();
+    
+    try {
+      // Dodaj rezerwację przy użyciu atomu
+      await setAddReservation(newReservation);
+      onSuccess();
+    } catch (error) {
+      setError("Wystąpił błąd podczas dodawania rezerwacji!");
+    }
   }
 
   // --- UI ---
