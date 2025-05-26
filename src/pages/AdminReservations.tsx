@@ -1,7 +1,13 @@
 import React, { useEffect, useState, useRef, useImperativeHandle } from "react";
 import { DateTime } from "luxon";
 import { useAtom, useSetAtom, useAtomValue } from "jotai";
-import { reservationsAtom, addReservationAtom, updateReservationAtom, deleteReservationAtom, fetchReservationsAtom } from "../store/store";
+import {
+  reservationsAtom,
+  addReservationAtom,
+  updateReservationAtom,
+  deleteReservationAtom,
+  fetchReservationsAtom,
+} from "../store/store";
 import { settingsAtom } from "../store/settings";
 import {
   FaUserFriends,
@@ -61,7 +67,8 @@ const AdminReservations: React.FC = () => {
 
   const [dayModal, setDayModal] = useState<null | { date: string }>(null);
   const [modalServiceFilter, setModalServiceFilter] = useState("");
-  const [hideFree, setHideFree] = useState(false);  const [editReservation, setEditReservation] = useState<any | null>(null);
+  const [hideFree, setHideFree] = useState(false);
+  const [editReservation, setEditReservation] = useState<any | null>(null);
 
   // --- ATOMY CRUD ---
   const setUpdateReservation = useSetAtom(updateReservationAtom);
@@ -84,6 +91,14 @@ const AdminReservations: React.FC = () => {
   // Pobierz rezerwacje przy pierwszym renderze
   useEffect(() => {
     fetchReservations();
+    console.log("Pobrano rezerwacje w ADMIN RESERVATIONS:");
+    // Ustaw interval odświeżający dane co 30 sekund
+    const intervalId = setInterval(() => {
+      fetchReservations();
+      console.log("Odświeżono rezerwacje w ADMIN RESERVATIONS");
+    }, 30000); // 30 sekund
+
+    return () => clearInterval(intervalId);
   }, [fetchReservations]);
 
   useEffect(() => {
@@ -531,7 +546,8 @@ const AdminReservations: React.FC = () => {
             onCancel={() => {
               setSubpage(previousSubpage);
               setEditReservation(null);
-            }}            onSave={(updated) => {
+            }}
+            onSave={(updated) => {
               // Używamy atomu do aktualizacji przez API
               setUpdateReservation({ id: updated.id, reservation: updated });
               setSubpage(previousSubpage);
@@ -1551,11 +1567,13 @@ const AdminAddReservationForm = (
   const [people, setPeople] = React.useState(1);
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [selectedHour, setSelectedHour] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);  const [touched, setTouched] = React.useState({
+  const [error, setError] = React.useState<string | null>(null);
+  const [touched, setTouched] = React.useState({
     firstName: false,
     lastName: false,
     email: false,
-    phone: false,  });
+    phone: false,
+  });
   const reservations = useAtomValue(reservationsAtom);
   const setAddReservation = useSetAtom(addReservationAtom);
 
@@ -1691,7 +1709,8 @@ const AdminAddReservationForm = (
           hour: Number(selectedHour!.split(":")[0]),
           minute: Number(selectedHour!.split(":")[1]),
         })
-        .toISO() || "";    const newReservation = {
+        .toISO() || "";
+    const newReservation = {
       // Usuwamy generowanie ID - backend sam nada ID
       firstName: firstName.trim(),
       lastName: lastName.trim(),
@@ -1708,7 +1727,7 @@ const AdminAddReservationForm = (
       whoCreated: "Good Game VR",
       cancelled: false,
     };
-    
+
     try {
       // Dodaj rezerwację przy użyciu atomu
       await setAddReservation(newReservation);
@@ -1753,7 +1772,7 @@ const AdminAddReservationForm = (
               className={`w-full p-2 text-base rounded bg-[#0f1525] border ${
                 touched.firstName && !firstName
                   ? "border-red-500"
-                                   : "border-gray-600"
+                  : "border-gray-600"
               } text-white`}
             />
           </div>
