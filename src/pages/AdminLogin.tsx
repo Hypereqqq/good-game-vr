@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAtom } from "jotai";
-import { isAdminLoggedInAtom, setAdminLoggedInAtom } from "../store/auth";
+import { isAdminLoggedInAtom, loginAdminAtom } from "../store/auth";
 import { useNavigate } from "react-router-dom";
 
 const AdminLogin: React.FC = () => {
@@ -8,7 +8,9 @@ const AdminLogin: React.FC = () => {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggedIn] = useAtom(isAdminLoggedInAtom);
-  const [, setIsLoggedIn] = useAtom(setAdminLoggedInAtom);
+  const [, login] = useAtom(loginAdminAtom);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Automatyczne przekierowanie, jeśli już jesteś zalogowany
@@ -17,12 +19,34 @@ const AdminLogin: React.FC = () => {
       navigate("/admin");
     }
   }, [isLoggedIn, navigate]);
+  const handleLogin = async () => {
+    // Walidacja danych
+    if (!username || !password) {
+      setError("Wprowadź nazwę użytkownika i hasło");
+      return;
+    }
 
-  const handleLogin = () => {
-    // Tu można dodać walidację albo integrację z backendem
-    if (username && password) {
-      setIsLoggedIn(true);
-      navigate("/admin");
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Wywołanie atomu logowania
+      const result = await login({
+        email_or_username: username,
+        password: password
+      });
+
+      if (result.success) {
+        // Przekierowanie do panelu administracyjnego
+        navigate("/admin");
+      } else {
+        setError(result.message);
+      }
+    } catch (err) {
+      console.error("Błąd logowania:", err);
+      setError("Wystąpił nieoczekiwany błąd podczas logowania");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -56,12 +80,32 @@ const AdminLogin: React.FC = () => {
             >
               {showPassword ? "Ukryj" : "Pokaż"}
             </button>
-          </div>
+          </div>          {error && (
+            <div className="bg-red-600 text-white p-3 rounded mb-4 text-sm font-bold">
+              {error}
+            </div>
+          )}
+
           <button
             onClick={handleLogin}
-            className="bg-[#00d9ff] hover:bg-[#ffcc00] text-black font-bold py-2 px-4 rounded transition duration-300"
+            disabled={isLoading}
+            className={`${
+              isLoading 
+                ? "bg-gray-400 cursor-wait" 
+                : "bg-[#00d9ff] hover:bg-[#ffcc00]"
+            } text-black font-bold py-2 px-4 rounded transition duration-300 flex justify-center items-center`}
           >
-            Zaloguj
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Logowanie...
+              </>
+            ) : (
+              "Zaloguj"
+            )}
           </button>
         </div>
       </div>
