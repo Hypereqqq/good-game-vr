@@ -22,6 +22,30 @@ export const fetchReservationsAtom = atom(
   }
 );
 
+// Atom do automatycznego odświeżania rezerwacji co zadany interval w ms
+export const setupReservationsPollingAtom = atom(
+  null,
+  (_, set, interval: number = 30000) => { // domyślnie co 30 sekund
+    console.log(`Uruchomiono polling rezerwacji co ${interval/1000} sekund`);
+    
+    // Natychmiast pobierz rezerwacje
+    set(fetchReservationsAtom);
+    console.log("Pobrano rezerwacje przez polling [1]");
+    
+    // Ustaw interval odświeżający dane
+    const intervalId = setInterval(() => {
+      set(fetchReservationsAtom);
+      console.log("Odświeżono rezerwacje przez polling");
+    }, interval);
+    
+    // Zwróć funkcję czyszczącą, która może być wywołana do zatrzymania pollingu
+    return () => {
+      console.log("Zatrzymano polling rezerwacji");
+      clearInterval(intervalId);
+    };
+  }
+);
+
 // Atom do dodawania rezerwacji
 export const addReservationAtom = atom(
   null,
