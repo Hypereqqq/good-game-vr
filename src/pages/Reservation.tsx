@@ -1,6 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
-import { reservationsAtom, fetchReservationsAtom, addReservationAtom } from "../store/store";
+import {
+  reservationsAtom,
+  setupReservationsPollingAtom,
+  addReservationAtom,
+} from "../store/store";
+import { settingsAtom, setupSettingsPollingAtom } from "../store/settings";
 import { DateTime } from "luxon";
 
 const Reservation: React.FC = () => {
@@ -29,18 +34,43 @@ const Reservation: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   // Używamy atomów do odczytu i modyfikacji rezerwacji
   const reservations = useAtomValue(reservationsAtom);
-  const fetchReservations = useSetAtom(fetchReservationsAtom);
+  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom);
   const setAddReservation = useSetAtom(addReservationAtom);
+  const settings = useAtomValue(settingsAtom);
+  const setupSettingsPolling = useSetAtom(setupSettingsPollingAtom);
 
   useEffect(() => {
-    // Pobierz rezerwacje przy pierwszym renderowaniu
-    try {
-      fetchReservations();
-    } catch (fetchError) {
-      console.error("Błąd podczas pobierania rezerwacji:", fetchError);
-      return;
+    // Uruchom polling rezerwacji co 30 sekund
+    const stopReservationsPolling = setupReservationsPolling(30000);
+    console.log("Uruchomiono polling rezerwacji w RESERVATIONS");
+
+    // Ustaw polling ustawień co 30 sekund
+    const stopSettingsPolling = setupSettingsPolling(30000);
+    console.log("Uruchomiono polling ustawień w RESERVATIONS");
+
+    // Funkcja czyszcząca - zatrzymaj polling przy odmontowaniu komponentu
+    return () => {
+      stopReservationsPolling();
+      stopSettingsPolling();
+      console.log("Zatrzymano polling rezerwacji w RESERVATIONS");
+      console.log("Zatrzymano polling ustawień w RESERVATIONS");
+    };
+  }, [setupReservationsPolling, setupSettingsPolling]);
+
+  useEffect(() => {
+    // Jeśli zmienią się ustawienia, sprawdzamy czy wybrana usługa jest nadal dostępna
+    if (service === "Symulator VR - 2 osoby" && settings.seats < 2) {
+      // Jeśli nie ma już wystarczająco miejsc na symulator 2-osobowy
+      setService("Stanowisko VR");
+    } else if (
+      (service === "Symulator VR - 1 osoba" ||
+        service === "Symulator VR - 2 osoby") &&
+      settings.seats === 0
+    ) {
+      // Jeśli całkowicie wyłączono symulatory
+      setService("Stanowisko VR");
     }
-  }, [fetchReservations]);
+  }, [settings, service]);
 
   useEffect(() => {
     if (service === "Symulator VR - 1 osoba") {
@@ -211,9 +241,9 @@ const Reservation: React.FC = () => {
         | "Symulator VR - 2 osoby",
       people: peopleToStore,
       duration: durationMinutes,
-      whoCreated: "Klient", 
+      whoCreated: "Klient",
       cancelled: false,
-    };   
+    };
     console.log("Tworzenie rezerwacji KLIENT:", newReservation);
     setIsSubmitting(true);
     setError(null);
@@ -303,14 +333,7 @@ const Reservation: React.FC = () => {
     return slots;
   };
 
-  // const getDayOfWeek = (dateString: string | null) => {
-  //   if (!dateString) return null;
-  //   const [day, monthNum, yearNum] = dateString.split("-").map(Number);
-  //   const date = new Date(yearNum, monthNum - 1, day);
-  //   return date.getDay();
-  // };
-
-  const isHourAvailable = (hour: string) => {
+  function isHourAvailable(hour: string) {
     if (!selectedDate) return false;
 
     const [day, month, year] = selectedDate.split("-").map(Number);
@@ -399,6 +422,16 @@ const Reservation: React.FC = () => {
 
     // Sprawdź czy to stanowisko czy symulator
     if (isSimulator) {
+      // Całkowity brak dostępności dla symulatorów, gdy seats=0
+      if (settings.seats === 0) {
+        return false;
+      }
+
+      // Dla symulatora 2-osobowego wymagamy co najmniej 2 miejsc
+      if (service === "Symulator VR - 2 osoby" && settings.seats < 2) {
+        return false;
+      }
+
       // Dla symulatorów tylko jedna rezerwacja na raz
       const conflictingSimulator = dayReservations.some((r) => {
         // Sprawdź tylko rezerwacje symulatora
@@ -413,8 +446,8 @@ const Reservation: React.FC = () => {
 
       return !conflictingSimulator;
     } else {
-      // Dla stanowisk VR - limit to 8 osób w tym samym czasie
-      const maxPeople = 8; // Maksymalna liczba osób na stanowisku
+      // Dla stanowisk VR - limit to liczba stanowisk z ustawień
+      const maxPeople = settings.stations;
 
       // Sprawdź ile osób jest już zarezerwowanych w tym przedziale czasowym
       const bookedPeople = dayReservations
@@ -434,7 +467,7 @@ const Reservation: React.FC = () => {
       // Zwróć true, jeśli jest wystarczająco dużo miejsca
       return bookedPeople + people <= maxPeople;
     }
-  };
+  }
 
   return (
     <section className="bg-[#0f1525] text-white px-6 py-16">
@@ -459,8 +492,12 @@ const Reservation: React.FC = () => {
                   onChange={handleServiceChange}
                 >
                   <option>Stanowisko VR</option>
-                  <option>Symulator VR - 1 osoba</option>
-                  <option>Symulator VR - 2 osoby</option>
+                  {settings.seats > 0 && (
+                    <option>Symulator VR - 1 osoba</option>
+                  )}
+                  {settings.seats >= 2 && (
+                    <option>Symulator VR - 2 osoby</option>
+                  )}
                 </select>
               </div>
 
@@ -536,11 +573,11 @@ const Reservation: React.FC = () => {
                 </div>
                 <p className="text-sm text-gray-400 mt-2">
                   {service === "Stanowisko VR" &&
-                    "Preferowana liczba osób: 1 - 8"}
+                    `Preferowana liczba osób: 1 - ${settings.stations}`}
                   {service === "Symulator VR - 1 osoba" &&
-                    "Preferowana liczba osób: 1"}
+                    `Preferowana liczba osób: 1 | Dostępne: ${settings.seats}`}
                   {service === "Symulator VR - 2 osoby" &&
-                    "Preferowana liczba osób: 2"}
+                    `Preferowana liczba osób: 2 | Dostępne: ${settings.seats}`}
                 </p>
               </div>
 
