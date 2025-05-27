@@ -12,6 +12,13 @@ const api = axios.create({
   },
 });
 
+// Interface for AppConfig
+export interface AppConfig {
+  id: number;
+  stations: number;
+  seats: number;
+}
+
 // Service for managing reservations
 export const reservationService = {
   // Get all reservations
@@ -35,5 +42,22 @@ export const reservationService = {
   // Delete a reservation
   delete: async (id: string): Promise<void> => {
     await api.delete(`/reservations/${id}`);
+  },
+};
+
+// Service for managing application settings
+export const settingsService = {
+  // Get application settings
+  getSettings: async (): Promise<AppConfig> => {
+    const response = await api.get('/config');
+    // Ponieważ endpoint zwraca listę, ale wiemy że zawsze będzie tylko jeden element
+    return response.data[0];
+  },
+
+  // Update application settings
+  updateSettings: async (settings: Omit<AppConfig, 'id'>): Promise<AppConfig> => {
+    // Zawsze aktualizujemy rekord z ID=1
+    const response = await api.put(`/config/1`, settings);
+    return response.data;
   },
 };
