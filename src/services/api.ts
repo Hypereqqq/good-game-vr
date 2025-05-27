@@ -61,3 +61,23 @@ export const settingsService = {
     return response.data;
   },
 };
+
+// Interfejs dla danych logowania
+export interface LoginCredentials {
+  email_or_username: string;
+  password: string;
+}
+
+// Serwis do obsługi logowania
+export const authService = {
+  // Logowanie użytkownika
+  login: async (credentials: LoginCredentials): Promise<boolean> => {
+    try {
+      const response = await api.post('/login', credentials);
+      return response.data === true;
+    } catch (error) {
+      console.error("Błąd logowania:", error);
+      return false;
+    }
+  },
+};
