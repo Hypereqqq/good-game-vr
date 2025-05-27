@@ -2,12 +2,10 @@ import React, { useEffect, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { CalendarClock, Users, LayoutDashboard } from "lucide-react";
 import { DateTime } from "luxon";
-import { fetchReservationsAtom } from "../store/store"
-
 import { useAtom, useSetAtom } from "jotai";
 import { useNavigate } from "react-router-dom";
 import { isAdminLoggedInAtom } from "../store/auth";
-import { reservationsAtom } from "../store/store";
+import { reservationsAtom, setupReservationsPollingAtom } from "../store/store";
 import { clientsAtom } from "../store/clients";
 
 const AdminPanel: React.FC = () => {
@@ -19,12 +17,18 @@ const AdminPanel: React.FC = () => {
   const [currentTime, setCurrentTime] = useState(now.toFormat("HH:mm:ss"));
   const [clients] = useAtom(clientsAtom);
   const occupiedStations = new Set(clients.flatMap((c) => c.stations));
-  const fetchReservations = useSetAtom(fetchReservationsAtom);
+  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom);
 
   useEffect(() => {
-      fetchReservations();
-      console.log("Pobrano rezerwacje w ADMIN PANEL:");
-    }, [fetchReservations]);
+    // Ustaw polling rezerwacji co 30 sekund
+    const stopReservationsPolling = setupReservationsPolling(30000);
+    console.log("Uruchomiono polling rezerwacji w ADMIN PANEL");
+
+    return () => {
+      stopReservationsPolling();
+      console.log("Zatrzymano polling rezerwacji w ADMIN PANEL");
+    };
+  }, [setupReservationsPolling]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -167,8 +171,11 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
-              System rezerwacji - aktualizacja 
-              <span className="text-red-400 font-bold"> (ON NADAL NIE DZIALA - DANE SĄ Z DUPY)</span>
+              System rezerwacji - aktualizacja
+              <span className="text-red-400 font-bold">
+                {" "}
+                (ON NADAL NIE DZIALA - DANE SĄ Z DUPY)
+              </span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">21 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -208,11 +215,11 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
-                Dodano przycisk edycji rezerwacji 
+                Dodano przycisk edycji rezerwacji
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
-                Dodano przycisk „Dodaj rezerwację” 
+                Dodano przycisk „Dodaj rezerwację”
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
@@ -232,7 +239,7 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
-                Poprawiono wyświetlanie godzin 
+                Poprawiono wyświetlanie godzin
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
