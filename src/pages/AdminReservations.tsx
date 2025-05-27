@@ -6,9 +6,13 @@ import {
   addReservationAtom,
   updateReservationAtom,
   deleteReservationAtom,
-  fetchReservationsAtom,
+  setupReservationsPollingAtom,
 } from "../store/store";
-import { settingsAtom } from "../store/settings";
+import {
+  settingsAtom,
+  setupSettingsPollingAtom,
+  updateSettingsAtom,
+} from "../store/settings";
 import {
   FaUserFriends,
   FaPhone,
@@ -32,7 +36,7 @@ registerLocale("pl", pl);
 type SubpageType = "main" | "calendar" | "settings" | "add" | "edit";
 
 const AdminReservations: React.FC = () => {
-  const [settings, setSettings] = useAtom(settingsAtom);
+  const settings = useAtomValue(settingsAtom);
   const [editSettings, setEditSettings] = useState(false);
   const [tempSettings, setTempSettings] = useState(settings);
   const [subpage, setSubpage] = useState<SubpageType>("main");
@@ -69,11 +73,12 @@ const AdminReservations: React.FC = () => {
   const [modalServiceFilter, setModalServiceFilter] = useState("");
   const [hideFree, setHideFree] = useState(false);
   const [editReservation, setEditReservation] = useState<any | null>(null);
-
   // --- ATOMY CRUD ---
   const setUpdateReservation = useSetAtom(updateReservationAtom);
   const setDeleteReservation = useSetAtom(deleteReservationAtom);
-  const fetchReservations = useSetAtom(fetchReservationsAtom);
+  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom);
+  const setupSettingsPolling = useSetAtom(setupSettingsPollingAtom);
+  const setUpdateSettings = useSetAtom(updateSettingsAtom);
 
   // --- POPUPY NOTYFIKACJI ---
   type PopupType = "add" | "delete" | "edit";
@@ -88,18 +93,24 @@ const AdminReservations: React.FC = () => {
     if (type === "edit") setPopup({ type, message: "Zedytowano rezerwację!" });
     setTimeout(() => setPopup(null), 3000);
   }
-  // Pobierz rezerwacje przy pierwszym renderze
-  useEffect(() => {
-    fetchReservations();
-    console.log("Pobrano rezerwacje w ADMIN RESERVATIONS:");
-    // Ustaw interval odświeżający dane co 30 sekund
-    const intervalId = setInterval(() => {
-      fetchReservations();
-      console.log("Odświeżono rezerwacje w ADMIN RESERVATIONS");
-    }, 30000); // 30 sekund
 
-    return () => clearInterval(intervalId);
-  }, [fetchReservations]);
+  // Skonfiguruj automatyczne odświeżanie danych przy pierwszym renderowaniu
+  useEffect(() => {
+    // Ustaw polling rezerwacji co 30 sekund
+    const stopReservationsPolling = setupReservationsPolling(30000);
+    console.log("Uruchomiono polling rezerwacji w ADMIN RESERVATIONS");
+
+    // Ustaw polling ustawień co 60 sekund
+    const stopSettingsPolling = setupSettingsPolling(60000);
+    console.log("Uruchomiono polling ustawień w ADMIN RESERVATIONS");
+
+    return () => {
+      stopReservationsPolling();
+      stopSettingsPolling();
+      console.log("Zatrzymano polling rezerwacji w ADMIN RESERVATIONS");
+      console.log("Zatrzymano polling ustawień w ADMIN RESERVATIONS");
+    };
+  }, [setupReservationsPolling, setupSettingsPolling]);
 
   useEffect(() => {
     if (!editSettings) setTempSettings(settings);
@@ -1133,11 +1144,24 @@ const AdminReservations: React.FC = () => {
                 </button>
               ) : (
                 <>
+                  {" "}
                   <button
                     className="bg-[#00d9ff] text-black font-bold px-6 py-2 rounded shadow hover:bg-[#ffcc00] transition"
-                    onClick={() => {
-                      setSettings(tempSettings);
-                      setEditSettings(false);
+                    onClick={async () => {
+                      try {
+                        await setUpdateSettings(tempSettings);
+                        setEditSettings(false);
+                        // Pokaż popup potwierdzający sukces
+                        showPopup("edit");
+                      } catch (error) {
+                        console.error(
+                          "Błąd podczas aktualizacji ustawień:",
+                          error
+                        );
+                        alert(
+                          "Nie udało się zaktualizować ustawień. Spróbuj ponownie."
+                        );
+                      }
                     }}
                   >
                     Zapisz
@@ -1631,8 +1655,8 @@ const AdminAddReservationForm = (
   const settings = useAtomValue(settingsAtom);
   function isHourAvailable(hour: string) {
     const dateISO = DateTime.fromJSDate(selectedDate).toISODate();
-    const stations = settings?.stations || 8;
-    const seats = settings?.seats || 2;
+    const stations = settings.stations;
+    const seats = settings.seats;
     // Wyznacz czas rozpoczęcia i zakończenia slotu (zaokrąglij do minuty)
     const slotStart = DateTime.fromJSDate(selectedDate)
       .set({
@@ -1675,18 +1699,29 @@ const AdminAddReservationForm = (
       service === "Symulator VR - 1 osoba" ||
       service === "Symulator VR - 2 osoby"
     ) {
+      // Całkowity brak dostępności dla symulatorów, gdy seats=0
+      if (seats === 0) {
+        return false;
+      }
+
+      // Dla symulatora 2-osobowego wymagamy co najmniej 2 miejsc
+      if (service === "Symulator VR - 2 osoby" && seats < 2) {
+        return false;
+      }
+
       // Jeśli jakakolwiek rezerwacja symulatora zachodzi na ten slot, slot jest zajęty
       const anySimulator = dayReservations.some((r: any) => {
         if (
           r.service !== "Symulator VR - 1 osoba" &&
           r.service !== "Symulator VR - 2 osoby"
-        )
+        ) {
           return false;
+        }
         const resStart = DateTime.fromISO(r.reservationDate).startOf("minute");
         const resEnd = resStart.plus({ minutes: r.duration }).startOf("minute");
         return resStart < slotEnd && slotStart < resEnd;
       });
-      return !anySimulator && seats > 0;
+      return !anySimulator;
     }
     return true;
   }
@@ -1931,11 +1966,11 @@ const AdminAddReservationForm = (
           </div>
           <p className="text-xs text-gray-400 mt-2">
             {service === "Stanowisko VR" &&
-              `Preferowana liczba osób: 1 - ${settings?.stations || 8}`}
+              `Preferowana liczba osób: 1 - ${settings.stations}`}
             {service === "Symulator VR - 1 osoba" &&
-              "Preferowana liczba osób: 1"}
+              `Preferowana liczba osób: 1 | Dostępne: ${settings.seats}`}
             {service === "Symulator VR - 2 osoby" &&
-              "Preferowana liczba osób: 2"}
+              `Preferowana liczba osób: 2 | Dostępne: ${settings.seats}`}
           </p>
         </div>
       </div>
@@ -2134,8 +2169,8 @@ const AdminEditReservationForm: React.FC<{
   }
   function isHourAvailable(hour: string) {
     const dateISO = DateTime.fromJSDate(selectedDate).toISODate();
-    const stations = settings?.stations || 8;
-    const seats = settings?.seats || 2;
+    const stations = settings?.stations;
+    const seats = settings?.seats;
     const slotStart = DateTime.fromJSDate(selectedDate)
       .set({
         hour: Number(hour.split(":")[0]),
@@ -2176,6 +2211,16 @@ const AdminEditReservationForm: React.FC<{
       service === "Symulator VR - 1 osoba" ||
       service === "Symulator VR - 2 osoby"
     ) {
+      // Całkowity brak dostępności dla symulatorów, gdy seats=0
+      if (seats === 0) {
+        return false;
+      }
+
+      // Dla symulatora 2-osobowego wymagamy co najmniej 2 miejsc
+      if (service === "Symulator VR - 2 osoby" && seats < 2) {
+        return false;
+      }
+
       const anySimulator = dayReservations.some((r: any) => {
         if (
           r.service !== "Symulator VR - 1 osoba" &&
@@ -2186,7 +2231,7 @@ const AdminEditReservationForm: React.FC<{
         const resEnd = resStart.plus({ minutes: r.duration }).startOf("minute");
         return resStart < slotEnd && slotStart < resEnd;
       });
-      return !anySimulator && seats > 0;
+      return !anySimulator;
     }
     return true;
   }
