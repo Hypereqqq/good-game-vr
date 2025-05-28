@@ -3,12 +3,13 @@ import { authService, LoginCredentials } from "../services/api";
 
 const localStorageKey = "isAdminLoggedIn";
 
-// Podstawowy atom przechowujący stan zalogowania
+// Basic atom to check if admin is logged in
 export const isAdminLoggedInAtom = atom(
   !!localStorage.getItem(localStorageKey)
 );
 
-// Atom do prostego ustawienia stanu zalogowania (bez komunikacji z API)
+// Atom to set the admin login state
+// This atom allows setting the login state and updates localStorage accordingly
 export const setAdminLoggedInAtom = atom(
   null,
   (_get, set, value: boolean) => {
@@ -21,7 +22,7 @@ export const setAdminLoggedInAtom = atom(
   }
 );
 
-// Atom do logowania używający API
+// Atom for logging in the admin
 export const loginAdminAtom = atom(
   null,
   async (_get, set, credentials: LoginCredentials) => {
@@ -45,7 +46,7 @@ export const loginAdminAtom = atom(
   }
 );
 
-// Atom do wylogowywania
+// Atom for logging out the admin
 export const logoutAdminAtom = atom(null, (_get, set) => {
   set(isAdminLoggedInAtom, false);
   localStorage.removeItem(localStorageKey);

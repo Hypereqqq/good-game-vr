@@ -19,6 +19,13 @@ export interface AppConfig {
   seats: number;
 }
 
+// Interface for LoginCredentials
+export interface LoginCredentials {
+  email_or_username: string;
+  password: string;
+}
+
+
 // Service for managing reservations
 export const reservationService = {
   // Get all reservations
@@ -50,27 +57,21 @@ export const settingsService = {
   // Get application settings
   getSettings: async (): Promise<AppConfig> => {
     const response = await api.get('/config');
-    // Ponieważ endpoint zwraca listę, ale wiemy że zawsze będzie tylko jeden element
+    // Assuming the response is an array with a single object
     return response.data[0];
   },
 
   // Update application settings
   updateSettings: async (settings: Omit<AppConfig, 'id'>): Promise<AppConfig> => {
-    // Zawsze aktualizujemy rekord z ID=1
+    // We assume that the settings are updated by ID 1
     const response = await api.put(`/config/1`, settings);
     return response.data;
   },
 };
 
-// Interfejs dla danych logowania
-export interface LoginCredentials {
-  email_or_username: string;
-  password: string;
-}
-
-// Serwis do obsługi logowania
+// Service for user authentication
 export const authService = {
-  // Logowanie użytkownika
+  // User login
   login: async (credentials: LoginCredentials): Promise<boolean> => {
     try {
       const response = await api.post('/login', credentials);

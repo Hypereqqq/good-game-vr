@@ -3,10 +3,12 @@ import { Reservation } from "../types/types";
 import { reservationService } from "../services/api";
 
 
-// Początkowa wartość atomu to pusta tablica (dane zostaną pobrane później)
+// On the beginning, we define the atom for managing reservations
+// This atom holds the list of reservations and is used to store and retrieve them
 export const reservationsAtom = atom<Reservation[]>([]);
 
-// Inicjalny atom do ładowania rezerwacji z API
+// Initially, we set up an atom to fetch reservations from the API
+// This atom fetches reservations from the API and updates the reservationsAtom
 export const fetchReservationsAtom = atom(
   null, 
   async (_, set) => {
@@ -16,29 +18,30 @@ export const fetchReservationsAtom = atom(
       console.log("Pobrano rezerwacje STORE:", data);
     } catch (error) {
       console.error("Błąd podczas pobierania rezerwacji:", error);
-      // Użyj mockowych danych jako fallback w przypadku błędu
+      //Use mock data in case of error
       set(reservationsAtom, mockReservations);
     }
   }
 );
 
-// Atom do automatycznego odświeżania rezerwacji co zadany interval w ms
+// Atom to set up polling for reservations
+// This atom sets up a polling mechanism to fetch reservations periodically
 export const setupReservationsPollingAtom = atom(
   null,
-  (_, set, interval: number = 30000) => { // domyślnie co 30 sekund
+  (_, set, interval: number = 30000) => { // Default interval is 30 seconds
     console.log(`Uruchomiono polling rezerwacji co ${interval/1000} sekund`);
     
-    // Natychmiast pobierz rezerwacje
+    // Immediately fetch reservations on setup
     set(fetchReservationsAtom);
     console.log("Pobrano rezerwacje przez polling [1]");
     
-    // Ustaw interval odświeżający dane
+    // Set up polling to fetch reservations periodically
     const intervalId = setInterval(() => {
       set(fetchReservationsAtom);
       console.log("Odświeżono rezerwacje przez polling");
     }, interval);
     
-    // Zwróć funkcję czyszczącą, która może być wywołana do zatrzymania pollingu
+    // Cleanup function to clear the interval when the polling is stopped
     return () => {
       console.log("Zatrzymano polling rezerwacji");
       clearInterval(intervalId);
@@ -46,15 +49,15 @@ export const setupReservationsPollingAtom = atom(
   }
 );
 
-// Atom do dodawania rezerwacji
+// Atom to add a new reservation
 export const addReservationAtom = atom(
   null,
   async (_, set, newReservation: Omit<Reservation, 'id'>) => {
     try {
-      // Dodaj rezerwację przez API
+      // Add new reservation through the API
       await reservationService.create(newReservation);
       console.log("Dodano rezerwację STORE:", newReservation);
-      // Pobierz wszystkie rezerwacje na nowo
+      // Get all reservations again to update the state
       const updatedReservations = await reservationService.getAll();
       set(reservationsAtom, updatedReservations);
       console.log("Zaktualizowano rezerwacje po dodaniu STORE:", updatedReservations);
@@ -64,15 +67,15 @@ export const addReservationAtom = atom(
   }
 );
 
-// Atom do aktualizacji rezerwacji
+// Atom to update an existing reservation
 export const updateReservationAtom = atom(
   null,
   async (_, set, payload: { id: string, reservation: Partial<Reservation> }) => {
     try {
-      // Aktualizuj rezerwację przez API
+      // Update reservation through the API
       await reservationService.update(payload.id, payload.reservation);
       console.log("Zaktualizowano rezerwację STORE:", payload);
-      // Pobierz wszystkie rezerwacje na nowo
+      // Get all reservations again to update the state
       const updatedReservations = await reservationService.getAll();
       set(reservationsAtom, updatedReservations);
       console.log("Zaktualizowano rezerwacje po aktualizacji STORE:", updatedReservations);
@@ -82,15 +85,15 @@ export const updateReservationAtom = atom(
   }
 );
 
-// Atom do usuwania rezerwacji
+// Atom to delete a reservation
 export const deleteReservationAtom = atom(
   null,
   async (_, set, id: string) => {
     try {
-      // Usuń rezerwację przez API
+      // Delete reservation through the API
       await reservationService.delete(id);
       console.log("Usunięto rezerwację STORE:", id);
-      // Pobierz wszystkie rezerwacje na nowo
+      // Get all reservations again to update the state
       const updatedReservations = await reservationService.getAll();
       set(reservationsAtom, updatedReservations);
       console.log("Zaktualizowano rezerwacje po usunięciu STORE:", updatedReservations);
@@ -100,6 +103,8 @@ export const deleteReservationAtom = atom(
   }
 );
 
+// Mock data for reservations
+// This mock data is used in case of an error while fetching reservations from the API
 const mockReservations: Reservation[] = [
   {
     id: "1",

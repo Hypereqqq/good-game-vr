@@ -1,13 +1,18 @@
+// Admin panel for managing reservations, clients, and updates in a VR gaming center. 
+// It includes real-time updates, statistics, and a detailed log of changes.
+
+// Import necessary libraries and components
 import React, { useRef, useState, useEffect } from "react";
 import { Stage, Layer, Text, Image as KonvaImage } from "react-konva";
 import jsPDF from "jspdf";
 import { Download } from "lucide-react";
 
-const VOUCHER_WIDTH = 2000;
-const VOUCHER_HEIGHT = 2000;
+const VOUCHER_WIDTH = 2000; // Size of the voucher in pixels   
+const VOUCHER_HEIGHT = 2000; // Size of the voucher in pixels
 
-import voucherBg from "../assets/VOUCHER/voucherGGVR.png";
+import voucherBg from "../assets/VOUCHER/voucherGGVR.png"; 
 
+// Options for duration and players
 const durationOptions = [
   { value: 30, label: "30 MIN" },
   { value: 60, label: "60 MIN" },
@@ -15,14 +20,17 @@ const durationOptions = [
   { value: 120, label: "120 MIN" },
 ];
 
+// Options for number of players (1 to 8)
 const playersOptions = Array.from({ length: 8 }, (_, i) => i + 1);
 
-// Dla dodatkowych informacji
+// Options for additional information about players and rides
 const infoPlayersOptions = [
   { value: "", label: "Wybierz ilość osób" },
   { value: 1, label: "1 osoba" },
   { value: 2, label: "2 osoby" },
 ];
+
+// Options for number of rides (1 to 5)
 const ridesOptions = [
   { value: "", label: "Wybierz ilość przejazdów" },
   { value: 1, label: "1 przejazd 5D" },
@@ -32,31 +40,34 @@ const ridesOptions = [
   { value: 5, label: "5 przejazdów 5D" },
 ];
 
+// AdminVoucher component for generating and previewing vouchers
+// It allows users to input voucher details and export it as PNG or PDF
 const AdminVoucher: React.FC = () => {
-  const stageRef = useRef<any>(null);
+  const stageRef = useRef<any>(null); // Reference to the Konva stage for exporting
 
-  const [name, setName] = useState("");
-  const [players, setPlayers] = useState(1);
-  const [duration, setDuration] = useState(30);
-  const [code, setCode] = useState("");
-  const [timeText, setTimeText] = useState(""); // pole tekstowe tylko na czas gry
-  const [timeEdited, setTimeEdited] = useState(false);
+  const [name, setName] = useState("");  // State for user's name input
+  const [players, setPlayers] = useState(1); // State for number of players, default is 1
+  const [duration, setDuration] = useState(30); // State for game duration, default is 30 minutes
+  const [code, setCode] = useState(""); // State for voucher code input
+  const [timeText, setTimeText] = useState(""); // State for displaying the time text on the voucher
+  const [timeEdited, setTimeEdited] = useState(false); // Flag to check if time text was manually edited
 
   // Dodatkowe informacje
-  const [info, setInfo] = useState(""); // pole tekstowe tylko na dodatkowe info
-  const [infoPlayers, setInfoPlayers] = useState(""); // "" = brak wyboru
-  const [rides, setRides] = useState(""); // "" = brak wyboru
-  const [infoEdited, setInfoEdited] = useState(false);
+  const [info, setInfo] = useState(""); // State for additional information input
+  const [infoPlayers, setInfoPlayers] = useState("");   // "" = no choice
+  const [rides, setRides] = useState(""); //  "" = no choice
+  const [infoEdited, setInfoEdited] = useState(false); // Flag to check if additional info was manually edited
 
-  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
+  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null); // State for background image
 
-  // Ładowanie obrazu tła
+  // Load the voucher background image when the component mounts
   useEffect(() => {
     const img = new window.Image();
     img.src = voucherBg;
     img.onload = () => setBgImage(img);
   }, []);
 
+  // Load custom font for the voucher
   useEffect(() => {
     const font = new FontFace(
       "Tektur",
@@ -67,7 +78,8 @@ const AdminVoucher: React.FC = () => {
     });
   }, []);
 
-  // Automatyczna aktualizacja pola czas gry, jeśli nie było ręcznie edytowane
+  // Automatic update of time text if not manually edited
+  // It generates a default text based on the number of players and duration
   useEffect(() => {
     if (!timeEdited) {
       const durationLabel =
@@ -78,7 +90,8 @@ const AdminVoucher: React.FC = () => {
     }
   }, [players, duration]);
 
-  // Automatyczna aktualizacja pola dodatkowych informacji, jeśli nie było ręcznie edytowane
+  // Atomic update of additional info if not manually edited
+  // It generates a default text based on the number of players and rides
   useEffect(() => {
     if (!infoEdited) {
       let autoInfo = "";
@@ -99,7 +112,7 @@ const AdminVoucher: React.FC = () => {
     }
   }, [infoPlayers, rides]);
 
-  // Eksport do PNG
+  // Export to PNG
   const handleExportPNG = () => {
     if (!stageRef.current) return;
     const uri = stageRef.current.toDataURL({ pixelRatio: 1 });
@@ -110,7 +123,7 @@ const AdminVoucher: React.FC = () => {
     link.click();
   };
 
-  // Eksport do PDF
+  // Export to PDF
   const handleExportPDF = () => {
     if (!stageRef.current) return;
     const uri = stageRef.current.toDataURL({ pixelRatio: 1 });
@@ -127,7 +140,7 @@ const AdminVoucher: React.FC = () => {
   return (
     <section className="bg-[#0f1525] text-white px-6 py-10 min-h-screen">
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
-        {/* LEWA STRONA: Formularz */}
+        {/* LEFT SIDE: FORM */}
         <div className="w-full md:w-1/3 bg-[#1e2636] p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-bold text-[#00d9ff] mb-4 uppercase">
             Generuj voucher
@@ -202,7 +215,7 @@ const AdminVoucher: React.FC = () => {
               placeholder="Wklej kod"
             />
           </div>
-          {/* DODATKOWE INFORMACJE */}
+          {/* ADDITIONAL INFORMATION */}
           <div className="mb-4">
             <label className="block text-sm mb-1">Dodatkowe informacje:</label>
             <input
@@ -270,7 +283,7 @@ const AdminVoucher: React.FC = () => {
             </button>
           </div>
         </div>
-        {/* PRAWA STRONA: Podgląd vouchera */}
+        {/* RIGHT SIDE: VOUCHER PREVIEW */}
         <div className="w-full md:w-2/3 flex flex-col items-center gap-6">
           <div
             className="flex justify-center items-center bg-transparent p-0 w-full"

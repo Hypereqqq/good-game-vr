@@ -1,3 +1,8 @@
+// This code defines a React component for managing clients in a game setting, allowing for adding, editing,
+// and removing clients, as well as handling various configurations like custom start times, durations, and payment options.
+// It uses Jotai for state management and Luxon for date handling.
+
+// Import necessary libraries and types
 import React, { useEffect, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { clientsAtom } from "../store/clients";
@@ -6,6 +11,7 @@ import { ClientGame } from "../types/types";
 import { DateTime } from "luxon";
 import { FaTrash, FaEdit, FaCommentDots } from "react-icons/fa";
 
+// This object maps station IDs to their labels for display purposes
 const stanowiskoLabels: Record<number, string> = {
   1: "Zielone",
   2: "Czerwone",
@@ -17,75 +23,82 @@ const stanowiskoLabels: Record<number, string> = {
   8: "Tył 1",
 };
 
+// This type defines the options available when removing players from a group
 type RemoveOption = {
   type: "paid" | "toPay";
   toPayOption?: "addToGroup" | "addToQueue";
 };
 
 const AdminClientManager: React.FC = () => {
+  // Key for local storage to persist clients and queue clients
   const LOCAL_STORAGE_KEY = "ggvr_clients";
   const QUEUE_LOCAL_STORAGE_KEY = "ggvr_queueClients";
 
+  // State management using Jotai atoms
   const [clients, setClients] = useAtom(clientsAtom);
-  const [peopleCount, setPeopleCount] = useState(1);
-  const [name, setName] = useState("");
-  const [slots, setSlots] = useState<number[]>([1]);
-  const [duration, setDuration] = useState(30);
-  const [paid, setPaid] = useState(false);
-  const [editId, setEditId] = useState<string | null>(null);
-  const [customStartEnabled, setCustomStartEnabled] = useState(false);
-  const [customHour, setCustomHour] = useState(10); // domyślnie 10:00
-  const [customMinute, setCustomMinute] = useState(0); // domyślnie 0 min
-  const [customPriceEnabled, setCustomPriceEnabled] = useState(false);
-  const [customPrice, setCustomPrice] = useState<number | null>(null);
-  const [addComment, setAddComment] = useState(false);
-  const [comment, setComment] = useState<string>("");
-  const [duplicateSlots, setDuplicateSlots] = useState<number[]>([]);
-  const [showDuplicateError, setShowDuplicateError] = useState(false);
-  const [splitEnabled, setSplitEnabled] = useState(false);
-  const [splitGroupsCount, setSplitGroupsCount] = useState<number | "">("");
+  const [peopleCount, setPeopleCount] = useState(1); // Number of players in the group
+  const [name, setName] = useState(""); // Name of the client or group
+  const [slots, setSlots] = useState<number[]>([1]); // Default slot for the first player
+  const [duration, setDuration] = useState(30); // Default duration in minutes
+  const [paid, setPaid] = useState(false); // If the game is paid
+  const [editId, setEditId] = useState<string | null>(null); // ID of the client being edited
+  const [customStartEnabled, setCustomStartEnabled] = useState(false); // If custom start time is enabled
+  const [customHour, setCustomHour] = useState(10); // Default hour
+  const [customMinute, setCustomMinute] = useState(0); // Default minute
+  const [customPriceEnabled, setCustomPriceEnabled] = useState(false); // If custom price is enabled
+  const [customPrice, setCustomPrice] = useState<number | null>(null); // Custom price for the game, null if not set
+  const [addComment, setAddComment] = useState(false); // If comment field is enabled
+  const [comment, setComment] = useState<string>(""); // Comment for the client or group
+  const [duplicateSlots, setDuplicateSlots] = useState<number[]>([]); // Indices of duplicate slots
+  const [showDuplicateError, setShowDuplicateError] = useState(false); // If there are duplicate slots
+  const [splitEnabled, setSplitEnabled] = useState(false); // If split group feature is enabled
+  const [splitGroupsCount, setSplitGroupsCount] = useState<number | "">(""); // Number of groups to split into, empty string if not set
   const [splitGroups, setSplitGroups] = useState<
     { players: number; stations: number[] }[]
-  >([]);
-  const [splitError, setSplitError] = useState(false);
+  >([]); // Groups to split into, each with number of players and their stations
+  const [splitError, setSplitError] = useState(false); // If there is an error in the split configuration
 
-  const [removeFromGroupEnabled, setRemoveFromGroupEnabled] = useState(false);
-  const [removeCount, setRemoveCount] = useState<number | "">("");
-  const [removeStations, setRemoveStations] = useState<number[]>([]);
-  const [removeOptions, setRemoveOptions] = useState<RemoveOption[]>([]);
+  const [removeFromGroupEnabled, setRemoveFromGroupEnabled] = useState(false); // If remove from group feature is enabled
+  const [removeCount, setRemoveCount] = useState<number | "">(""); // Number of players to remove from the group, empty string if not set
+  const [removeStations, setRemoveStations] = useState<number[]>([]); // Stations to remove from the group
+  const [removeOptions, setRemoveOptions] = useState<RemoveOption[]>([]); // Options for removing players, each with type and optional toPayOption
   const [queueClients, setQueueClients] = useState<ClientGame[]>(() => {
     const stored = localStorage.getItem(QUEUE_LOCAL_STORAGE_KEY);
     return stored ? JSON.parse(stored) : [];
-  });
-  const [removeNames, setRemoveNames] = useState<string[]>([]);
-  const [removePrices, setRemovePrices] = useState<(number | "")[]>([]);
+  }); // Clients in the queue, loaded from local storage
+  const [removeNames, setRemoveNames] = useState<string[]>([]); // Names of players to remove from the group
+  const [removePrices, setRemovePrices] = useState<(number | "")[]>([]); // Prices for players to remove from the group, empty string if not set
 
-  const [editingQueueId, setEditingQueueId] = useState<string | null>(null);
-  const [editingQueueName, setEditingQueueName] = useState("");
-  const [editingQueuePrice, setEditingQueuePrice] = useState<number | "">("");
+  const [editingQueueId, setEditingQueueId] = useState<string | null>(null); // ID of the client being edited in the queue
+  const [editingQueueName, setEditingQueueName] = useState(""); // Name of the client being edited in the queue
+  const [editingQueuePrice, setEditingQueuePrice] = useState<number | "">(""); // Price of the client being edited in the queue, empty string if not set
 
-  const [, setTick] = useState(0); // tylko do triggerowania re-renderu
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [clientToDelete, setClientToDelete] = useState<ClientGame | null>(null);
-  const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [, setTick] = useState(0); // State to force re-render every second
+  const [showDeleteModal, setShowDeleteModal] = useState(false); // If delete confirmation modal is shown
+  const [clientToDelete, setClientToDelete] = useState<ClientGame | null>(null); // Client to delete, null if not set
+  const commentInputRef = useRef<HTMLTextAreaElement | null>(null); // Reference to the comment input field for focus management
   const [sortConfig, setSortConfig] = useState<{
     key: string | null;
     direction: "asc" | "desc" | null;
-  }>({ key: null, direction: null });
-  const [, setOriginalClients] = useState<ClientGame[]>([]);
+  }>({ key: null, direction: null }); // Configuration for sorting clients
+  const [, setOriginalClients] = useState<ClientGame[]>([]); // Original list of clients for reset purposes
 
+  // Load clients from local storage on initial render
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(clients));
   }, [clients]);
 
+  // Load clients from local storage when the component mounts
   useEffect(() => {
     localStorage.setItem(QUEUE_LOCAL_STORAGE_KEY, JSON.stringify(queueClients));
   }, [queueClients]);
 
+  // Load clients from local storage on initial render
   useEffect(() => {
     setOriginalClients(clients);
   }, [clients]);
 
+  // Reset form when editId changes or when clients change
   useEffect(() => {
     if (editId && !clients.some((c) => c.id === editId)) {
       setEditId(null);
@@ -93,6 +106,7 @@ const AdminClientManager: React.FC = () => {
     }
   }, [clients, editId]);
 
+  // Reset form when the component mounts
   useEffect(() => {
     const interval = setInterval(() => {
       setTick((prev) => prev + 1); // wymusza re-render
@@ -101,6 +115,7 @@ const AdminClientManager: React.FC = () => {
     return () => clearInterval(interval); // czyszczenie przy unmount
   }, []);
 
+  // Reset form when the component mounts
   useEffect(() => {
     if (editId) return;
 
@@ -116,14 +131,16 @@ const AdminClientManager: React.FC = () => {
     setSlots(newSlots);
   }, [peopleCount, clients, editId]);
 
+  // Set custom price when customPriceEnabled changes
   useEffect(() => {
     if (customPriceEnabled && customPrice === null) {
       setCustomPrice(getSinglePlayerAmount(duration, new Date().toISOString()));
     }
   }, [customPriceEnabled, duration, peopleCount]);
 
+  // Set custom start time when customStartEnabled changes
   useEffect(() => {
-    // UWAGA: jeśli edytujemy klienta, NIE nadpisuje godziny startowej
+    // If custom start is enabled and no editId is set, set the current time as default
     if (customStartEnabled && !editId) {
       const now = DateTime.now();
       setCustomHour(now.hour);
@@ -131,6 +148,7 @@ const AdminClientManager: React.FC = () => {
     }
   }, [customStartEnabled, editId]);
 
+  // Reset form function to clear all fields
   const resetForm = () => {
     setName("");
     setPeopleCount(1);
@@ -146,10 +164,12 @@ const AdminClientManager: React.FC = () => {
     setComment("");
   };
 
+  // Function to calculate end time based on start time and duration
   const calculateEndTime = (startTime: string, duration: number) => {
     return DateTime.fromISO(startTime).plus({ minutes: duration });
   };
 
+  // Function to get remaining time in a human-readable format
   const getRemainingTime = (
     startTime: string,
     duration: number
@@ -175,6 +195,7 @@ const AdminClientManager: React.FC = () => {
     };
   };
 
+  // Function to get payment amount based on duration, start time, and number of players
   const getPaymentAmount = (
     duration: number,
     startTime: string,
@@ -186,6 +207,7 @@ const AdminClientManager: React.FC = () => {
     return (rate / 30) * duration * players;
   };
 
+  // Function to get single player amount based on duration and start time
   const getSinglePlayerAmount = (
     duration: number,
     startTime: string
@@ -196,6 +218,7 @@ const AdminClientManager: React.FC = () => {
     return (rate / 30) * duration;
   };
 
+  // Function to handle changes in the number of players
   const handlePeopleChange = (delta: number) => {
     const newCount = Math.max(
       1,
@@ -215,6 +238,7 @@ const AdminClientManager: React.FC = () => {
     setSlots(newSlots);
   };
 
+  // Function to handle adding a new client or updating an existing one
   const handleAddClient = () => {
     const uniqueSlots = new Set(slots);
     if (uniqueSlots.size !== slots.length) {
@@ -295,10 +319,12 @@ const AdminClientManager: React.FC = () => {
     resetForm();
   };
 
+  // Function to handle deleting a client
   const handleDeleteClient = (id: string) => {
     setClients((prev) => prev.filter((client) => client.id !== id));
   };
 
+  // Function to handle editing a client
   const handleEditClient = (client: ClientGame) => {
     if (editId === client.id) {
       // Jeśli klikamy edycję tego samego klienta -> wyłącz edycję
@@ -336,6 +362,7 @@ const AdminClientManager: React.FC = () => {
     }
   };
 
+  // Function to handle adding a client to the queue
   const handleSplitGroup = () => {
     const sum = splitGroups.reduce((a, g) => a + g.players, 0);
     const allStations = splitGroups.flatMap((g) => g.stations);
@@ -369,6 +396,7 @@ const AdminClientManager: React.FC = () => {
     resetForm();
   };
 
+  // Function to handle adding a client to the queue
   const handleRemoveFromGroup = (names: string[], prices: (number | "")[]) => {
     if (!editId) return;
     const client = clients.find((c) => c.id === editId);
@@ -421,7 +449,6 @@ const AdminClientManager: React.FC = () => {
       }
     });
 
-    // Dodaj lub doklej komentarz do pozostałych osób w grupie
     setClients((prev) =>
       prev
         .map((c) => {
@@ -460,19 +487,24 @@ const AdminClientManager: React.FC = () => {
     resetForm();
   };
 
+  // Function to handle adding a client to the queue
   const occupiedStations = clients
     .filter((c) => c.id !== editId)
     .flatMap((client) => client.stations);
 
+  // Calculate the total number of stations taken by all clients
   const takenStationsCount = clients.reduce(
     (total, client) => total + client.stations.length,
     0
   );
 
+  // Check if all stations are taken (8 total)
   const allStationsTaken = !editId && takenStationsCount >= 8;
 
+  // Define the order of stations for sorting
   const sortedStationOrder = [1, 2, 5, 6, 8, 7, 3, 4];
 
+  // Function to get sorted clients based on the current sort configuration
   const getSortedClients = () => {
     if (!sortConfig.key || !sortConfig.direction) return clients;
 
@@ -513,7 +545,7 @@ const AdminClientManager: React.FC = () => {
           const bRem = getRemainingTime(b.startTime, b.duration).minutes;
           return sortConfig.direction === "asc" ? aRem - bRem : bRem - aRem;
         case "paid":
-          // Najpierw opłacone, potem nieopłacone (asc), odwrotnie (desc)
+          // First sort by paid status
           if (a.paid !== b.paid) {
             return sortConfig.direction === "asc"
               ? a.paid
@@ -523,7 +555,7 @@ const AdminClientManager: React.FC = () => {
               ? 1
               : -1;
           }
-          // Jeśli oba nieopłacone, sortuj po kwocie malejąco
+          // If paid status is the same, sort by remaining time
           const aAmount =
             a.customPrice != null
               ? a.customPrice * a.players
@@ -541,19 +573,20 @@ const AdminClientManager: React.FC = () => {
     return sorted;
   };
 
+  // Function to handle sorting clients by a specific key
   const handleSort = (key: string, twoWay = false) => {
     setSortConfig((prev) => {
       if (prev.key !== key) {
-        // Pierwsze kliknięcie: sortowanie domyślne (rosnąco lub wg specyfikacji)
+        // First click: ascending sort
         return { key, direction: "asc" };
       } else if (prev.direction === "asc") {
-        // Drugie kliknięcie: sortowanie odwrotne
+        // Second click: descending sort
         return { key, direction: twoWay ? "desc" : null };
       } else if (prev.direction === "desc") {
-        // Trzecie kliknięcie: powrót do domyślnego
+        // Third click: reset sort
         return { key: null, direction: null };
       } else {
-        // Powrót do domyślnego
+        // Reset sort
         return { key: null, direction: null };
       }
     });
@@ -561,15 +594,18 @@ const AdminClientManager: React.FC = () => {
 
   return (
     <section className="bg-[#0f1525] text-white px-6 py-10 min-h-screen">
+      {/* Main container for the client management page */}
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
         <div className="w-full md:w-1/3 bg-[#1e2636] p-6 rounded-lg shadow-md">
           <h2 className="text-xl font-bold text-[#00d9ff] mb-4 uppercase">
             Zarządzaj klientami
           </h2>
 
+          {/* Form for adding or editing a client */}
           <div className="mb-4">
             <label className="block mb-1 text-sm">Liczba osób:</label>
             <div className="flex items-center gap-2">
+              {/* Button to decrease the number of players */}
               <button
                 onClick={() => handlePeopleChange(-1)}
                 className="w-7 h-7 flex items-center justify-center bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50 transition"
@@ -585,6 +621,7 @@ const AdminClientManager: React.FC = () => {
               >
                 {peopleCount}
               </span>
+              {/* Button to increase the number of players */}
               <button
                 onClick={() => handlePeopleChange(1)}
                 className="w-7 h-7 flex items-center justify-center bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50 transition"
@@ -597,6 +634,7 @@ const AdminClientManager: React.FC = () => {
             </div>
           </div>
 
+          {/* Input for client or group name */}
           <div className="mb-4">
             <label className="block text-sm">Nazwa grupy / klienta:</label>
             <input
@@ -608,6 +646,7 @@ const AdminClientManager: React.FC = () => {
             />
           </div>
 
+          {/* Select dropdown for player slots */}
           {Array.from({ length: peopleCount }).map((_, i) => (
             <div key={i} className="mb-2">
               <label className="block text-sm">
@@ -619,7 +658,7 @@ const AdminClientManager: React.FC = () => {
                   const updated = [...slots];
                   updated[i] = parseInt(e.target.value);
                   setSlots(updated);
-                  setDuplicateSlots([]); // reset błędu po zmianie
+                  setDuplicateSlots([]); // Reset duplicate slots when changing a slot
                   setShowDuplicateError(false);
                 }}
                 className={`w-full p-2 rounded bg-[#0f1525] border ${
@@ -643,12 +682,14 @@ const AdminClientManager: React.FC = () => {
             </div>
           ))}
 
+          {/* Error message for duplicate slots */}
           {showDuplicateError && (
             <div className="mb-4 text-red-500 text-sm">
               Wszystkie stanowiska muszą być unikalne!
             </div>
           )}
 
+          {/* Button to add or update the client */}
           <div className="mb-4">
             <label className="block mb-1 text-sm">Czas gry (minuty):</label>
             <input
@@ -683,6 +724,7 @@ const AdminClientManager: React.FC = () => {
             </div>
           </div>
 
+          {/* Checkbox for paid game option */}
           <div className="mb-4">
             <label className="flex items-center gap-2 text-sm mb-2">
               <input
@@ -732,6 +774,7 @@ const AdminClientManager: React.FC = () => {
             )}
           </div>
 
+          {/* Checkbox for paid game option */}
           <div className="mb-4">
             <label className="flex items-center gap-2 text-sm mb-2">
               <input
@@ -783,6 +826,7 @@ const AdminClientManager: React.FC = () => {
             )}
           </div>
 
+          {/* Checkbox for paid game option */}
           <div className="mb-4">
             <label className="flex items-center gap-2 text-sm mb-2">
               <input
@@ -805,6 +849,7 @@ const AdminClientManager: React.FC = () => {
             )}
           </div>
 
+          {/* Button to add or update the client */}
           {editId && peopleCount > 1 && (
             <>
               <div className="mb-4">
@@ -1021,6 +1066,7 @@ const AdminClientManager: React.FC = () => {
             </>
           )}
 
+          {/* Button to add or update the client */}
           {editId && peopleCount > 1 && (
             <>
               <div className="mb-4">
@@ -1073,6 +1119,7 @@ const AdminClientManager: React.FC = () => {
                       )}
                     </select>
                   </div>
+                  {/* Render remove stations and options if removeCount is set */}
                   {removeCount !== "" && (
                     <>
                       <div className="mt-2 flex flex-col gap-4">
@@ -1289,6 +1336,7 @@ const AdminClientManager: React.FC = () => {
             </>
           )}
 
+          {/* Checkbox for paid game option */}
           <div className="mb-4">
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -1314,7 +1362,7 @@ const AdminClientManager: React.FC = () => {
           </button>
         </div>
 
-        {/* PRAWA STRONA: Kafelki stanowisk */}
+        {/*RIGHT SIDE: CLIENTS */}
         <div className="w-full md:w-2/3 px-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(8)].map((_, index) => {
@@ -1469,6 +1517,7 @@ const AdminClientManager: React.FC = () => {
             })}
           </div>
 
+          {/* Queue section */}
           <div className="overflow-x-auto lg:overflow-x-visible mt-10">
             {queueClients.length > 0 && (
               <div className="mt-8 mb-8">
@@ -1661,6 +1710,7 @@ const AdminClientManager: React.FC = () => {
               </div>
             )}
 
+            {/* Clients list section */}
             <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
               <thead>
                 <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
@@ -1841,6 +1891,8 @@ const AdminClientManager: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
       {showDeleteModal && clientToDelete && (
         <div
           className="fixed left-0 top-0 w-full h-full z-50 flex items-center justify-center backdrop-blur-sm"

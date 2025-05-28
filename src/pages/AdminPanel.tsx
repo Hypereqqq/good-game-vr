@@ -1,3 +1,7 @@
+// Admin panel for managing reservations, clients, and updates in a VR gaming center. 
+// It includes real-time updates, statistics, and a detailed log of changes.
+
+// Import necessary libraries and components
 import React, { useEffect, useState } from "react";
 import { FlaskConical } from "lucide-react";
 import { CalendarClock, Users, LayoutDashboard } from "lucide-react";
@@ -9,18 +13,21 @@ import { reservationsAtom, setupReservationsPollingAtom } from "../store/store";
 import { clientsAtom } from "../store/clients";
 
 const AdminPanel: React.FC = () => {
-  const [isLoggedIn] = useAtom(isAdminLoggedInAtom);
-  const [reservations] = useAtom(reservationsAtom);
-  const navigate = useNavigate();
+  // State and atoms for managing admin panel functionality
+  const [isLoggedIn] = useAtom(isAdminLoggedInAtom); // Atom for checking if admin is logged in
+  const [reservations] = useAtom(reservationsAtom); // Atom for managing reservations data
+  const navigate = useNavigate();// React Router navigation hook
 
-  const now = DateTime.now().setZone("Europe/Warsaw");
-  const [currentTime, setCurrentTime] = useState(now.toFormat("HH:mm:ss"));
-  const [clients] = useAtom(clientsAtom);
-  const occupiedStations = new Set(clients.flatMap((c) => c.stations));
-  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom);
+  // Setup for current time display and clients data
+  const now = DateTime.now().setZone("Europe/Warsaw"); // Current time in Warsaw timezone
+  const [currentTime, setCurrentTime] = useState(now.toFormat("HH:mm:ss")); // State for current time display
+  const [clients] = useAtom(clientsAtom); // Atom for managing clients data
+  const occupiedStations = new Set(clients.flatMap((c) => c.stations)); // Set of occupied stations based on clients data
+  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom);  // Function to setup polling for reservations
 
+  // Effect to setup polling for reservations every 30 seconds
   useEffect(() => {
-    // Ustaw polling rezerwacji co 30 sekund
+    // Setup polling for reservations every 30 seconds
     const stopReservationsPolling = setupReservationsPolling(30000);
     console.log("Uruchomiono polling rezerwacji w ADMIN PANEL");
 
@@ -30,6 +37,7 @@ const AdminPanel: React.FC = () => {
     };
   }, [setupReservationsPolling]);
 
+  // Effect to update current time every second
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentTime(
@@ -39,13 +47,14 @@ const AdminPanel: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Effect to redirect to login page if not logged in
   useEffect(() => {
     if (!isLoggedIn) {
       navigate("/login");
     }
   }, [isLoggedIn, navigate]);
 
-  // Najbliższa rezerwacja
+  // Calculate the next upcoming reservation
   const upcomingReservation = reservations
     .filter((r) => DateTime.fromISO(r.reservationDate) > now)
     .sort(
@@ -61,9 +70,9 @@ const AdminPanel: React.FC = () => {
           Panel Administratora
         </h1>
 
-        {/* Kafelki statystyk */}
+        {/* Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Najbliższa rezerwacja */}
+          {/* Closest reserbation */}
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6">
             <p className="text-lg font-semibold text-gray-400 mb-2">
               Najbliższa rezerwacja
@@ -110,14 +119,14 @@ const AdminPanel: React.FC = () => {
             )}
           </div>
 
-          {/* Aktualna godzina */}
+          {/* Hour */}
           <div className="bg-[#1e2636] rounded-lg p-6 flex flex-col justify-center items-center text-center shadow-lg">
             <CalendarClock className="mx-auto mb-2 w-8 h-8 text-[#00d9ff]" />
             <p className="text-lg font-semibold text-gray-400">Godzina</p>
             <p className="text-4xl font-bold text-[#00d9ff]">{currentTime}</p>
           </div>
 
-          {/* Liczba grających */}
+          {/* Number of active players */}
           <div className="bg-[#1e2636] rounded-lg p-6 flex flex-col justify-center items-center text-center shadow-lg">
             <Users className="mx-auto mb-2 w-8 h-8 text-[#ffcc00]" />
             <p className="text-lg font-semibold text-gray-400">
@@ -129,7 +138,7 @@ const AdminPanel: React.FC = () => {
           </div>
         </div>
 
-        {/* Kafelki nawigacji */}
+        {/* Navigation */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <button
             onClick={() => navigate("/admin/rezerwacje")}
@@ -154,9 +163,9 @@ const AdminPanel: React.FC = () => {
           </button>
         </div>
 
-        {/* Sekcja "Co nowego" */}
+        {/* What's new? */}
         <div className="mt-10 flex flex-col gap-6">
-          {/* Kafelek z ikonką */}
+          {/* Icons */}
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex items-center gap-4">
             <FlaskConical className="w-12 h-12 text-[#00d9ff]" />
             <div>
@@ -167,7 +176,7 @@ const AdminPanel: React.FC = () => {
             </div>
           </div>
 
-          {/* Lista aktualizacji */}
+          {/* Log */}
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">

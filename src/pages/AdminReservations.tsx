@@ -1,3 +1,9 @@
+// Reservation management page for admin users
+// This page allows admin users to manage reservations, view statistics, and configure settings.
+// It includes features like adding, editing, deleting reservations, and viewing them in a calendar format.
+// It also provides a chart to visualize reservation data over time.
+
+// Import necessary libraries and components
 import React, { useEffect, useState, useRef, useImperativeHandle } from "react";
 import { DateTime } from "luxon";
 import { useAtom, useSetAtom, useAtomValue } from "jotai";
@@ -36,59 +42,61 @@ registerLocale("pl", pl);
 type SubpageType = "main" | "calendar" | "settings" | "add" | "edit" | "search";
 
 const AdminReservations: React.FC = () => {
-  const settings = useAtomValue(settingsAtom);
-  const [editSettings, setEditSettings] = useState(false);
-  const [tempSettings, setTempSettings] = useState(settings);
-  const [subpage, setSubpage] = useState<SubpageType>("main");
-  const [previousSubpage, setPreviousSubpage] = useState<SubpageType>("main");
-  const [reservations] = useAtom(reservationsAtom);
-  const [tab, setTab] = useState<"today" | "week">("today");
-  const [search, setSearch] = useState("");
-  const [headerSearch, setHeaderSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [serviceFilter, setServiceFilter] = useState<string>("");
-  const [dateFrom, setDateFrom] = useState(DateTime.now().startOf("day"));
+  const settings = useAtomValue(settingsAtom); // Get current settings from the atom
+  const [editSettings, setEditSettings] = useState(false); // State to toggle settings edit mode
+  const [tempSettings, setTempSettings] = useState(settings); // Temporary settings for editing
+  const [subpage, setSubpage] = useState<SubpageType>("main"); // Current subpage state
+  const [previousSubpage, setPreviousSubpage] = useState<SubpageType>("main"); // Previous subpage for navigation
+  const [reservations] = useAtom(reservationsAtom); // Get reservations from the atom
+  const [tab, setTab] = useState<"today" | "week">("today"); // Current tab state for reservations view
+  const [search, setSearch] = useState(""); // Search term for filtering reservations
+  const [headerSearch, setHeaderSearch] = useState(""); // Search term for header search input
+  const [searchResults, setSearchResults] = useState<any[]>([]);  // Search results for header search
+  const [serviceFilter, setServiceFilter] = useState<string>(""); // Filter for services in reservations
+  const [dateFrom, setDateFrom] = useState(DateTime.now().startOf("day"));  // Start date for filtering reservations
   const [dateTo, setDateTo] = useState(
     DateTime.now().plus({ days: 6 }).endOf("day")
-  );
+  );  // End date for filtering reservations
   const [selectedWeekDay, setSelectedWeekDay] = useState(
     DateTime.now().plus({ days: 1 }).toISODate()
-  );
-  const [infoModal, setInfoModal] = useState<null | any>(null);
-  const [cancelledCount, setCancelledCount] = useState(2);
-  const [deleteModal, setDeleteModal] = useState<{ id: string } | null>(null);
-  const [showFuture, setShowFuture] = useState(true);
+  );  // Selected day for week view
+  const [infoModal, setInfoModal] = useState<null | any>(null); // Modal state for reservation info
+  const [cancelledCount, setCancelledCount] = useState(2);  // Count of cancelled reservations, initialized to 2 for demo purposes
+  const [deleteModal, setDeleteModal] = useState<{ id: string } | null>(null);  // Modal state for deleting reservations
+  const [showFuture, setShowFuture] = useState(true);   // State to show future reservations in the today tab
 
-  // Wybór typu wykresu i szczegółów
   const [chartType, setChartType] = useState<"general" | "reservations">(
     "reservations"
-  );
-  const [chartDetail, setChartDetail] = useState<string>("all");
+  );  // Type of chart to display, either general or reservations
+  const [chartDetail, setChartDetail] = useState<string>("all"); // Detail level for reservations chart, can be 'all', 'vr', 'sim1', or 'sim2'
 
-  // KALENDARZ: wybór miesiąca przez DatePicker (tylko miesiąc/rok)
-  const today_2 = DateTime.now();
+ 
+  const today_2 = DateTime.now(); // Current date and time using Luxon
   const [calendarMonthDate, setCalendarMonthDate] = useState<Date>(
     today_2.startOf("month").toJSDate()
-  );
+  ); // State for the currently displayed month in the calendar
 
-  const [dayModal, setDayModal] = useState<null | { date: string }>(null);
-  const [modalServiceFilter, setModalServiceFilter] = useState("");
-  const [hideFree, setHideFree] = useState(false);
-  const [editReservation, setEditReservation] = useState<any | null>(null);
+  const [dayModal, setDayModal] = useState<null | { date: string }>(null); // Modal state for displaying reservations on a specific day
+  const [modalServiceFilter, setModalServiceFilter] = useState(""); // Filter for services in the day modal
+  const [hideFree, setHideFree] = useState(false); // State to hide free slots in the day modal
+  const [editReservation, setEditReservation] = useState<any | null>(null); // State for editing a reservation
+
+
   // --- ATOMY CRUD ---
-  const setUpdateReservation = useSetAtom(updateReservationAtom);
-  const setDeleteReservation = useSetAtom(deleteReservationAtom);
-  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom);
-  const setupSettingsPolling = useSetAtom(setupSettingsPollingAtom);
-  const setUpdateSettings = useSetAtom(updateSettingsAtom);
+  const setUpdateReservation = useSetAtom(updateReservationAtom); // Atom to update a reservation
+  const setDeleteReservation = useSetAtom(deleteReservationAtom); // Atom to delete a reservation
+  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom); // Atom to set up polling for reservations
+  const setupSettingsPolling = useSetAtom(setupSettingsPollingAtom); // Atom to set up polling for settings
+  const setUpdateSettings = useSetAtom(updateSettingsAtom); // Atom to update settings
 
-  // --- POPUPY NOTYFIKACJI ---
+  // --- POPUP's ---
   type PopupType = "add" | "delete" | "edit";
   const [popup, setPopup] = useState<{
     type: PopupType;
     message: string;
   } | null>(null);
 
+  // FUnction to show popup messages
   function showPopup(type: PopupType) {
     if (type === "add") setPopup({ type, message: "Dodano rezerwację!" });
     if (type === "delete") setPopup({ type, message: "Usunięto rezerwację!" });
@@ -96,17 +104,18 @@ const AdminReservations: React.FC = () => {
     setTimeout(() => setPopup(null), 3000);
   }
 
-  // Skonfiguruj automatyczne odświeżanie danych przy pierwszym renderowaniu
+  // --- Pooling settings ---
   useEffect(() => {
-    // Ustaw polling rezerwacji co 30 sekund
+    // Setup polling for reservations every 30 seconds
     const stopReservationsPolling = setupReservationsPolling(30000);
     console.log("Uruchomiono polling rezerwacji w ADMIN RESERVATIONS");
 
-    // Ustaw polling ustawień co 60 sekund
+    // Setup polling for settings every 60 seconds
     const stopSettingsPolling = setupSettingsPolling(60000);
     console.log("Uruchomiono polling ustawień w ADMIN RESERVATIONS");
 
     return () => {
+      // Cleanup polling on component unmount
       stopReservationsPolling();
       stopSettingsPolling();
       console.log("Zatrzymano polling rezerwacji w ADMIN RESERVATIONS");
@@ -114,28 +123,30 @@ const AdminReservations: React.FC = () => {
     };
   }, [setupReservationsPolling, setupSettingsPolling]);
 
+  // Define a function to handle reservation deletion
   useEffect(() => {
     if (!editSettings) setTempSettings(settings);
   }, [settings, editSettings]);
 
-  // Rezerwacje na wybrany dzień do modala
+  // Reserbations for the day modal
   const modalReservationsAll = dayModal
     ? reservations.filter(
         (r) => DateTime.fromISO(r.reservationDate).toISODate() === dayModal.date
       )
     : [];
 
+ // Filter reservations by service in the day modal
   const modalReservations = modalServiceFilter
     ? modalReservationsAll.filter((r) => r.service === modalServiceFilter)
     : modalReservationsAll;
 
-  // Statystyki do nagłówka modala
+  // Statistics for the day modal
   const dayStats = {
     people: modalReservationsAll.reduce((sum, r) => sum + (r.people || 0), 0),
     count: modalReservationsAll.length,
   };
 
-  // Wyznacz sloty czasowe
+  // Get time slots for the day modal
   let modalTimeSlots: string[] = [];
   if (dayModal) {
     const date = DateTime.fromISO(dayModal.date);
@@ -145,7 +156,7 @@ const AdminReservations: React.FC = () => {
       modalServiceFilter === "Symulator VR - 2 osoby";
 
     if (isSimulator) {
-      // Symulator: co 15 min
+      // Simulator slots: 15 minutes, 10:00-19:45 on Sunday, 9:00-20:45 on other days
       const startHour = isSunday ? 10 : 9;
       const endHour = isSunday ? 19 : 20;
       const endMinute = 45;
@@ -156,37 +167,38 @@ const AdminReservations: React.FC = () => {
         t = t.plus({ minutes: 15 });
       }
     } else {
-      // Stanowisko VR: co 30 min, ale jeśli są symulatory, dodaj sloty 15-minutowe dla symulatorów
+      // VR station slots: 30 minutes, 10:00-19:30 on Sunday, 9:00-20:30 on other days 
+      // add 15-minute slots if there is a simulator at that time
       const startHour = isSunday ? 10 : 9;
       const endHour = isSunday ? 19 : 20;
       const endMinute = isSunday ? 30 : 30;
       let t = date.set({ hour: startHour, minute: 0 });
       const end = date.set({ hour: endHour, minute: endMinute });
 
-      // Zbierz godziny symulatorów w tym dniu
+      // Get all simulator times for the day
       const simTimes = modalReservationsAll
         .filter((r) => r.service.startsWith("Symulator"))
         .map((r) => DateTime.fromISO(r.reservationDate).toFormat("HH:mm"));
 
       while (t <= end) {
         modalTimeSlots.push(t.toFormat("HH:mm"));
-        // Dodaj slot 15-minutowy jeśli jest symulator w tym dniu na ten czas
+        // Add 15-minute slot if it matches a simulator time
         const next15 = t.plus({ minutes: 15 }).toFormat("HH:mm");
         if (simTimes.includes(next15) && !modalTimeSlots.includes(next15)) {
           modalTimeSlots.push(next15);
         }
         t = t.plus({ minutes: 30 });
       }
-      // Posortuj sloty rosnąco
+      // Sort and remove duplicates
       modalTimeSlots = Array.from(new Set(modalTimeSlots)).sort();
     }
   }
 
-  // Wyciągnij miesiąc i rok z wybranej daty
+  // Get the current month and year for the calendar
   const calendarMonth = DateTime.fromJSDate(calendarMonthDate).month;
   const calendarYear = DateTime.fromJSDate(calendarMonthDate).year;
 
-  // Wylicz dni do wyświetlenia w siatce kalendarza
+  // Get days to show in the calendar
   const monthStart = DateTime.local(calendarYear, calendarMonth, 1);
   const monthEnd = monthStart.endOf("month");
   const start = monthStart.startOf("week");
@@ -199,11 +211,12 @@ const AdminReservations: React.FC = () => {
     d = d.plus({ days: 1 });
   }
 
+  // Filter reservations based on search and service filter
   const filteredCalendarReservations = serviceFilter
     ? reservations.filter((r) => r.service === serviceFilter)
     : reservations;
 
-  // Mapowanie rezerwacji po dacie
+  // Reservations mapped by day for the calendar
   const reservationsByDay: Record<string, typeof reservations> = {};
   filteredCalendarReservations.forEach((r) => {
     const day = DateTime.fromISO(r.reservationDate).toISODate();
@@ -213,7 +226,7 @@ const AdminReservations: React.FC = () => {
     }
   });
 
-  // Filtrowanie tylko po search i usłudze (daty tylko do wykresu)
+  // Filter reservations based on search and service filter
   const filtered = reservations.filter((r) => {
     const matchesSearch = `${r.firstName} ${r.lastName}`
       .toLowerCase()
@@ -222,7 +235,7 @@ const AdminReservations: React.FC = () => {
     return matchesSearch && matchesService;
   });
 
-  // Statystyki dla zakresu (na podstawie wykresu)
+  // Count cancelled reservations
   const filteredForStats = reservations.filter((r) => {
     const dt = DateTime.fromISO(r.reservationDate);
     const inRange = dt >= dateFrom && dt <= dateTo;
@@ -240,7 +253,7 @@ const AdminReservations: React.FC = () => {
     )
   ).size;
 
-  // Wykres - dane tylko po dacie i wybranych selectach
+  // Prepare data for the chart
   const daysInRange = [];
   let dt = dateFrom.startOf("day");
   while (dt <= dateTo.endOf("day")) {
@@ -248,13 +261,13 @@ const AdminReservations: React.FC = () => {
     dt = dt.plus({ days: 1 });
   }
 
-  // Dane do wykresu - NIE filtruj po search/serviceFilter, tylko po dacie
+  // Data for the chart, filtered by date range
   const chartFiltered = reservations.filter((r) => {
     const dt = DateTime.fromISO(r.reservationDate);
     return dt >= dateFrom && dt <= dateTo;
   });
 
-  // Przetwarzanie danych do wykresu na podstawie wyborów selectów
+  // Process chart datasets based on selected type and detail
   let chartDatasets: any[] = [];
 
   if (chartType === "general") {
@@ -398,12 +411,13 @@ const AdminReservations: React.FC = () => {
     }
   }
 
+  // Prepare chart data object
   const chartData = {
     labels: daysInRange.map((d) => d.toFormat("yyyy-LL-dd")),
     datasets: chartDatasets,
   };
 
-  // Rezerwacje na dziś
+  // Reservations for today
   const today = DateTime.now().toISODate();
   const now = DateTime.now();
   const todayReservations = filtered.filter(
@@ -415,7 +429,7 @@ const AdminReservations: React.FC = () => {
   const getWeekDates = (start: DateTime) =>
     Array.from({ length: 7 }, (_, i) => start.plus({ days: i }));
 
-  // Rezerwacje na tydzień
+  // Reservations for the week view
   const weekStart = DateTime.now().plus({ days: 1 }).startOf("day");
   const weekDates = getWeekDates(weekStart);
 
@@ -424,39 +438,40 @@ const AdminReservations: React.FC = () => {
       (r) => DateTime.fromISO(r.reservationDate).toISODate() === dateISO
     );
 
-  // Usuwanie rezerwacji  // Usuwanie rezerwacji przez API
+  // Deleting a reservation using api
   const handleDelete = async (id: string) => {
     await setDeleteReservation(id);
     setCancelledCount((prev) => prev + 1);
     showPopup("delete");
   };
 
-  // Kolor paska po lewej stronie
+  // Color of the bar in the chart based on service type
   const getBarColor = (service: string) => {
     if (service === "Stanowisko VR") return "bg-[#00d9ff]";
     if (service.startsWith("Symulator")) return "bg-red-600";
     return "bg-gray-400";
   };
 
-  // Funkcja obsługująca przejście do dodawania rezerwacji
+  // Function to handle going to the add reservation page
   const handleGoToAdd = () => {
     setPreviousSubpage(subpage);
     setSubpage("add");
   };
 
-  // Funkcja obsługująca powrót
+  // Function to handle going back from the add reservation page
   const handleBackFromAdd = () => {
     setSubpage(previousSubpage);
   };
 
+  // Function to handle going back from the edit reservation page
   const handleHeaderSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
-      // Wyfiltruj rezerwacje pasujące do kryteriów
+      // Filter reservations based on the header search input
       const results = reservations.filter((r) => {
         const searchTerm = headerSearch.toLowerCase().trim();
         if (!searchTerm) return false;
 
-        // Sprawdź różne pola
+        // Check if any of the fields contain the search term
         return (
           (r.firstName?.toLowerCase() || "").includes(searchTerm) ||
           (r.lastName?.toLowerCase() || "").includes(searchTerm) ||
@@ -466,28 +481,28 @@ const AdminReservations: React.FC = () => {
         );
       });
 
-      // Ustaw wyniki wyszukiwania
+      // Set the search results
       setSearchResults(results);
 
-      // Zapisz aktualną podstronę jako poprzednią
+      // Save the current subpage to return later
       setPreviousSubpage(subpage);
 
-      // Przejdź do podstrony wyszukiwania
+      // Go to the search subpage
       setSubpage("search");
     }
   };
 
-  // Dodaj ref do formularza
+  // Add a reference for the add reservation form
   const addFormRef = useRef<null | { submitForm: () => void }>(null);
 
-  // --- GŁÓWNY PANEL NAWIGACYJNY ---
+  // --- MAIN NAVIGATION PANEL ---
   return (
     <section className="bg-[#0f1525] text-white px-2 py-8 min-h-screen">
-      {/* Pasek nawigowy */}
+      {/* NAV */}
       <div className="max-w-6xl mx-auto flex flex-col gap-4 mb-6">
-        {/* Pasek z ikonami, wyszukiwaniem i przyciskiem dodaj */}
+        {/* ICONS SEARCH ADD */}
         <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
-          {/* Ikony podstron na lewo */}
+          {/* SUBPAGE ICONS ON LEFT */}
           <div className="flex flex-1 gap-2 justify-start">
             <button
               className={`p-2 rounded flex items-center justify-center transition ${
@@ -523,7 +538,7 @@ const AdminReservations: React.FC = () => {
               <FaSlidersH size={20} />
             </button>
           </div>
-          {/* Wyszukiwarka na środku */}
+          {/* SEARCH IN THE MIDDLE */}
           <div className="flex flex-1 justify-center w-full max-w-md">
             <div className="relative w-full">
               <input
@@ -537,7 +552,7 @@ const AdminReservations: React.FC = () => {
               <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             </div>
           </div>
-          {/* Dodaj rezerwację na prawo */}
+          {/* ADD RESERVATION ON RIGHT */}
           <div className="flex flex-1 justify-end w-full ">
             {subpage !== "add" ? (
               <button
@@ -560,8 +575,9 @@ const AdminReservations: React.FC = () => {
         </div>
       </div>
 
-      {/* ZAWARTOŚĆ PODSTRON */}
+      {/* SUBPAGES */}
 
+      {/* ADD */}
       {subpage === "add" && (
         <div className="max-w-6xl mx-auto bg-[#1e2636] rounded-lg shadow p-8 mt-4">
           <h2 className="text-2xl font-bold mb-6 text-white">
@@ -578,6 +594,7 @@ const AdminReservations: React.FC = () => {
         </div>
       )}
 
+      {/* EDIT */}
       {subpage === "edit" && editReservation && (
         <div className="max-w-6xl mx-auto bg-[#1e2636] rounded-lg shadow p-8 mt-4">
           <h2 className="text-2xl font-bold mb-6 text-white">
@@ -590,7 +607,7 @@ const AdminReservations: React.FC = () => {
               setEditReservation(null);
             }}
             onSave={(updated) => {
-              // Używamy atomu do aktualizacji przez API
+              // Update the reservation atom with the edited reservation
               setUpdateReservation({ id: updated.id, reservation: updated });
               setSubpage(previousSubpage);
               setEditReservation(null);
@@ -600,9 +617,10 @@ const AdminReservations: React.FC = () => {
         </div>
       )}
 
+{/* MAIN */}
       {subpage === "main" && (
         <>
-          {/* Tytuł i  DatePicker */}
+          {/* Title and datapicker */}
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">
               Panel zarządzania rezerwacjami
@@ -641,7 +659,7 @@ const AdminReservations: React.FC = () => {
               </div>
             )}
           </div>
-          {/* Kafelki + wykres */}
+          {/* chart + tiles */}
           <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-6 mb-8">
             <div className="grid grid-cols-2 gap-6 flex-1">
               <div className="bg-[#0c4a96] rounded-lg p-5 shadow flex flex-col">
@@ -668,7 +686,7 @@ const AdminReservations: React.FC = () => {
                 <span className="text-lg font-bold text-[#00d9ff]">
                   Wykres rezerwacji
                 </span>
-                {/* Select typ wykresu */}
+                {/* Type of chart select */}
                 <select
                   value={chartType}
                   onChange={(e) => {
@@ -680,7 +698,7 @@ const AdminReservations: React.FC = () => {
                   <option value="general">Ogólne</option>
                   <option value="reservations">Rezerwacje</option>
                 </select>
-                {/* Select szczegółów */}
+                {/* Details selection */}
                 {chartType === "general" ? null : (
                   <select
                     value={chartDetail}
@@ -713,7 +731,7 @@ const AdminReservations: React.FC = () => {
             </div>
           </div>
 
-          {/* Przełącznik widoku */}
+          {/* Switch view */}
           <div className="max-w-6xl mx-auto flex gap-4 mb-4">
             <button
               className={`px-4 py-2 rounded-t-lg font-bold transition ${
@@ -737,7 +755,7 @@ const AdminReservations: React.FC = () => {
             </button>
           </div>
 
-          {/* Filtry */}
+          {/* Filters */}
           <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-4 items-center mb-6">
             <div className="flex-1 w-full">
               <input
@@ -773,12 +791,12 @@ const AdminReservations: React.FC = () => {
             </button>
           </div>
 
-          {/* Widok rezerwacji na dziś */}
+          {/* Reservations for today */}
           {tab === "today" && (
             <div className="max-w-6xl mx-auto bg-[#1e2636] rounded-lg shadow p-6 mt-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-xl font-bold">Rezerwacje na dziś</h2>
-                {/* Suwak widoczności przyszłych rezerwacji */}
+                {/* Previous reservation toggle */}
                 <label className="flex items-center cursor-pointer select-none">
                   <span className="mr-2 text-sm text-gray-300">
                     Pokaż tylko przyszłe
@@ -815,19 +833,19 @@ const AdminReservations: React.FC = () => {
                         key={r.id}
                         className="flex flex-col md:flex-row items-center border-y border-gray-700 py-4 gap-4 relative pl-4"
                       >
-                        {/* Pasek kolorowy */}
+                        {/* Color */}
                         <div
                           className={`absolute left-0 top-0 h-full w-1 rounded-l ${getBarColor(
                             r.service
                           )}`}
                         ></div>
-                        {/* Godziny */}
+                        {/* Hours */}
                         <div className="flex flex-col items-center min-w-[110px]">
                           <span className="text-base">
                             {dt.toFormat("HH:mm")} - {end.toFormat("HH:mm")}
                           </span>
                         </div>
-                        {/* Imię i nazwisko + kontakt */}
+                        {/* First, Lastname, contact */}
                         <div className="flex-1 flex flex-col">
                           <span className="font-bold">
                             {r.firstName} {r.lastName}
@@ -848,7 +866,7 @@ const AdminReservations: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        {/* Data i czas */}
+                        {/* Date and time */}
                         <div className="flex flex-col items-center justify-center min-w-[180px] lg:mr-20">
                           <span className="text-gray-300 text-center">
                             {dt.setLocale("pl").toFormat("cccc, d LLLL yyyy")}
@@ -857,11 +875,11 @@ const AdminReservations: React.FC = () => {
                             ({r.duration} min)
                           </span>
                         </div>
-                        {/* Usługa */}
+                        {/* Service */}
                         <div className=" min-w-[120px] text-right lg:mr-20">
                           {r.service}
                         </div>
-                        {/* Akcje */}
+                        {/* Actions */}
                         <div className="flex gap-2">
                           <button
                             className="bg-red-800 hover:bg-red-600 text-white p-2 rounded"
@@ -885,13 +903,13 @@ const AdminReservations: React.FC = () => {
             </div>
           )}
 
-          {/* Widok rezerwacji na tydzień */}
+          {/* Reservation for the week */}
           {tab === "week" && (
             <div className="max-w-6xl mx-auto bg-[#1e2636] rounded-lg shadow p-6 mt-4">
               <h2 className="text-xl font-bold mb-4">
                 Rezerwacje na najbliższy tydzień
               </h2>
-              {/* Pasek z datami */}
+              {/* Dates */}
               <div className="flex gap-2 mb-4 overflow-x-auto">
                 {weekDates.map((d) => (
                   <button
@@ -907,7 +925,7 @@ const AdminReservations: React.FC = () => {
                   </button>
                 ))}
               </div>
-              {/* Lista rezerwacji na wybrany dzień */}
+              {/* List of reservations for the choosen date */}
               {weekReservations(selectedWeekDay).length === 0 ? (
                 <div className="text-gray-400">
                   Brak rezerwacji na ten dzień...
@@ -928,19 +946,19 @@ const AdminReservations: React.FC = () => {
                         key={r.id}
                         className="flex flex-col md:flex-row items-center justify-between border-b border-gray-700 py-4 gap-4 relative pl-4"
                       >
-                        {/* Pasek kolorowy */}
+                        {/* Color */}
                         <div
                           className={`absolute left-0 top-0 h-full w-1 rounded-l ${getBarColor(
                             r.service
                           )}`}
                         ></div>
-                        {/* Godziny */}
+                        {/* Hours */}
                         <div className="flex flex-col items-center min-w-[110px]">
                           <span className="text-base">
                             {dt.toFormat("HH:mm")} - {end.toFormat("HH:mm")}
                           </span>
                         </div>
-                        {/* Imię i nazwisko + kontakt */}
+                        {/* First, Last name and contact */}
                         <div className="flex-1 flex flex-col">
                           <span className="font-bold">
                             {r.firstName} {r.lastName}
@@ -961,7 +979,7 @@ const AdminReservations: React.FC = () => {
                             </div>
                           </div>
                         </div>
-                        {/* Data i czas */}
+                        {/* Date and time */}
                         <div className="flex flex-col items-center justify-center min-w-[180px] lg:mr-20">
                           <span className="text-gray-300 text-center">
                             {dt.setLocale("pl").toFormat("cccc, d LLLL yyyy")}
@@ -970,11 +988,11 @@ const AdminReservations: React.FC = () => {
                             ({r.duration} min)
                           </span>
                         </div>
-                        {/* Usługa */}
+                        {/* Service */}
                         <div className="min-w-[120px] text-right lg:mr-20">
                           {r.service}
                         </div>
-                        {/* Akcje */}
+                        {/* Actions */}
                         <div className="flex gap-2">
                           <button
                             className="bg-red-600 hover:bg-red-700 text-white p-2 rounded"
@@ -1000,9 +1018,10 @@ const AdminReservations: React.FC = () => {
         </>
       )}
 
+{/* CALENDAR */}
       {subpage === "calendar" && (
         <>
-          {/* Pasek wyboru miesiąca i roku */}
+          {/* Selecting month and day */}
           <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center mb-6">
             <h1 className="text-2xl font-bold mb-2 sm:mb-0 ">
               Kalendarz rezerwacji
@@ -1038,7 +1057,7 @@ const AdminReservations: React.FC = () => {
             </div>
           </div>
 
-          {/* Siatka kalendarza */}
+          {/* Calendar grid */}
           <div className="max-w-6xl mx-auto bg-[#1e2636] rounded-lg shadow  mb-4 overflow-x-auto border-2 border-gray-700">
             <div className="grid grid-cols-7 gap-px bg-[#454d5a]">
               {["Pon", "Wt", "Śr", "Czw", "Pt", "Sob", "Nd"].map((d, i) => (
@@ -1088,7 +1107,7 @@ const AdminReservations: React.FC = () => {
               })}
             </div>
           </div>
-          {/* Szybka zmiana miesiąca */}
+          {/* quick change of the month */}
           <div className="max-w-6xl mx-auto flex justify-center mb-4 gap-4">
             <button
               className="px-4 py-2 rounded bg-[#222b3a] text-gray-400 font-bold hover:bg-[#00d9ff] hover:text-black transition"
@@ -1120,6 +1139,7 @@ const AdminReservations: React.FC = () => {
         </>
       )}
 
+{/* SETTINGS */}
       {subpage === "settings" && (
         <div className="max-w-6xl mx-auto flex flex-col gap-6">
           <h1 className="text-2xl font-bold mb-2">Ustawienia rezerwacji</h1>
@@ -1182,7 +1202,7 @@ const AdminReservations: React.FC = () => {
                       try {
                         await setUpdateSettings(tempSettings);
                         setEditSettings(false);
-                        // Pokaż popup potwierdzający sukces
+                        // Show success popup
                         showPopup("edit");
                       } catch (error) {
                         console.error(
@@ -1210,7 +1230,7 @@ const AdminReservations: React.FC = () => {
         </div>
       )}
 
-      {/* Podstrona z wynikami wyszukiwania */}
+      {/* SEARCH RESULT*/}
       {subpage === "search" && (
         <div className="max-w-6xl mx-auto">
           <div className="flex justify-between items-center mb-6">
@@ -1243,19 +1263,19 @@ const AdminReservations: React.FC = () => {
                       key={r.id}
                       className="flex flex-col md:flex-row items-center border-y border-gray-700 py-4 gap-4 relative pl-4"
                     >
-                      {/* Pasek kolorowy */}
+                      {/* Color */}
                       <div
                         className={`absolute left-0 top-0 h-full w-1 rounded-l ${getBarColor(
                           r.service
                         )}`}
                       ></div>
-                      {/* Godziny */}
+                      {/* Hours */}
                       <div className="flex flex-col items-center min-w-[110px]">
                         <span className="text-base">
                           {dt.toFormat("HH:mm")} - {end.toFormat("HH:mm")}
                         </span>
                       </div>
-                      {/* Imię i nazwisko + kontakt */}
+                      {/* First, Last Name and contact */}
                       <div className="flex-1 flex flex-col">
                         <span className="font-bold">
                           {r.firstName} {r.lastName}
@@ -1276,7 +1296,7 @@ const AdminReservations: React.FC = () => {
                           </div>
                         </div>
                       </div>
-                      {/* Data i czas */}
+                      {/* Date and time */}
                       <div className="flex flex-col items-center justify-center min-w-[180px] lg:mr-20">
                         <span className="text-gray-300 text-center">
                           {dt.setLocale("pl").toFormat("cccc, d LLLL yyyy")}
@@ -1285,11 +1305,11 @@ const AdminReservations: React.FC = () => {
                           ({r.duration} min)
                         </span>
                       </div>
-                      {/* Usługa */}
+                      {/* Service */}
                       <div className="min-w-[120px] text-right lg:mr-20">
                         {r.service}
                       </div>
-                      {/* Akcje */}
+                      {/* Actions */}
                       <div className="flex gap-2">
                         <button
                           className="bg-red-800 hover:bg-red-600 text-white p-2 rounded"
@@ -1311,7 +1331,7 @@ const AdminReservations: React.FC = () => {
                 })
             )}
 
-            {/* Przycisk powrotu */}
+            {/* Return button */}
             <div className="flex justify-center mt-8">
               <button
                 className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-6 py-2 rounded shadow transition"
@@ -1324,8 +1344,8 @@ const AdminReservations: React.FC = () => {
         </div>
       )}
 
-      {/* MODALE */}
-      {/* MODAL INFORMACJI */}
+      {/* MODALS */}
+      {/* INFORMATION MODAL */}
       {infoModal && (
         <div
           className="fixed inset-0 z-100 flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -1411,7 +1431,7 @@ const AdminReservations: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL POTWIERDZENIA USUWANIA */}
+      {/* AOOROVE DELETION MODAL */}
       {deleteModal && (
         <div
           className="fixed inset-0 z-100 flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -1445,6 +1465,7 @@ const AdminReservations: React.FC = () => {
         </div>
       )}
 
+      {/* DAY MODAL */}
       {dayModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -1454,9 +1475,9 @@ const AdminReservations: React.FC = () => {
             className="bg-[#1e2636] rounded-lg p-6 shadow-lg min-w-[350px] max-w-[98vw] w-4xl relative"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Pasek nagłówka */}
+            {/* Nav */}
             <div className="flex justify-between items-center mb-4">
-              {/* Lewa: data + strzałki */}
+              {/* LEFT: DATE and arrows */}
               <div className="flex items-center gap-2">
                 <button
                   className="p-2 rounded bg-gray-600 text-white hover:bg-[#00d9ff] hover:text-black"
@@ -1492,7 +1513,7 @@ const AdminReservations: React.FC = () => {
                   {">"}
                 </button>
               </div>
-              {/* Prawa: statystyki + suwak */}
+              {/* RIGHT: STATISTICS AND TOGGLE */}
               <div className="flex items-center gap-4">
                 <span className="flex items-center gap-1 text-[#00d9ff] font-bold">
                   <FaUserFriends /> {dayStats.people}
@@ -1517,7 +1538,7 @@ const AdminReservations: React.FC = () => {
                 </label>
               </div>
             </div>
-            {/* Filtr typów */}
+            {/* FILTER OF TYPES */}
             <div className="flex items-center gap-2 mb-4">
               <select
                 value={modalServiceFilter}
@@ -1536,7 +1557,7 @@ const AdminReservations: React.FC = () => {
                 Wyczyść filtry
               </button>
             </div>
-            {/* Główna siatka godzin */}
+            {/* MAIN GRID FOR HOURS */}
             <div className="max-h-[60vh] overflow-y-auto pr-2">
               {modalTimeSlots.map((slot) => {
                 const slotReservations = modalReservations.filter(
@@ -1562,7 +1583,7 @@ const AdminReservations: React.FC = () => {
                   (sum, r) => sum + (r.people || 0),
                   0
                 );
-                // Jeśli ukrywasz wolne i nie ma rezerwacji, pomiń
+                // if you hide "wolne", and there is no reservations -> skip this slot
                 if (hideFree && slotReservations.length === 0) return null;
                 return (
                   <div
@@ -1586,13 +1607,13 @@ const AdminReservations: React.FC = () => {
                               className="flex bg-[#1e2636] flex-col md:flex-row  items-center border-y border-gray-700 py-2 gap-2 relative pl-2 mr-2 pr-2 text-sm"
                               style={{ fontSize: "0.92em" }}
                             >
-                              {/* Pasek kolorowy */}
+                              {/* Color */}
                               <div
                                 className={`absolute left-0 top-0 h-full w-0.5 rounded-l ${getBarColor(
                                   r.service
                                 )}`}
                               ></div>
-                              {/* Godziny */}
+                              {/* Hours */}
                               <div className="flex flex-col items-center min-w-[110px]">
                                 <span className="text-base">
                                   {dt.toFormat("HH:mm")} -{" "}
@@ -1601,7 +1622,7 @@ const AdminReservations: React.FC = () => {
                               </div>
 
                               <div className="flex lg:flex-row flex-col justify-between  mr-1 items-center w-full">
-                                {/* Imię i nazwisko + kontakt */}
+                                {/* Firs, LastName and contact */}
                                 <div className=" flex flex-col">
                                   <span className="font-bold">
                                     {r.firstName} {r.lastName}
@@ -1622,7 +1643,7 @@ const AdminReservations: React.FC = () => {
                                     </div>
                                   </div>
                                 </div>
-                                {/* Data i czas */}
+                                {/* Date and time */}
                                 <div className="flex flex-col items-center justify-center ">
                                   <span className="text-gray-300 text-center">
                                     {dt
@@ -1633,13 +1654,13 @@ const AdminReservations: React.FC = () => {
                                     ({r.duration} min)
                                   </span>
                                 </div>
-                                {/* Usługa */}
+                                {/* Service */}
                                 <div className="min-w-[90px] text-right">
                                   {r.service}
                                 </div>
                               </div>
 
-                              {/* Akcje */}
+                              {/* Actions */}
                               <div className="flex gap-2">
                                 <button
                                   className="bg-red-800 hover:bg-red-600 text-white p-2 rounded"
@@ -1671,7 +1692,7 @@ const AdminReservations: React.FC = () => {
                 );
               })}
             </div>
-            {/* Zamknij */}
+            {/* Close */}
             <div className="flex justify-end mt-4">
               <button
                 className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-bold"
@@ -1684,7 +1705,7 @@ const AdminReservations: React.FC = () => {
         </div>
       )}
 
-      {/* POPUP NOTYFIKACJI */}
+      {/* NOTIFICATION POPUP */}
       {popup && (
         <>
           <div
@@ -1721,37 +1742,40 @@ export default AdminReservations;
 
 type AdminAddReservationFormHandle = { submitForm: () => void };
 
-// --- FORWARD REF DLA FORMULARZA ---
+// desribe: Adding a reservation form for admin with forwardRef
+// --- FORWARD REF FOR FORM ---
 const AdminAddReservationForm = (
   { onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void },
   ref: React.Ref<AdminAddReservationFormHandle>
 ) => {
-  const [firstName, setFirstName] = React.useState("");
-  const [lastName, setLastName] = React.useState("");
-  const [email, setEmail] = React.useState("");
-  const [phone, setPhone] = React.useState("");
-  const [countryCode, setCountryCode] = React.useState("+48");
-  const [service, setService] = React.useState("Stanowisko VR");
-  const [duration, setDuration] = React.useState("30");
-  const [people, setPeople] = React.useState(1);
-  const [selectedDate, setSelectedDate] = React.useState(new Date());
-  const [selectedHour, setSelectedHour] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const [firstName, setFirstName] = React.useState(""); // First name  
+  const [lastName, setLastName] = React.useState(""); // Last name
+  const [email, setEmail] = React.useState(""); // Email
+  const [phone, setPhone] = React.useState(""); // Phone number
+  const [countryCode, setCountryCode] = React.useState("+48"); // Default country code
+  const [service, setService] = React.useState("Stanowisko VR"); // Default service
+  const [duration, setDuration] = React.useState("30");  // Default duration
+  const [people, setPeople] = React.useState(1); // Default number of people
+  const [selectedDate, setSelectedDate] = React.useState(new Date()); // Default selected date
+  const [selectedHour, setSelectedHour] = React.useState<string | null>(null); // Selected hour
+  const [error, setError] = React.useState<string | null>(null); // Error message
   const [touched, setTouched] = React.useState({
     firstName: false,
     lastName: false,
     email: false,
     phone: false,
-  });
-  const reservations = useAtomValue(reservationsAtom);
-  const setAddReservation = useSetAtom(addReservationAtom);
+  }); // Track touched fields
+  const reservations = useAtomValue(reservationsAtom); // Get reservations from atom
+  const setAddReservation = useSetAtom(addReservationAtom); // Function to add reservation
 
-  // --- Walidacja ---
+  // --- Validation ---
   function validateEmail(email: string) {
-    if (!email) return true; // dla admina puste pole jest OK
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) return true; // for admin form, email is optional
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Simple email regex
     return regex.test(email);
   }
+
+  // --- Handle form submission ---
   function validateForm() {
     return (
       firstName.trim() &&
@@ -1763,7 +1787,7 @@ const AdminAddReservationForm = (
     );
   }
 
-  // --- Obsługa zmiany usługi ---
+  // --- Handle form submission ---
   React.useEffect(() => {
     if (service === "Symulator VR - 1 osoba") {
       setPeople(1);
@@ -1776,7 +1800,7 @@ const AdminAddReservationForm = (
     }
   }, [service]);
 
-  // --- Generowanie slotów godzinowych ---
+  // --- Generate hour slots based on selected date and service ---
   function generateHourSlots() {
     const date = DateTime.fromJSDate(selectedDate).setZone("Europe/Warsaw");
     const isSunday = date.weekday === 7;
@@ -1795,14 +1819,14 @@ const AdminAddReservationForm = (
     return slots;
   }
 
-  // --- Sprawdzenie dostępności slotu ---
-  // Pobierz settings przez useAtomValue, bo komponent jest forwardRef
+  // --- Check if selected hour is available ---
+  // Get reservations and settings from atoms
   const settings = useAtomValue(settingsAtom);
   function isHourAvailable(hour: string) {
     const dateISO = DateTime.fromJSDate(selectedDate).toISODate();
     const stations = settings.stations;
     const seats = settings.seats;
-    // Wyznacz czas rozpoczęcia i zakończenia slotu (zaokrąglij do minuty)
+    // Choose the correct duration based on service, round to minutes
     const slotStart = DateTime.fromJSDate(selectedDate)
       .set({
         hour: Number(hour.split(":")[0]),
@@ -1811,22 +1835,24 @@ const AdminAddReservationForm = (
         millisecond: 0,
       })
       .startOf("minute");
+
+    // Calculate the end of the slot based on duration
     const slotEnd = slotStart
       .plus({ minutes: parseInt(duration) })
       .startOf("minute");
 
-    // --- NOWA LOGIKA: wyłącz przeszłe godziny ---
+    // Check if the slot is in the future
     const now = DateTime.now().setZone("Europe/Warsaw");
     if (slotStart < now) {
       return false;
     }
 
-    // Zbierz rezerwacje na ten dzień
+    // Get all reservations for the selected date
     const dayReservations = reservations.filter((r: any) =>
       r.reservationDate.startsWith(dateISO)
     );
     if (service === "Stanowisko VR") {
-      // Suma osób we wszystkich rezerwacjach VR, które zachodzą na ten slot
+      // Sum of people for all VR stations
       const totalPeople = dayReservations
         .filter((r: any) => r.service === "Stanowisko VR")
         .filter((r: any) => {
@@ -1844,17 +1870,18 @@ const AdminAddReservationForm = (
       service === "Symulator VR - 1 osoba" ||
       service === "Symulator VR - 2 osoby"
     ) {
-      // Całkowity brak dostępności dla symulatorów, gdy seats=0
+      // When the service is a simulator, we need to check the number of seats
+      // if there are no seats, return false
       if (seats === 0) {
         return false;
       }
 
-      // Dla symulatora 2-osobowego wymagamy co najmniej 2 miejsc
+      // For 2 person simulator, we need at least 2 seats
       if (service === "Symulator VR - 2 osoby" && seats < 2) {
         return false;
       }
 
-      // Jeśli jakakolwiek rezerwacja symulatora zachodzi na ten slot, slot jest zajęty
+      // IF the service is a simulator, we need to check if there are any reservations that overlap with the selected slot
       const anySimulator = dayReservations.some((r: any) => {
         if (
           r.service !== "Symulator VR - 1 osoba" &&
@@ -1870,7 +1897,7 @@ const AdminAddReservationForm = (
     }
     return true;
   }
-  // --- Obsługa submit ---
+  // --- Submit handler ---
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setTouched({ firstName: true, lastName: true, email: true, phone: true });
@@ -1891,7 +1918,7 @@ const AdminAddReservationForm = (
         })
         .toISO() || "";
     const newReservation = {
-      // Usuwamy generowanie ID - backend sam nada ID
+      // Delete the id field, it will be generated by the backend
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim() || "salon@goodgamevr.pl",
@@ -1909,7 +1936,7 @@ const AdminAddReservationForm = (
     };
 
     try {
-      // Dodaj rezerwację przy użyciu atomu
+      // Add the new reservation to the atom
       await setAddReservation(newReservation);
       onSuccess();
     } catch (error) {
@@ -1918,7 +1945,7 @@ const AdminAddReservationForm = (
   }
 
   // --- UI ---
-  // Dodaj ref do form
+  // Add forwardRef to the component
   const formRef = React.useRef<HTMLFormElement>(null);
   useImperativeHandle(ref, () => ({
     submitForm: () => {
@@ -1936,7 +1963,7 @@ const AdminAddReservationForm = (
       className="flex flex-col lg:flex-row gap-6"
       onSubmit={handleSubmit}
     >
-      {/* LEWA KOLUMNA: dane osobowe, usługa, osoby */}
+      {/* LEFT COLUMN: personal data, service, clients */}
       <div className="flex-1 flex flex-col gap-4 min-w-[260px]">
         <div className="flex gap-4">
           <div className="flex-1">
@@ -2023,7 +2050,7 @@ const AdminAddReservationForm = (
             />
           </div>
         </div>
-        {/* Usługa, czas, osoby */}
+        {/* Service, time, people */}
         <div>
           <label className="block text-sm font-semibold mb-1">
             Wybierz usługę<span className="text-red-500"> *</span>
@@ -2119,7 +2146,7 @@ const AdminAddReservationForm = (
           </p>
         </div>
       </div>
-      {/* PRAWA KOLUMNA: data i godzina */}
+      {/* RIGHT COLUMN: date and time */}
       <div className="flex-1 flex flex-col gap-4 min-w-[260px]">
         <div className="flex gap-4 items-end">
           <div className="flex-1">
@@ -2138,7 +2165,7 @@ const AdminAddReservationForm = (
               calendarClassName="bg-[#1e2636] text-white border border-[#00d9ff]"
             />
           </div>
-          {/* Podsumowanie wyboru */}
+          {/* Summary */}
           {selectedHour && (
             <div className="flex-1 text-center">
               <div className="bg-[#0f1525] border border-gray-600 rounded p-2.5 text-sm font-semibold text-[#00d9ff]">
@@ -2184,7 +2211,7 @@ const AdminAddReservationForm = (
             })}
           </div>
         </div>
-        {/* Akcje i error na dole w jednym rzędzie */}
+        {/* Actions and error */}
         <div className="flex flex-row gap-2 mt-4 justify-end items-center">
           {error && (
             <div className="bg-red-700 text-white rounded p-3 text-xs font-bold text-center animate-fade-in mr-auto">
@@ -2214,17 +2241,18 @@ const AdminAddReservationFormWithRef = React.forwardRef(
   AdminAddReservationForm
 );
 
-// --- EDYCJA REZERWACJI ---
+// --- EDIT ---
+// Editing a reservation form for admin
 const AdminEditReservationForm: React.FC<{
   reservation: any;
   onCancel: () => void;
   onSave: (r: any) => void;
 }> = ({ reservation, onCancel, onSave }) => {
-  const [firstName, setFirstName] = React.useState(reservation.firstName || "");
-  const [lastName, setLastName] = React.useState(reservation.lastName || "");
-  const [email, setEmail] = React.useState(reservation.email || "");
-  const [phone, setPhone] = React.useState(() => {
-    // Jeśli numer zaczyna się od +XX, odetnij tylko prefix kraju, resztę zostaw
+  const [firstName, setFirstName] = React.useState(reservation.firstName || ""); // First name
+  const [lastName, setLastName] = React.useState(reservation.lastName || ""); // Last name
+  const [email, setEmail] = React.useState(reservation.email || "");  // Email
+  const [phone, setPhone] = React.useState(() => {  
+    // If phone is provided, extract the number without the country code
     if (reservation.phone) {
       const match = reservation.phone.match(/^(\+\d{1,3})(.*)$/);
       if (match) {
@@ -2232,42 +2260,43 @@ const AdminEditReservationForm: React.FC<{
       }
       return reservation.phone;
     }
-    return "";
-  });
+    return ""; 
+  }); // Phone number
   const [countryCode, setCountryCode] = React.useState(() => {
     if (reservation.phone) {
       const match = reservation.phone.match(/^(\+\d{1,3})/);
       if (match) return match[1];
     }
     return "+48";
-  });
+  }); // Default country code
   const [service, setService] = React.useState(
     reservation.service || "Stanowisko VR"
-  );
+  ); // Default service
   const [duration, setDuration] = React.useState(
     String(reservation.duration || 30)
-  );
-  const [people, setPeople] = React.useState(reservation.people || 1);
+  ); // Default duration
+  const [people, setPeople] = React.useState(reservation.people || 1); // Default number of people
   const [selectedDate, setSelectedDate] = React.useState(
     reservation.reservationDate
       ? new Date(reservation.reservationDate)
       : new Date()
-  );
+  ); // Default selected date
   const [selectedHour, setSelectedHour] = React.useState(
     reservation.reservationDate
       ? DateTime.fromISO(reservation.reservationDate).toFormat("HH:mm")
       : null
-  );
+  ); // Selected hour
   const [error, setError] = React.useState<string | null>(null);
   const [touched, setTouched] = React.useState({
     firstName: false,
     lastName: false,
     email: false,
     phone: false,
-  });
-  const reservations = useAtomValue(reservationsAtom);
-  const settings = useAtomValue(settingsAtom);
+  }); // Track touched fields
+  const reservations = useAtomValue(reservationsAtom); // Get reservations from atom
+  const settings = useAtomValue(settingsAtom); // Get settings from atom
 
+  // --- Validation ---
   React.useEffect(() => {
     if (service === "Symulator VR - 1 osoba") {
       setPeople(1);
@@ -2280,11 +2309,13 @@ const AdminEditReservationForm: React.FC<{
     }
   }, [service]);
 
+  // Validate email format
   function validateEmail(email: string) {
     if (!email) return true;
-    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // Simple email regex
     return regex.test(email);
   }
+  // Validate form fields
   function validateForm() {
     return (
       firstName.trim() &&
@@ -2295,6 +2326,7 @@ const AdminEditReservationForm: React.FC<{
       selectedHour
     );
   }
+  // Generate available hour slots based on selected date and service
   function generateHourSlots() {
     const date = DateTime.fromJSDate(selectedDate).setZone("Europe/Warsaw");
     const isSunday = date.weekday === 7;
@@ -2312,6 +2344,7 @@ const AdminEditReservationForm: React.FC<{
     }
     return slots;
   }
+  // Check if selected hour is available
   function isHourAvailable(hour: string) {
     const dateISO = DateTime.fromJSDate(selectedDate).toISODate();
     const stations = settings?.stations;
@@ -2328,12 +2361,13 @@ const AdminEditReservationForm: React.FC<{
       .plus({ minutes: parseInt(duration) })
       .startOf("minute");
 
-    // --- NOWA LOGIKA: wyłącz przeszłe godziny ---
+    // --- Check if the slot is in the future ---
     const now = DateTime.now().setZone("Europe/Warsaw");
     if (slotStart < now) {
       return false;
     }
 
+    // --- Get all reservations for the selected date ---
     const dayReservations = reservations.filter(
       (r: any) =>
         r.reservationDate.startsWith(dateISO) && r.id !== reservation.id
@@ -2356,16 +2390,18 @@ const AdminEditReservationForm: React.FC<{
       service === "Symulator VR - 1 osoba" ||
       service === "Symulator VR - 2 osoby"
     ) {
-      // Całkowity brak dostępności dla symulatorów, gdy seats=0
+      // If the service is a simulator, we need to check the number of seats
+      // If there are no seats, return false
       if (seats === 0) {
         return false;
       }
 
-      // Dla symulatora 2-osobowego wymagamy co najmniej 2 miejsc
+      // For 2 person simulator, we need at least 2 seats
       if (service === "Symulator VR - 2 osoby" && seats < 2) {
         return false;
       }
 
+      // If the service is a simulator, we need to check if there are any reservations that overlap with the selected slot
       const anySimulator = dayReservations.some((r: any) => {
         if (
           r.service !== "Symulator VR - 1 osoba" &&
@@ -2380,6 +2416,8 @@ const AdminEditReservationForm: React.FC<{
     }
     return true;
   }
+
+  // --- Handle form submission ---
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setTouched({ firstName: true, lastName: true, email: true, phone: true });
@@ -2416,7 +2454,7 @@ const AdminEditReservationForm: React.FC<{
   }
   return (
     <form className="flex flex-col lg:flex-row gap-6" onSubmit={handleSubmit}>
-      {/* LEWA KOLUMNA: dane osobowe, usługa, osoby */}
+      {/* LEFT COLUMN: personal data, time, clients */}
       <div className="flex-1 flex flex-col gap-4 min-w-[260px]">
         <div className="flex gap-4">
           <div className="flex-1">
@@ -2503,7 +2541,7 @@ const AdminEditReservationForm: React.FC<{
             />
           </div>
         </div>
-        {/* Usługa, czas, osoby */}
+        {/* Service, date and time, persons */}
         <div>
           <label className="block text-sm font-semibold mb-1">
             Wybierz usługę<span className="text-red-500"> *</span>
@@ -2599,7 +2637,7 @@ const AdminEditReservationForm: React.FC<{
           </p>
         </div>
       </div>
-      {/* PRAWA KOLUMNA: data i godzina */}
+      {/* RIGHT COLUMN: DATE AND TIME */}
       <div className="flex-1 flex flex-col gap-4 min-w-[260px]">
         <div className="flex gap-4 items-end">
           <div className="flex-1">
@@ -2618,7 +2656,7 @@ const AdminEditReservationForm: React.FC<{
               calendarClassName="bg-[#1e2636] text-white border border-[#00d9ff]"
             />
           </div>
-          {/* Podsumowanie wyboru */}
+          {/* Summary */}
           {selectedHour && (
             <div className="flex-1 text-center">
               <div className="bg-[#0f1525] border border-gray-600 rounded p-2.5 text-sm font-semibold text-[#00d9ff]">
@@ -2664,7 +2702,7 @@ const AdminEditReservationForm: React.FC<{
             })}
           </div>
         </div>
-        {/* Akcje i error na dole w jednym rzędzie */}
+        {/* Actions and errors */}
         <div className="flex flex-row gap-2 mt-4 justify-end items-center">
           {error && (
             <div className="bg-red-700 text-white rounded p-3 text-xs font-bold text-center animate-fade-in mr-auto">
