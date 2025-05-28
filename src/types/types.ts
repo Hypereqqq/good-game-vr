@@ -30,22 +30,3 @@ export interface ClientGame {
   playedMinutes?: number;       // Optional played minutes (if the game has started)
 }
 
-//                                                      ----- TO DO LIST -----
-//        -- GŁÓWNA STRONA --
-// aktualizacja
-//
-//          -- ZARZADZANIE --
-// dodanie stopera
-// mozna dodac staystyki
-//   - dodac kafelki z tymi opcjami i stoper jako plywajace okienko.
-// dodanie powiadomien np po 15 minutach zeby zmienic gre
-// komentarz dla kolejki, czas kiedy gral dla kolejki
-//
-//
-//          -- REZERWACJE --
-// historia rezerwacji
-// powiadomienia dzwoneczki
-// w zarzadzaniu niech tez aktualizuje na bieząco rezerwacje i ewentualnie w dzownoeczku powiadomienie
-// jak sie w wyszukiwaniu wyszuka to nie wraca na poprzednia strone
-//
-//
