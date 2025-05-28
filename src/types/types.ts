@@ -40,7 +40,7 @@ export interface ClientGame {
 //
 //
 //          -- REZERWACJE --
-// szukaj rezerwacji - WAŻNE
+// historia rezerwacji
 // powiadomienia dzwoneczki
 // w zarzadzaniu niech tez aktualizuje na bieząco rezerwacje i ewentualnie w dzownoeczku powiadomienie
 //
