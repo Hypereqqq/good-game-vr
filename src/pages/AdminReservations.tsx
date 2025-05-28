@@ -33,7 +33,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { registerLocale } from "react-datepicker";
 registerLocale("pl", pl);
 
-type SubpageType = "main" | "calendar" | "settings" | "add" | "edit";
+type SubpageType = "main" | "calendar" | "settings" | "add" | "edit" | "search";
 
 const AdminReservations: React.FC = () => {
   const settings = useAtomValue(settingsAtom);
@@ -44,6 +44,8 @@ const AdminReservations: React.FC = () => {
   const [reservations] = useAtom(reservationsAtom);
   const [tab, setTab] = useState<"today" | "week">("today");
   const [search, setSearch] = useState("");
+  const [headerSearch, setHeaderSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
   const [serviceFilter, setServiceFilter] = useState<string>("");
   const [dateFrom, setDateFrom] = useState(DateTime.now().startOf("day"));
   const [dateTo, setDateTo] = useState(
@@ -447,6 +449,34 @@ const AdminReservations: React.FC = () => {
     setSubpage(previousSubpage);
   };
 
+  const handleHeaderSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      // Wyfiltruj rezerwacje pasujące do kryteriów
+      const results = reservations.filter((r) => {
+        const searchTerm = headerSearch.toLowerCase().trim();
+        if (!searchTerm) return false;
+
+        // Sprawdź różne pola
+        return (
+          (r.firstName?.toLowerCase() || "").includes(searchTerm) ||
+          (r.lastName?.toLowerCase() || "").includes(searchTerm) ||
+          (r.email?.toLowerCase() || "").includes(searchTerm) ||
+          (r.phone?.toLowerCase() || "").includes(searchTerm) ||
+          (r.whoCreated?.toLowerCase() || "").includes(searchTerm)
+        );
+      });
+
+      // Ustaw wyniki wyszukiwania
+      setSearchResults(results);
+
+      // Zapisz aktualną podstronę jako poprzednią
+      setPreviousSubpage(subpage);
+
+      // Przejdź do podstrony wyszukiwania
+      setSubpage("search");
+    }
+  };
+
   // Dodaj ref do formularza
   const addFormRef = useRef<null | { submitForm: () => void }>(null);
 
@@ -499,8 +529,9 @@ const AdminReservations: React.FC = () => {
               <input
                 type="text"
                 placeholder="Wyszukaj rezerwacje..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                value={headerSearch}
+                onChange={(e) => setHeaderSearch(e.target.value)}
+                onKeyDown={handleHeaderSearch}
                 className="w-full p-2 pl-10 rounded bg-[#0f1525] border border-gray-600 text-white"
               />
               <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -1174,6 +1205,120 @@ const AdminReservations: React.FC = () => {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Podstrona z wynikami wyszukiwania */}
+      {subpage === "search" && (
+        <div className="max-w-6xl mx-auto">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">
+              Wyniki wyszukiwania: "{headerSearch}"
+            </h2>
+            <span className="text-gray-400">
+              Znaleziono {searchResults.length} rezerwacji
+            </span>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-lg shadow p-6 mt-4">
+            {searchResults.length === 0 ? (
+              <div className="text-gray-400">
+                Nie znaleziono pasujących rezerwacji...
+              </div>
+            ) : (
+              searchResults
+                .slice()
+                .sort(
+                  (a, b) =>
+                    DateTime.fromISO(a.reservationDate).toMillis() -
+                    DateTime.fromISO(b.reservationDate).toMillis()
+                )
+                .map((r) => {
+                  const dt = DateTime.fromISO(r.reservationDate);
+                  const end = dt.plus({ minutes: r.duration });
+                  return (
+                    <div
+                      key={r.id}
+                      className="flex flex-col md:flex-row items-center border-y border-gray-700 py-4 gap-4 relative pl-4"
+                    >
+                      {/* Pasek kolorowy */}
+                      <div
+                        className={`absolute left-0 top-0 h-full w-1 rounded-l ${getBarColor(
+                          r.service
+                        )}`}
+                      ></div>
+                      {/* Godziny */}
+                      <div className="flex flex-col items-center min-w-[110px]">
+                        <span className="text-base">
+                          {dt.toFormat("HH:mm")} - {end.toFormat("HH:mm")}
+                        </span>
+                      </div>
+                      {/* Imię i nazwisko + kontakt */}
+                      <div className="flex-1 flex flex-col">
+                        <span className="font-bold">
+                          {r.firstName} {r.lastName}
+                        </span>
+                        <div className="flex items-center gap-2 mt-1 text-gray-300">
+                          <FaUserFriends /> {r.people}
+                          <div className="relative group">
+                            <FaPhone className="cursor-pointer" />
+                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#08172c] text-s text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                              {r.phone}
+                            </span>
+                          </div>
+                          <div className="relative group">
+                            <FaEnvelope className="cursor-pointer" />
+                            <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 px-2 py-1 rounded bg-[#08172c] text-s text-white opacity-0 group-hover:opacity-100 transition pointer-events-none z-10">
+                              {r.email}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Data i czas */}
+                      <div className="flex flex-col items-center justify-center min-w-[180px] lg:mr-20">
+                        <span className="text-gray-300 text-center">
+                          {dt.setLocale("pl").toFormat("cccc, d LLLL yyyy")}
+                        </span>
+                        <span className="text-gray-400 text-sm text-center">
+                          ({r.duration} min)
+                        </span>
+                      </div>
+                      {/* Usługa */}
+                      <div className="min-w-[120px] text-right lg:mr-20">
+                        {r.service}
+                      </div>
+                      {/* Akcje */}
+                      <div className="flex gap-2">
+                        <button
+                          className="bg-red-800 hover:bg-red-600 text-white p-2 rounded"
+                          title="Usuń rezerwację"
+                          onClick={() => setDeleteModal({ id: r.id })}
+                        >
+                          <FaTrash />
+                        </button>
+                        <button
+                          className="bg-gray-500 hover:bg-gray-600 text-white p-2 rounded"
+                          title="Informacje"
+                          onClick={() => setInfoModal(r)}
+                        >
+                          <FaInfoCircle />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+
+            {/* Przycisk powrotu */}
+            <div className="flex justify-center mt-8">
+              <button
+                className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-6 py-2 rounded shadow transition"
+                onClick={() => setSubpage(previousSubpage)}
+              >
+                Wróć
+              </button>
             </div>
           </div>
         </div>
