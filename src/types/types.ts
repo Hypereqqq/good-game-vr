@@ -31,6 +31,9 @@ export interface ClientGame {
 }
 
 //                                                      ----- TO DO LIST -----
+//        -- GŁÓWNA STRONA --
+// aktualizacja
+//
 //          -- ZARZADZANIE --
 // dodanie stopera
 // mozna dodac staystyki
