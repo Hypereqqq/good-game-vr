@@ -180,6 +180,37 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              Małe poprawki i aktualizacje
+              <span className="text-blue-400 font-bold"> (V.1.0.1)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">14 czerwca 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Poprawiono błąd z dodawaniem rezerwacji, które miały zaczynać się w godzinach końca pracy,
+                wcześniej system pozwalał na dodanie rezerwacji trwającą godzinę na 20:30, pomimo że zamknięcie było o 21:00
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano obsługe klawisza ENTER podczas logowania
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Naprawiono błąd, gdy po ponownym wyszukiwaniu rezerwacji przycisk WRÓĆ tracił swoją funkjonalność
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Poprawiono format sortowania wyświetlanych wyników dla wyszukiwania rezerwacji
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               Panel admina - aktualizacja
               <span className="text-blue-400 font-bold"> (V.1.0.0)</span>
             </h3>

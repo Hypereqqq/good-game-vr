@@ -420,6 +420,18 @@ const Reservation: React.FC = () => {
     const slotStart = selectedDateTime.startOf("minute");
     const slotEnd = slotStart.plus({ minutes: durMinutes }).startOf("minute");
 
+    // Sprawdź czas zamknięcia salonu
+    const closingHour = isSunday ? 20 : 21; // Zamknięcie o 20:00 w niedzielę, 21:00 w pozostałe dni
+    const closingTime = DateTime.fromObject(
+      { day, month, year, hour: closingHour, minute: 0 },
+      { zone: "Europe/Warsaw" }
+    );
+
+    // Jeśli rezerwacja kończy się po czasie zamknięcia, odmów dostępności
+    if (slotEnd > closingTime) {
+      return false;
+    }
+
     // Sprawdź czy to stanowisko czy symulator
     if (isSimulator) {
       // Całkowity brak dostępności dla symulatorów, gdy seats=0

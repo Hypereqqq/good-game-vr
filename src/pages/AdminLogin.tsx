@@ -65,6 +65,13 @@ const AdminLogin: React.FC = () => {
     }
   };
 
+  // Funkcja obsługująca naciśnięcie klawisza Enter
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleLogin();
+    }
+  };
+
   // Component UI rendering
   return (
     // Main container with dark background
@@ -77,13 +84,13 @@ const AdminLogin: React.FC = () => {
         </h1>
 
         {/* Form inputs container */}
-        <div className="flex flex-col gap-4">
-          {/* Username input field */}
+        <div className="flex flex-col gap-4">          {/* Username input field */}
           <input
             type="text"
             placeholder="Nazwa użytkownika"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="p-3 rounded bg-[#0f1525] border border-gray-600 text-white"
           />
           {/* Password input container with show/hide button */}
@@ -93,6 +100,7 @@ const AdminLogin: React.FC = () => {
               placeholder="Hasło"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={handleKeyDown}
               className="p-3 rounded bg-[#0f1525] border border-gray-600 text-white w-full"
             />
             {/* Toggle button for password visibility */}

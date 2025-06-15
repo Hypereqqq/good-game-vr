@@ -51,26 +51,25 @@ const AdminReservations: React.FC = () => {
   const [tab, setTab] = useState<"today" | "week">("today"); // Current tab state for reservations view
   const [search, setSearch] = useState(""); // Search term for filtering reservations
   const [headerSearch, setHeaderSearch] = useState(""); // Search term for header search input
-  const [searchResults, setSearchResults] = useState<any[]>([]);  // Search results for header search
+  const [searchResults, setSearchResults] = useState<any[]>([]); // Search results for header search
   const [serviceFilter, setServiceFilter] = useState<string>(""); // Filter for services in reservations
-  const [dateFrom, setDateFrom] = useState(DateTime.now().startOf("day"));  // Start date for filtering reservations
+  const [dateFrom, setDateFrom] = useState(DateTime.now().startOf("day")); // Start date for filtering reservations
   const [dateTo, setDateTo] = useState(
     DateTime.now().plus({ days: 6 }).endOf("day")
-  );  // End date for filtering reservations
+  ); // End date for filtering reservations
   const [selectedWeekDay, setSelectedWeekDay] = useState(
     DateTime.now().plus({ days: 1 }).toISODate()
-  );  // Selected day for week view
+  ); // Selected day for week view
   const [infoModal, setInfoModal] = useState<null | any>(null); // Modal state for reservation info
-  const [cancelledCount, setCancelledCount] = useState(0);  // Count of cancelled reservations, initialized to 0 for demo purposes
-  const [deleteModal, setDeleteModal] = useState<{ id: string } | null>(null);  // Modal state for deleting reservations
-  const [showFuture, setShowFuture] = useState(true);   // State to show future reservations in the today tab
+  const [cancelledCount, setCancelledCount] = useState(0); // Count of cancelled reservations, initialized to 0 for demo purposes
+  const [deleteModal, setDeleteModal] = useState<{ id: string } | null>(null); // Modal state for deleting reservations
+  const [showFuture, setShowFuture] = useState(true); // State to show future reservations in the today tab
 
   const [chartType, setChartType] = useState<"general" | "reservations">(
     "reservations"
-  );  // Type of chart to display, either general or reservations
+  ); // Type of chart to display, either general or reservations
   const [chartDetail, setChartDetail] = useState<string>("all"); // Detail level for reservations chart, can be 'all', 'vr', 'sim1', or 'sim2'
 
- 
   const today_2 = DateTime.now(); // Current date and time using Luxon
   const [calendarMonthDate, setCalendarMonthDate] = useState<Date>(
     today_2.startOf("month").toJSDate()
@@ -80,7 +79,6 @@ const AdminReservations: React.FC = () => {
   const [modalServiceFilter, setModalServiceFilter] = useState(""); // Filter for services in the day modal
   const [hideFree, setHideFree] = useState(false); // State to hide free slots in the day modal
   const [editReservation, setEditReservation] = useState<any | null>(null); // State for editing a reservation
-
 
   // --- ATOMY CRUD ---
   const setUpdateReservation = useSetAtom(updateReservationAtom); // Atom to update a reservation
@@ -135,7 +133,7 @@ const AdminReservations: React.FC = () => {
       )
     : [];
 
- // Filter reservations by service in the day modal
+  // Filter reservations by service in the day modal
   const modalReservations = modalServiceFilter
     ? modalReservationsAll.filter((r) => r.service === modalServiceFilter)
     : modalReservationsAll;
@@ -167,7 +165,7 @@ const AdminReservations: React.FC = () => {
         t = t.plus({ minutes: 15 });
       }
     } else {
-      // VR station slots: 30 minutes, 10:00-19:30 on Sunday, 9:00-20:30 on other days 
+      // VR station slots: 30 minutes, 10:00-19:30 on Sunday, 9:00-20:30 on other days
       // add 15-minute slots if there is a simulator at that time
       const startHour = isSunday ? 10 : 9;
       const endHour = isSunday ? 19 : 20;
@@ -462,8 +460,7 @@ const AdminReservations: React.FC = () => {
   const handleBackFromAdd = () => {
     setSubpage(previousSubpage);
   };
-
-  // Function to handle going back from the edit reservation page
+  // Function to handle search from the header
   const handleHeaderSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       // Filter reservations based on the header search input
@@ -484,8 +481,10 @@ const AdminReservations: React.FC = () => {
       // Set the search results
       setSearchResults(results);
 
-      // Save the current subpage to return later
-      setPreviousSubpage(subpage);
+      // Save the current subpage to return later, but only if we're not already on the search page
+      if (subpage !== "search") {
+        setPreviousSubpage(subpage);
+      }
 
       // Go to the search subpage
       setSubpage("search");
@@ -617,7 +616,7 @@ const AdminReservations: React.FC = () => {
         </div>
       )}
 
-{/* MAIN */}
+      {/* MAIN */}
       {subpage === "main" && (
         <>
           {/* Title and datapicker */}
@@ -1018,7 +1017,7 @@ const AdminReservations: React.FC = () => {
         </>
       )}
 
-{/* CALENDAR */}
+      {/* CALENDAR */}
       {subpage === "calendar" && (
         <>
           {/* Selecting month and day */}
@@ -1139,7 +1138,7 @@ const AdminReservations: React.FC = () => {
         </>
       )}
 
-{/* SETTINGS */}
+      {/* SETTINGS */}
       {subpage === "settings" && (
         <div className="max-w-6xl mx-auto flex flex-col gap-6">
           <h1 className="text-2xl font-bold mb-2">Ustawienia rezerwacji</h1>
@@ -1252,8 +1251,8 @@ const AdminReservations: React.FC = () => {
                 .slice()
                 .sort(
                   (a, b) =>
-                    DateTime.fromISO(a.reservationDate).toMillis() -
-                    DateTime.fromISO(b.reservationDate).toMillis()
+                    DateTime.fromISO(b.reservationDate).toMillis() -
+                    DateTime.fromISO(a.reservationDate).toMillis()
                 )
                 .map((r) => {
                   const dt = DateTime.fromISO(r.reservationDate);
@@ -1335,7 +1334,10 @@ const AdminReservations: React.FC = () => {
             <div className="flex justify-center mt-8">
               <button
                 className="bg-gray-600 hover:bg-gray-700 text-white font-bold px-6 py-2 rounded shadow transition"
-                onClick={() => setSubpage(previousSubpage)}
+                onClick={() => {
+                  setSubpage(previousSubpage);
+                  setHeaderSearch(""); // Czyszczenie pola wyszukiwania
+                }}
               >
                 Wróć
               </button>
@@ -1748,13 +1750,13 @@ const AdminAddReservationForm = (
   { onSuccess, onCancel }: { onSuccess: () => void; onCancel: () => void },
   ref: React.Ref<AdminAddReservationFormHandle>
 ) => {
-  const [firstName, setFirstName] = React.useState(""); // First name  
+  const [firstName, setFirstName] = React.useState(""); // First name
   const [lastName, setLastName] = React.useState(""); // Last name
   const [email, setEmail] = React.useState(""); // Email
   const [phone, setPhone] = React.useState(""); // Phone number
   const [countryCode, setCountryCode] = React.useState("+48"); // Default country code
   const [service, setService] = React.useState("Stanowisko VR"); // Default service
-  const [duration, setDuration] = React.useState("30");  // Default duration
+  const [duration, setDuration] = React.useState("30"); // Default duration
   const [people, setPeople] = React.useState(1); // Default number of people
   const [selectedDate, setSelectedDate] = React.useState(new Date()); // Default selected date
   const [selectedHour, setSelectedHour] = React.useState<string | null>(null); // Selected hour
@@ -1844,6 +1846,21 @@ const AdminAddReservationForm = (
     // Check if the slot is in the future
     const now = DateTime.now().setZone("Europe/Warsaw");
     if (slotStart < now) {
+      return false;
+    }
+
+    // Check if the reservation fits within opening hours
+    const isSunday = DateTime.fromJSDate(selectedDate).weekday === 7;
+    const closingHour = isSunday ? 20 : 21; // Close at 8PM on Sunday, 9PM on other days
+    const closingTime = DateTime.fromJSDate(selectedDate).set({
+      hour: closingHour,
+      minute: 0,
+      second: 0,
+      millisecond: 0,
+    });
+
+    // If slot ends after closing time, it's not available
+    if (slotEnd > closingTime) {
       return false;
     }
 
@@ -2250,8 +2267,8 @@ const AdminEditReservationForm: React.FC<{
 }> = ({ reservation, onCancel, onSave }) => {
   const [firstName, setFirstName] = React.useState(reservation.firstName || ""); // First name
   const [lastName, setLastName] = React.useState(reservation.lastName || ""); // Last name
-  const [email, setEmail] = React.useState(reservation.email || "");  // Email
-  const [phone, setPhone] = React.useState(() => {  
+  const [email, setEmail] = React.useState(reservation.email || ""); // Email
+  const [phone, setPhone] = React.useState(() => {
     // If phone is provided, extract the number without the country code
     if (reservation.phone) {
       const match = reservation.phone.match(/^(\+\d{1,3})(.*)$/);
@@ -2260,7 +2277,7 @@ const AdminEditReservationForm: React.FC<{
       }
       return reservation.phone;
     }
-    return ""; 
+    return "";
   }); // Phone number
   const [countryCode, setCountryCode] = React.useState(() => {
     if (reservation.phone) {
