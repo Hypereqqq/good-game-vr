@@ -61,7 +61,7 @@ const AdminReservations: React.FC = () => {
     DateTime.now().plus({ days: 1 }).toISODate()
   );  // Selected day for week view
   const [infoModal, setInfoModal] = useState<null | any>(null); // Modal state for reservation info
-  const [cancelledCount, setCancelledCount] = useState(2);  // Count of cancelled reservations, initialized to 2 for demo purposes
+  const [cancelledCount, setCancelledCount] = useState(0);  // Count of cancelled reservations, initialized to 0 for demo purposes
   const [deleteModal, setDeleteModal] = useState<{ id: string } | null>(null);  // Modal state for deleting reservations
   const [showFuture, setShowFuture] = useState(true);   // State to show future reservations in the today tab
 

@@ -1,4 +1,4 @@
-// Admin panel for managing reservations, clients, and updates in a VR gaming center. 
+// Admin panel for managing reservations, clients, and updates in a VR gaming center.
 // It includes real-time updates, statistics, and a detailed log of changes.
 
 // Import necessary libraries and components
@@ -16,14 +16,14 @@ const AdminPanel: React.FC = () => {
   // State and atoms for managing admin panel functionality
   const [isLoggedIn] = useAtom(isAdminLoggedInAtom); // Atom for checking if admin is logged in
   const [reservations] = useAtom(reservationsAtom); // Atom for managing reservations data
-  const navigate = useNavigate();// React Router navigation hook
+  const navigate = useNavigate(); // React Router navigation hook
 
   // Setup for current time display and clients data
   const now = DateTime.now().setZone("Europe/Warsaw"); // Current time in Warsaw timezone
   const [currentTime, setCurrentTime] = useState(now.toFormat("HH:mm:ss")); // State for current time display
   const [clients] = useAtom(clientsAtom); // Atom for managing clients data
   const occupiedStations = new Set(clients.flatMap((c) => c.stations)); // Set of occupied stations based on clients data
-  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom);  // Function to setup polling for reservations
+  const setupReservationsPolling = useSetAtom(setupReservationsPollingAtom); // Function to setup polling for reservations
 
   // Effect to setup polling for reservations every 30 seconds
   useEffect(() => {
@@ -180,11 +180,63 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              Panel admina - aktualizacja
+              <span className="text-blue-400 font-bold"> (V.1.0.0)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">07 czerwca 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano serwis API i połączono z bazą danych (dodawanie,
+                usuwanie, edytowanie rezerwacji, zmiana liczby dostępnych
+                miejsc)
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Dodano automatyczne odświeżanie informacji
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Naprawiono błędy w systemie rezerwacji (np. godziny nie
+                wyłączały się poprawnie, jeśli były zajęte)
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Zaktualizowano system rezerwacji dla administratora i klientów
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Dodano opcję wyszukiwania rezerwacji
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Na stronie rezerwacji dodano moduł kalendarza z wszystkimi
+                rezerwacjami
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano modal edycji rezerwacji
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano notyfikacje informujące o dodaniu, edycji lub usunięciu
+                rezerwacji
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Zmieniono sposób podświetlania edytowanej grupy klientów w
+                menedżerze zadań
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+              <li>
+                Poprawiono sposób liczenia czasu – jest teraz dokładniejszy
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               System rezerwacji - aktualizacja
-              <span className="text-red-400 font-bold">
-                {" "}
-                (ON NADAL NIE DZIALA - DANE SĄ Z DUPY)
-              </span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">21 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
