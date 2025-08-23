@@ -180,14 +180,37 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              Aktualizacja
+              <span className="text-purple-400 font-bold"> (V.1.1.0)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">23 sierpnia 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano obsługe strony bez systemu backend. System rezerwacji
+                oraz logowania przyjmuje dane symulacyjne, gdy falga backendu
+                jest wyłączona.
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Poprawiono sposób wyświetlania informacji na temat ilości osób
+                na symulatorze 5D na bardziej czytelny.
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               Małe poprawki i aktualizacje
-              <span className="text-blue-400 font-bold"> (V.1.0.1)</span>
+              <span className="text-purple-400 font-bold"> (V.1.0.5)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">14 czerwca 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
-                Poprawiono błąd z dodawaniem rezerwacji, które miały zaczynać się w godzinach końca pracy,
-                wcześniej system pozwalał na dodanie rezerwacji trwającą godzinę na 20:30, pomimo że zamknięcie było o 21:00
+                Poprawiono błąd z dodawaniem rezerwacji, które miały zaczynać
+                się w godzinach końca pracy, wcześniej system pozwalał na
+                dodanie rezerwacji trwającą godzinę na 20:30, pomimo że
+                zamknięcie było o 21:00
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
@@ -196,23 +219,24 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
               </li>
               <li>
-                Naprawiono błąd, gdy po ponownym wyszukiwaniu rezerwacji przycisk WRÓĆ tracił swoją funkjonalność
+                Naprawiono błąd, gdy po ponownym wyszukiwaniu rezerwacji
+                przycisk WRÓĆ tracił swoją funkjonalność
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
               <li>
-                Poprawiono format sortowania wyświetlanych wyników dla wyszukiwania rezerwacji
+                Poprawiono format sortowania wyświetlanych wyników dla
+                wyszukiwania rezerwacji
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
-              
             </ul>
           </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Panel admina - aktualizacja
-              <span className="text-blue-400 font-bold"> (V.1.0.0)</span>
+              <span className="text-purple-400 font-bold"> (V.1.0.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">07 czerwca 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -268,6 +292,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               System rezerwacji - aktualizacja
+              <span className="text-purple-400 font-bold"> (V.0.9.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">21 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -345,7 +370,9 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
-            <h3 className="text-xl font-bold text-white">Małe poprawki</h3>
+            <h3 className="text-xl font-bold text-white">Małe poprawki
+              <span className="text-purple-400 font-bold"> (V.0.8.0)</span>
+            </h3>
             <p className="text-xs text-gray-400 mb-2">20 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
@@ -365,6 +392,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Usuwanie osób z grupy + dodatkowe funkcjonalności
+              <span className="text-purple-400 font-bold"> (V.0.7.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">19 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -406,7 +434,7 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
-            <h3 className="text-xl font-bold text-white">Dzielenie grup</h3>
+            <h3 className="text-xl font-bold text-white">Dzielenie grup <span className="text-purple-400 font-bold"> (V.0.6.0)</span></h3>
             <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
@@ -438,7 +466,10 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
-            <h3 className="text-xl font-bold text-white">Poprawki i zmiany</h3>
+            <h3 className="text-xl font-bold text-white">
+              Poprawki i zmiany{" "}
+              <span className="text-purple-400 font-bold"> (V.0.5.0)</span>
+            </h3>
             <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
@@ -505,6 +536,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Nowy generator voucherów
+              <span className="text-purple-400 font-bold"> (V.0.4.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">17 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -544,6 +576,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Małe poprawki i zmiany
+              <span className="text-purple-400 font-bold"> (V.0.3.5)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">17 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -575,6 +608,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Komentarze i sortowanie
+              <span className="text-purple-400 font-bold"> (V.0.4.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">16 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -606,6 +640,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Ulepszenia niestandardowej kwoty i godziny
+              <span className="text-purple-400 font-bold"> (V.0.3.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">26 kwietnia 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -626,6 +661,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Nowe opcje i edycja
+              <span className="text-purple-400 font-bold"> (V.0.2.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">1 kwietnia 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -639,6 +675,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Naprawa wyboru stanowisk
+              <span className="text-purple-400 font-bold"> (V.0.1.5)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">27 marca 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -652,6 +689,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Start systemu klientów
+              <span className="text-purple-400 font-bold"> (V.0.1.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">17 marca 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
