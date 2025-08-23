@@ -326,31 +326,7 @@ const AdminClientManager: React.FC = () => {
 
   // Function to handle moving a client to a new station using drag and drop
   const handleDragClient = (clientId: string, newStationId: number) => {
-    // Sprawdź najpierw, czy klient jest w kolejce
-    const queueClient = queueClients.find(client => client.id === clientId);
-    
-    if (queueClient) {
-      // Sprawdź czy nowe stanowisko jest zajęte
-      const isStationOccupied = clients.some(client => 
-        client.stations.includes(newStationId)
-      );
-      
-      if (!isStationOccupied) {
-        // Przenieś klienta z kolejki do aktywnych stanowisk
-        const updatedQueueClients = queueClients.filter(client => client.id !== clientId);
-        const newClient = {
-          ...queueClient,
-          stations: [newStationId],
-          queue: false
-        };
-        
-        setQueueClients(updatedQueueClients);
-        setClients(prev => [...prev, newClient]);
-      }
-      return;
-    }
-    
-    // Obsługa klientów już przypisanych do stanowisk
+    // Obsługa klientów przypisanych do stanowisk
     setClients((prev) =>
       prev.map((client) => {
         if (client.id === clientId) {
@@ -1646,16 +1622,6 @@ const AdminClientManager: React.FC = () => {
                         <tr
                           key={client.id}
                           className="border-b border-gray-700 hover:bg-[#2b3242]"
-                          draggable={!isEditing}
-                          onDragStart={(e) => {
-                            if (!isEditing) {
-                              e.dataTransfer.setData("text/plain", client.id);
-                              e.currentTarget.classList.add("opacity-50");
-                            }
-                          }}
-                          onDragEnd={(e) => {
-                            e.currentTarget.classList.remove("opacity-50");
-                          }}
                         >
                           <td className="p-3 text-white">
                             {isEditing ? (
