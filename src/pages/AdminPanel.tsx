@@ -174,21 +174,30 @@ const AdminPanel: React.FC = () => {
                 Sprawdź najnowsze zmiany i aktualizacje w systemie!
               </p>
             </div>
-            
           </div>
 
           {/* Log */}
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
-              Aktualizacja
+              System przeciągania stanowisk i małe poprawki
               <span className="text-purple-400 font-bold"> (V.1.1.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">23 sierpnia 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
+                Dodano opcje przesuwania klientów za pomocą myszki. Działa
+                również zamiana klientów miejscami. W celu użycia tej funkcji
+                należy przytrzymać lewy przycisk myszy na kliencie przez pół
+                sekundy i przeciągnąć go w wybrane miejsce. Jeśli klient nie zostanie przeciągnięty
+                w ciągu 2 sekund, operacja zostanie anulowana.
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
                 Dodano obsługe strony bez systemu backend. System rezerwacji
-                oraz logowania przyjmuje dane symulacyjne, gdy falga backendu
+                oraz logowania przyjmuje dane symulacyjne, gdy flaga backendu
                 jest wyłączona.
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
@@ -371,7 +380,8 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
-            <h3 className="text-xl font-bold text-white">Małe poprawki
+            <h3 className="text-xl font-bold text-white">
+              Małe poprawki
               <span className="text-purple-400 font-bold"> (V.0.8.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">20 maja 2025</p>
@@ -435,7 +445,10 @@ const AdminPanel: React.FC = () => {
           </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
-            <h3 className="text-xl font-bold text-white">Dzielenie grup <span className="text-purple-400 font-bold"> (V.0.6.0)</span></h3>
+            <h3 className="text-xl font-bold text-white">
+              Dzielenie grup{" "}
+              <span className="text-purple-400 font-bold"> (V.0.6.0)</span>
+            </h3>
             <p className="text-xs text-gray-400 mb-2">18 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
               <li>
