@@ -325,33 +325,26 @@ const AdminClientManager: React.FC = () => {
   };
 
   // Function to handle moving a client to a new station using drag and drop
-  const handleDragClient = (clientId: string, newStationId: number) => {
+  const handleDragClient = (clientId: string, newStationId: number, draggedStationId?: number) => {
     // Obsługa klientów przypisanych do stanowisk
     setClients((prev) =>
       prev.map((client) => {
         if (client.id === clientId) {
-          // Dla grup z wieloma osobami tylko zmieniamy stanowisko, które zostało przeniesione
-          if (client.stations.length > 1) {
-            // Znajdź indeks stanowiska, które zostało przeniesione
-            const oldStationIndex = client.stations.findIndex(
-              (station) => {
-                // Szukamy stanowiska, które może być zajęte przez klienta, ale nie jest używane przez innych klientów
-                const stationClients = prev.filter((c) => 
-                  c.id !== client.id && c.stations.includes(station)
-                );
-                return stationClients.length === 0;
-              }
+          // Dla grup z wieloma osobami sprawdzamy, czy mamy informację o przeciąganym stanowisku
+          if (client.stations.length > 1 && draggedStationId) {
+            // Sprawdzamy czy nowe stanowisko jest już zajęte
+            const isNewStationOccupied = prev.some(
+              (c) => c.id !== client.id && c.stations.includes(newStationId)
             );
-
-            if (oldStationIndex !== -1) {
-              // Sprawdzamy czy nowe stanowisko jest już zajęte
-              const isNewStationOccupied = prev.some(
-                (c) => c.id !== client.id && c.stations.includes(newStationId)
-              );
-
-              if (!isNewStationOccupied) {
-                const newStations = [...client.stations];
-                newStations[oldStationIndex] = newStationId;
+            
+            if (!isNewStationOccupied) {
+              // Tworzymy nową tablicę stanowisk
+              const newStations = [...client.stations];
+              // Znajdujemy indeks przeciąganego stanowiska
+              const draggedIndex = newStations.indexOf(draggedStationId);
+              if (draggedIndex !== -1) {
+                // Zamieniamy to stanowisko na nowe
+                newStations[draggedIndex] = newStationId;
                 return { ...client, stations: newStations };
               }
             }
@@ -1445,9 +1438,15 @@ const AdminClientManager: React.FC = () => {
                   onDrop={(e) => {
                     e.preventDefault();
                     e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]");
-                    const clientId = e.dataTransfer.getData("text/plain");
+                    const dragData = e.dataTransfer.getData("text/plain");
+                    
+                    // Sprawdzamy, czy dane zawierają ID stanowiska (format clientId:stationId)
+                    const [clientId, stationId] = dragData.includes(':') 
+                      ? dragData.split(':') 
+                      : [dragData, null];
+                    
                     if (clientId && (!clientsInSlot.length || clientsInSlot[0].id === clientId)) {
-                      handleDragClient(clientId, slotIndex);
+                      handleDragClient(clientId, slotIndex, stationId ? parseInt(stationId) : undefined);
                     }
                   }}
                 >
@@ -1518,19 +1517,99 @@ const AdminClientManager: React.FC = () => {
 
                   {clientsInSlot.length > 0 ? (
                     clientsInSlot.map((client, i) => {
+                      // Dla grup z wieloma stanowiskami, musimy znaleźć, które stanowisko odpowiada temu slotowi
+                      const stationForThisSlot = client.stations.includes(slotIndex) ? slotIndex : client.stations[i];
                       return (
                         <div 
                           key={i} 
-                          className="text-sm text-blue-300 mb-2 cursor-move"
-                          draggable="true"
+                          className="text-sm text-blue-300 mb-2"
+                          draggable="false"
+                          onMouseDown={(e) => {
+                            const element = e.currentTarget;
+                            const timer = setTimeout(() => {
+                              element.setAttribute("draggable", "true");
+                              element.classList.add("cursor-move");
+                              // Dodajemy flagę, że element jest w trybie przeciągania
+                              element.setAttribute("data-drag-enabled", "true");
+                              
+                              // Ustawiamy timer na reset po 2 sekundach jeśli nie zostanie przeciągnięty
+                              const resetTimer = setTimeout(() => {
+                                // Sprawdzamy czy element ma włączoną możliwość przeciągania
+                                // i nie jest aktualnie przeciągany
+                                if (element.getAttribute("data-drag-enabled") === "true" && 
+                                    !element.classList.contains("opacity-50")) {
+                                  element.setAttribute("draggable", "false");
+                                  element.classList.remove("cursor-move");
+                                  element.removeAttribute("data-drag-enabled");
+                                }
+                              }, 2000);
+                              
+                              // Zapisujemy timer resetu w atrybucie elementu
+                              element.setAttribute("data-reset-timer", String(resetTimer));
+                            }, 500); // zmienione z 1000 na 500ms (pół sekundy)
+                            
+                            // Zapisujemy timer w atrybucie elementu
+                            element.setAttribute("data-timer", String(timer));
+                          }}
+                          onMouseUp={(e) => {
+                            const element = e.currentTarget;
+                            const timer = Number(element.getAttribute("data-timer"));
+                            if (timer) {
+                              clearTimeout(timer);
+                              element.removeAttribute("data-timer");
+                            }
+                            
+                            // Nie czyścimy timera resetu, aby pozwolić mu działać
+                            // nawet po puszczeniu przycisku myszy
+                            
+                            if (!element.classList.contains("cursor-move")) {
+                              element.setAttribute("draggable", "false");
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            const element = e.currentTarget;
+                            const timer = Number(element.getAttribute("data-timer"));
+                            if (timer) {
+                              clearTimeout(timer);
+                              element.removeAttribute("data-timer");
+                            }
+                            
+                            // Nie czyścimy timera resetu, aby pozwolił mu działać
+                            // nawet po opuszczeniu elementu kursorem
+                          }}
                           onDragStart={(e) => {
-                            e.dataTransfer.setData("text/plain", client.id);
+                            // Jeśli jest więcej niż jedno stanowisko (grupa), dodajemy informację o konkretnym stanowisku
+                            if (client.stations.length > 1) {
+                              // Tworzymy specjalne ID dla przeciągania: clientId:stationId
+                              e.dataTransfer.setData("text/plain", `${client.id}:${stationForThisSlot}`);
+                            } else {
+                              // Dla pojedynczych klientów, po prostu używamy ich ID
+                              e.dataTransfer.setData("text/plain", client.id);
+                            }
+                            
                             // Dodajemy klasę wskazującą, że element jest przeciągany
                             e.currentTarget.classList.add("opacity-50");
+                            
+                            // Czyścimy timer resetu, ponieważ element jest teraz przeciągany
+                            const resetTimer = Number(e.currentTarget.getAttribute("data-reset-timer"));
+                            if (resetTimer) {
+                              clearTimeout(resetTimer);
+                              e.currentTarget.removeAttribute("data-reset-timer");
+                            }
                           }}
                           onDragEnd={(e) => {
                             // Usuwamy klasę po zakończeniu przeciągania
                             e.currentTarget.classList.remove("opacity-50");
+                            e.currentTarget.classList.remove("cursor-move");
+                            e.currentTarget.setAttribute("draggable", "false");
+                            e.currentTarget.removeAttribute("data-drag-enabled");
+                            
+                            // Czyścimy timer resetu jeśli istnieje
+                            const resetTimer = Number(e.currentTarget.getAttribute("data-reset-timer"));
+                            if (resetTimer) {
+                              clearTimeout(resetTimer);
+                              e.currentTarget.removeAttribute("data-reset-timer");
+                            }
                           }}
                         >
                           <div className="font-semibold">
