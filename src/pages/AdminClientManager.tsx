@@ -324,7 +324,77 @@ const AdminClientManager: React.FC = () => {
     setClients((prev) => prev.filter((client) => client.id !== id));
   };
 
-  // Function to handle editing a client
+  // Function to handle moving a client to a new station using drag and drop
+  const handleDragClient = (clientId: string, newStationId: number) => {
+    // Sprawdź najpierw, czy klient jest w kolejce
+    const queueClient = queueClients.find(client => client.id === clientId);
+    
+    if (queueClient) {
+      // Sprawdź czy nowe stanowisko jest zajęte
+      const isStationOccupied = clients.some(client => 
+        client.stations.includes(newStationId)
+      );
+      
+      if (!isStationOccupied) {
+        // Przenieś klienta z kolejki do aktywnych stanowisk
+        const updatedQueueClients = queueClients.filter(client => client.id !== clientId);
+        const newClient = {
+          ...queueClient,
+          stations: [newStationId],
+          queue: false
+        };
+        
+        setQueueClients(updatedQueueClients);
+        setClients(prev => [...prev, newClient]);
+      }
+      return;
+    }
+    
+    // Obsługa klientów już przypisanych do stanowisk
+    setClients((prev) =>
+      prev.map((client) => {
+        if (client.id === clientId) {
+          // Dla grup z wieloma osobami tylko zmieniamy stanowisko, które zostało przeniesione
+          if (client.stations.length > 1) {
+            // Znajdź indeks stanowiska, które zostało przeniesione
+            const oldStationIndex = client.stations.findIndex(
+              (station) => {
+                // Szukamy stanowiska, które może być zajęte przez klienta, ale nie jest używane przez innych klientów
+                const stationClients = prev.filter((c) => 
+                  c.id !== client.id && c.stations.includes(station)
+                );
+                return stationClients.length === 0;
+              }
+            );
+
+            if (oldStationIndex !== -1) {
+              // Sprawdzamy czy nowe stanowisko jest już zajęte
+              const isNewStationOccupied = prev.some(
+                (c) => c.id !== client.id && c.stations.includes(newStationId)
+              );
+
+              if (!isNewStationOccupied) {
+                const newStations = [...client.stations];
+                newStations[oldStationIndex] = newStationId;
+                return { ...client, stations: newStations };
+              }
+            }
+          } else {
+            // Dla pojedynczych osób, po prostu zmieniamy stanowisko
+            // Sprawdzamy czy nowe stanowisko jest już zajęte
+            const isNewStationOccupied = prev.some(
+              (c) => c.id !== client.id && c.stations.includes(newStationId)
+            );
+
+            if (!isNewStationOccupied) {
+              return { ...client, stations: [newStationId] };
+            }
+          }
+        }
+        return client;
+      })
+    );
+  };
   const handleEditClient = (client: ClientGame) => {
     if (editId === client.id) {
       // Jeśli klikamy edycję tego samego klienta -> wyłącz edycję
@@ -1379,9 +1449,30 @@ const AdminClientManager: React.FC = () => {
                 <div
                   key={index}
                   className={`bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words transition
-                              ${isEditing ? "ring-1 ring-[#00d9ff] z-10" : ""}`}
+                              ${isEditing ? "ring-1 ring-[#00d9ff] z-10" : ""}
+                              ${clientsInSlot.length === 0 ? 'hover:bg-[#242d40]' : ''}`}
                   style={{
                     transition: "transform 0.2s, box-shadow 0.2s",
+                  }}
+                  onDragOver={(e) => {
+                    // Pozwól na upuszczenie tylko jeśli slot jest pusty lub klient jest modyfikowany
+                    if (clientsInSlot.length === 0 || editId) {
+                      e.preventDefault();
+                      e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]");
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    if (clientsInSlot.length === 0 || editId) {
+                      e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]");
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]");
+                    const clientId = e.dataTransfer.getData("text/plain");
+                    if (clientId && (!clientsInSlot.length || clientsInSlot[0].id === clientId)) {
+                      handleDragClient(clientId, slotIndex);
+                    }
                   }}
                 >
                   <div className="flex justify-between items-center mb-2">
@@ -1452,7 +1543,20 @@ const AdminClientManager: React.FC = () => {
                   {clientsInSlot.length > 0 ? (
                     clientsInSlot.map((client, i) => {
                       return (
-                        <div key={i} className="text-sm text-blue-300 mb-2">
+                        <div 
+                          key={i} 
+                          className="text-sm text-blue-300 mb-2 cursor-move"
+                          draggable="true"
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", client.id);
+                            // Dodajemy klasę wskazującą, że element jest przeciągany
+                            e.currentTarget.classList.add("opacity-50");
+                          }}
+                          onDragEnd={(e) => {
+                            // Usuwamy klasę po zakończeniu przeciągania
+                            e.currentTarget.classList.remove("opacity-50");
+                          }}
+                        >
                           <div className="font-semibold">
                             {client.name} – {client.duration} min
                           </div>
@@ -1542,6 +1646,16 @@ const AdminClientManager: React.FC = () => {
                         <tr
                           key={client.id}
                           className="border-b border-gray-700 hover:bg-[#2b3242]"
+                          draggable={!isEditing}
+                          onDragStart={(e) => {
+                            if (!isEditing) {
+                              e.dataTransfer.setData("text/plain", client.id);
+                              e.currentTarget.classList.add("opacity-50");
+                            }
+                          }}
+                          onDragEnd={(e) => {
+                            e.currentTarget.classList.remove("opacity-50");
+                          }}
                         >
                           <td className="p-3 text-white">
                             {isEditing ? (
