@@ -174,6 +174,7 @@ const AdminPanel: React.FC = () => {
                 Sprawdź najnowsze zmiany i aktualizacje w systemie!
               </p>
             </div>
+            
           </div>
 
           {/* Log */}
