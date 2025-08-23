@@ -1,4 +1,4 @@
-// Admin panel for managing reservations, clients, and updates in a VR gaming center. 
+// Admin panel for managing reservations, clients, and updates in a VR gaming center.
 // It includes real-time updates, statistics, and a detailed log of changes.
 
 // Import necessary libraries and components
@@ -7,10 +7,10 @@ import { Stage, Layer, Text, Image as KonvaImage } from "react-konva";
 import jsPDF from "jspdf";
 import { Download } from "lucide-react";
 
-const VOUCHER_WIDTH = 2000; // Size of the voucher in pixels   
+const VOUCHER_WIDTH = 2000; // Size of the voucher in pixels
 const VOUCHER_HEIGHT = 2000; // Size of the voucher in pixels
 
-import voucherBg from "../assets/VOUCHER/voucherGGVR.png"; 
+import voucherBg from "../assets/VOUCHER/voucherGGVR.png";
 
 // Options for duration and players
 const durationOptions = [
@@ -45,7 +45,7 @@ const ridesOptions = [
 const AdminVoucher: React.FC = () => {
   const stageRef = useRef<any>(null); // Reference to the Konva stage for exporting
 
-  const [name, setName] = useState("");  // State for user's name input
+  const [name, setName] = useState(""); // State for user's name input
   const [players, setPlayers] = useState(1); // State for number of players, default is 1
   const [duration, setDuration] = useState(30); // State for game duration, default is 30 minutes
   const [code, setCode] = useState(""); // State for voucher code input
@@ -54,7 +54,7 @@ const AdminVoucher: React.FC = () => {
 
   // Dodatkowe informacje
   const [info, setInfo] = useState(""); // State for additional information input
-  const [infoPlayers, setInfoPlayers] = useState("");   // "" = no choice
+  const [infoPlayers, setInfoPlayers] = useState(""); // "" = no choice
   const [rides, setRides] = useState(""); //  "" = no choice
   const [infoEdited, setInfoEdited] = useState(false); // Flag to check if additional info was manually edited
 
@@ -97,15 +97,17 @@ const AdminVoucher: React.FC = () => {
       let autoInfo = "";
       if (infoPlayers && rides) {
         if (infoPlayers === "1") {
-          autoInfo =
+          const rideLabel =
             ridesOptions.find((opt) => String(opt.value) === rides)?.label ||
             "";
+          const [przejazdy] = rideLabel.split(" 5D");
+          autoInfo = `1 os. | ${przejazdy.trim()} 5D`;
         } else if (infoPlayers === "2") {
           const rideLabel =
             ridesOptions.find((opt) => String(opt.value) === rides)?.label ||
             "";
           const [przejazdy] = rideLabel.split(" 5D");
-          autoInfo = `2 x ${przejazdy.trim()} 5D`;
+          autoInfo = `2 os. | ${przejazdy.trim()} 5D`;
         }
       }
       setInfo(autoInfo);
@@ -389,9 +391,9 @@ const AdminVoucher: React.FC = () => {
                     {info && (
                       <Text
                         text={info}
-                        x={1340} 
+                        x={1340}
                         y={1430}
-                        width={375} 
+                        width={375}
                         align="center"
                         fontSize={35}
                         fill="#000000"
