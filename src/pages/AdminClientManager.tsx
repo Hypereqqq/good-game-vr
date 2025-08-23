@@ -327,43 +327,177 @@ const AdminClientManager: React.FC = () => {
   // Function to handle moving a client to a new station using drag and drop
   const handleDragClient = (clientId: string, newStationId: number, draggedStationId?: number) => {
     // Obsługa klientów przypisanych do stanowisk
-    setClients((prev) =>
-      prev.map((client) => {
+    setClients((prev) => {
+      // Znajdujemy przeciąganego klienta
+      const draggedClient = prev.find(c => c.id === clientId);
+      if (!draggedClient) return prev;
+
+      // Sprawdzamy, czy to jest przeciąganie w obrębie tej samej grupy (ten sam klient)
+      const isSameGroupDrag = draggedStationId !== undefined && 
+                              draggedClient.stations.length > 1 && 
+                              draggedClient.stations.includes(draggedStationId) && 
+                              draggedClient.stations.includes(newStationId);
+      
+      // Jeśli jest to przeciąganie w obrębie tej samej grupy, obsługujemy to inaczej
+      if (isSameGroupDrag) {
+        return prev.map(client => {
+          if (client.id === clientId) {
+            // Kopiujemy stanowiska
+            const newStations = [...client.stations];
+            
+            // Usuwamy nowe stanowisko z listy (jeśli już tam jest)
+            const existingNewStationIndex = newStations.indexOf(newStationId);
+            if (existingNewStationIndex !== -1) {
+              // Zamieniamy miejscami ze stanowiskiem przeciąganym
+              const draggedStationIndex = newStations.indexOf(draggedStationId!);
+              if (draggedStationIndex !== -1) {
+                // Zamieniamy stanowiska miejscami
+                [newStations[draggedStationIndex], newStations[existingNewStationIndex]] = 
+                [newStations[existingNewStationIndex], newStations[draggedStationIndex]];
+              }
+            }
+            
+            return { ...client, stations: newStations };
+          }
+          return client;
+        });
+      }
+      
+      // Sprawdzamy, czy nowe stanowisko jest już zajęte przez innego klienta
+      const occupyingClient = prev.find(
+        (c) => c.id !== clientId && c.stations.includes(newStationId)
+      );
+
+      // Jeśli miejsce jest już zajęte, wykonujemy zamianę miejscami
+      if (occupyingClient) {
+        // Tworzymy nową tablicę klientów
+        let updatedClients = [...prev];
+        
+        // Dla grup z wieloma osobami
+        if (draggedClient.stations.length > 1 && draggedStationId) {
+          // Kopiujemy klienta i modyfikujemy jego stanowiska
+          const updatedDraggedClient = {...draggedClient};
+          const draggedStations = [...updatedDraggedClient.stations];
+          const draggedIndex = draggedStations.indexOf(draggedStationId);
+          
+          if (draggedIndex !== -1) {
+            // Zmieniamy stanowisko przeciąganego klienta
+            draggedStations[draggedIndex] = newStationId;
+            updatedDraggedClient.stations = draggedStations;
+            
+            // Znajdujemy klienta zajmującego docelowe stanowisko
+            const occupierIndex = updatedClients.findIndex(c => c.id === occupyingClient.id);
+            if (occupierIndex !== -1) {
+              const updatedOccupier = {...updatedClients[occupierIndex]};
+              
+              // Jeśli zajmujący też ma wiele stanowisk
+              if (updatedOccupier.stations.length > 1) {
+                const occupierStations = [...updatedOccupier.stations];
+                const occupiedIndex = occupierStations.indexOf(newStationId);
+                
+                if (occupiedIndex !== -1) {
+                  // Zamieniamy stanowisko zajmującego klienta
+                  occupierStations[occupiedIndex] = draggedStationId;
+                  updatedOccupier.stations = occupierStations;
+                  
+                  // Aktualizujemy obu klientów
+                  updatedClients[occupierIndex] = updatedOccupier;
+                  updatedClients = updatedClients.map(c => 
+                    c.id === draggedClient.id ? updatedDraggedClient : c
+                  );
+                  
+                  return updatedClients;
+                }
+              } else {
+                // Dla pojedynczego klienta zajmującego miejsce
+                updatedOccupier.stations = [draggedStationId];
+                updatedClients[occupierIndex] = updatedOccupier;
+                updatedClients = updatedClients.map(c => 
+                  c.id === draggedClient.id ? updatedDraggedClient : c
+                );
+                
+                return updatedClients;
+              }
+            }
+          }
+        } else {
+          // Dla pojedynczych klientów przeciąganych na grupę lub pojedynczego klienta
+          const updatedDraggedClient = {...draggedClient, stations: [newStationId]};
+          
+          // Znajdujemy klienta zajmującego docelowe stanowisko
+          const occupierIndex = updatedClients.findIndex(c => c.id === occupyingClient.id);
+          if (occupierIndex !== -1) {
+            // Tworzymy kopię zajmującego klienta
+            const updatedOccupier = {...updatedClients[occupierIndex]};
+            
+            // Sprawdzamy czy zajmujący jest grupą
+            if (updatedOccupier.stations.length > 1) {
+              // Jeśli zajmujący to grupa, znajdujemy indeks zajmowanego stanowiska
+              const occupierStations = [...updatedOccupier.stations];
+              const occupiedIndex = occupierStations.indexOf(newStationId);
+              
+              // Jeśli przeciągamy z konkretnego stanowiska
+              if (draggedStationId) {
+                // Tylko zamieniamy jedno stanowisko w grupie
+                if (occupiedIndex !== -1) {
+                  occupierStations[occupiedIndex] = draggedStationId;
+                  updatedOccupier.stations = occupierStations;
+                }
+              } else if (draggedClient.stations.length > 0) {
+                // Jeśli nie mamy konkretnego stanowiska, używamy pierwszego z listy
+                if (occupiedIndex !== -1) {
+                  occupierStations[occupiedIndex] = draggedClient.stations[0];
+                  updatedOccupier.stations = occupierStations;
+                }
+              }
+              
+              updatedClients[occupierIndex] = updatedOccupier;
+            } else {
+              // Jeśli zajmujący to pojedynczy klient
+              // Jeśli przeciągamy z konkretnego stanowiska
+              if (draggedStationId) {
+                updatedOccupier.stations = [draggedStationId];
+              } else if (draggedClient.stations.length > 0) {
+                // Jeśli nie mamy konkretnego stanowiska, używamy pierwszego z listy
+                updatedOccupier.stations = [draggedClient.stations[0]];
+              }
+              
+              updatedClients[occupierIndex] = updatedOccupier;
+            }
+          }
+          
+          updatedClients = updatedClients.map(c => 
+            c.id === draggedClient.id ? updatedDraggedClient : c
+          );
+          
+          return updatedClients;
+        }
+      }
+      
+      // Jeśli miejsce nie jest zajęte, wykonujemy standardową operację
+      return prev.map((client) => {
         if (client.id === clientId) {
           // Dla grup z wieloma osobami sprawdzamy, czy mamy informację o przeciąganym stanowisku
           if (client.stations.length > 1 && draggedStationId) {
-            // Sprawdzamy czy nowe stanowisko jest już zajęte
-            const isNewStationOccupied = prev.some(
-              (c) => c.id !== client.id && c.stations.includes(newStationId)
-            );
-            
-            if (!isNewStationOccupied) {
-              // Tworzymy nową tablicę stanowisk
-              const newStations = [...client.stations];
-              // Znajdujemy indeks przeciąganego stanowiska
-              const draggedIndex = newStations.indexOf(draggedStationId);
-              if (draggedIndex !== -1) {
-                // Zamieniamy to stanowisko na nowe
-                newStations[draggedIndex] = newStationId;
-                return { ...client, stations: newStations };
-              }
+            // Tworzymy nową tablicę stanowisk
+            const newStations = [...client.stations];
+            // Znajdujemy indeks przeciąganego stanowiska
+            const draggedIndex = newStations.indexOf(draggedStationId);
+            if (draggedIndex !== -1) {
+              // Zamieniamy to stanowisko na nowe
+              newStations[draggedIndex] = newStationId;
+              return { ...client, stations: newStations };
             }
           } else {
             // Dla pojedynczych osób, po prostu zmieniamy stanowisko
-            // Sprawdzamy czy nowe stanowisko jest już zajęte
-            const isNewStationOccupied = prev.some(
-              (c) => c.id !== client.id && c.stations.includes(newStationId)
-            );
-
-            if (!isNewStationOccupied) {
-              return { ...client, stations: [newStationId] };
-            }
+            return { ...client, stations: [newStationId] };
           }
         }
         return client;
-      })
-    );
+      });
+    });
   };
+
   const handleEditClient = (client: ClientGame) => {
     if (editId === client.id) {
       // Jeśli klikamy edycję tego samego klienta -> wyłącz edycję
@@ -1424,20 +1558,26 @@ const AdminClientManager: React.FC = () => {
                     transition: "transform 0.2s, box-shadow 0.2s",
                   }}
                   onDragOver={(e) => {
-                    // Pozwól na upuszczenie tylko jeśli slot jest pusty lub klient jest modyfikowany
-                    if (clientsInSlot.length === 0 || editId) {
-                      e.preventDefault();
+                    // Pozwalamy na upuszczenie na każde miejsce - puste lub zajęte
+                    e.preventDefault();
+                    
+                    // Dodajemy różne style zależnie od tego czy miejsce jest zajęte czy puste
+                    if (clientsInSlot.length === 0) {
+                      // Dla pustych miejsc - niebieska obwódka
                       e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]");
+                    } else {
+                      // Dla zajętych miejsc - pomarańczowa obwódka wskazująca na możliwość zamiany
+                      e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-orange-500");
                     }
                   }}
                   onDragLeave={(e) => {
-                    if (clientsInSlot.length === 0 || editId) {
-                      e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]");
-                    }
+                    // Usuwamy wszystkie style podświetlające, niezależnie od tego czy miejsce było puste czy zajęte
+                    e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]", "ring-orange-500");
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]");
+                    // Usuwamy wszystkie style podświetlające
+                    e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]", "ring-orange-500");
                     const dragData = e.dataTransfer.getData("text/plain");
                     
                     // Sprawdzamy, czy dane zawierają ID stanowiska (format clientId:stationId)
@@ -1445,7 +1585,8 @@ const AdminClientManager: React.FC = () => {
                       ? dragData.split(':') 
                       : [dragData, null];
                     
-                    if (clientId && (!clientsInSlot.length || clientsInSlot[0].id === clientId)) {
+                    // Obsługujemy upuszczanie na dowolne miejsce - puste lub zajęte
+                    if (clientId) {
                       handleDragClient(clientId, slotIndex, stationId ? parseInt(stationId) : undefined);
                     }
                   }}
