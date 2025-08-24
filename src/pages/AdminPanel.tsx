@@ -180,6 +180,58 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              System pauzowania i przypomnień
+              <span className="text-purple-400 font-bold"> (V.1.2.0)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">24 sierpnia 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano opcję pauzowania gry klienta i grupy. Po wciśnięciu przycisku pauzy czas zostaje zatrzymany,
+                pojawią się licznik czasu pauzy. Pozostały czas pozostaje taki sam jaki był przed wciśnięciem pauzy.
+                Po wciśnięciu przycisku wznów czas gry jest kontynuowany od momentu w którym została zatrzymana.
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Usunięto możliwość wpisania nazwy klienta / grupy.
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+              </li>
+              <li>
+                Dodano oznaczenie kafelka podczas {" "}
+                <span className="text-orange-500 font-bold">pauzy</span>{" "}
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano oznaczenie kafelka podczas {" "}
+                <span className="text-red-400 font-bold">końca czasu gry</span>{" "}
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano oznaczenie kafelka gdy jest aktywny{" "}
+                <span className="text-green-400 font-bold">komentarz</span>{" "}
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano oznaczenie kafelka gdy jest aktywne{" "}
+                <span className="text-pink-400 font-bold">powiadomienie</span>{" "}
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano oznaczenie kafelka na który ma być{" "}
+                <span className="text-[#00d9ff] font-bold">przeciągnięty</span>{" "} klient
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano oznaczenie kafelka z którym ma być{" "}
+                <span className="text-amber-500 font-bold">zamieniony</span>{" "} klient
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               System przeciągania stanowisk i małe poprawki
               <span className="text-purple-400 font-bold"> (V.1.1.0)</span>
             </h3>

@@ -48,6 +48,14 @@ const AdminClientManager: React.FC = () => {
   const [customPrice, setCustomPrice] = useState<number | null>(null); // Custom price for the game, null if not set
   const [addComment, setAddComment] = useState(false); // If comment field is enabled
   const [comment, setComment] = useState<string>(""); // Comment for the client or group
+  const [addReminder, setAddReminder] = useState(false); // If reminder is enabled
+  const [reminderCount, setReminderCount] = useState<number>(1); // Number of reminders
+  const [reminderMode, setReminderMode] = useState<'before' | 'every'>('before'); // Mode for reminders
+  const [reminderTimes, setReminderTimes] = useState<number[]>([15]); // Times for reminders in minutes
+  const [reminderText, setReminderText] = useState<string>(""); // Optional text for reminder
+  const [reminderStartMode, setReminderStartMode] = useState<'from_now' | 'from_start'>('from_start'); // Whether reminder time is counted from now or from start time
+  const [showReminderModal, setShowReminderModal] = useState<boolean>(false); // If reminder modal is shown
+  const [activeReminder, setActiveReminder] = useState<{client: ClientGame, time: number} | null>(null); // Current active reminder
   const [duplicateSlots, setDuplicateSlots] = useState<number[]>([]); // Indices of duplicate slots
   const [showDuplicateError, setShowDuplicateError] = useState(false); // If there are duplicate slots
   const [splitEnabled, setSplitEnabled] = useState(false); // If split group feature is enabled
@@ -94,6 +102,15 @@ const AdminClientManager: React.FC = () => {
   // Load clients from local storage on initial render
   useEffect(() => {
     setOriginalClients(clients);
+  }, [clients]);
+  
+  // Check for reminders every minute
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkAndShowReminders();
+    }, 1000); 
+    
+    return () => clearInterval(interval);
   }, [clients]);
 
   // Reset form when editId changes or when clients change
@@ -159,6 +176,12 @@ const AdminClientManager: React.FC = () => {
     setCustomPriceEnabled(false);
     setAddComment(false);
     setComment("");
+    setAddReminder(false);
+    setReminderCount(1);
+    setReminderMode('before');
+    setReminderTimes([15]);
+    setReminderText("");
+    setReminderStartMode('from_start');
   };
 
   // Function to calculate end time based on start time and duration
@@ -215,6 +238,112 @@ const AdminClientManager: React.FC = () => {
       minutes: diffMinutes,
       isOver: false,
     };
+  };
+
+  // Helper function to trigger a reminder
+  const triggerReminder = (client: ClientGame, remainingMinutes: number, elapsedMinutesFromReminderSet?: number) => {
+    // Ustawienie aktywnego przypomnienia
+    setActiveReminder({
+      client: client,
+      time: remainingMinutes
+    });
+    
+    // Wyświetlenie modalu z przypomnieniem
+    setShowReminderModal(true);
+    
+    // Opcjonalnie: usunięcie tego konkretnego czasu z listy przypomnień dla trybu "ZA"
+    if (client.reminderMode === 'before') {
+      setClients(prev => prev.map(c => {
+        if (c.id === client.id && c.reminderTimes) {
+          let updatedTimes = [...c.reminderTimes];
+          
+          if (client.reminderStartMode === 'from_now') {
+            // W trybie "od teraz" usuwamy czas który odpowiada upłyniętym minutom od ustawienia przypomnienia
+            if (elapsedMinutesFromReminderSet !== undefined) {
+              updatedTimes = updatedTimes.filter(time => time !== elapsedMinutesFromReminderSet);
+            } else {
+              // Fallback jeśli nie przekazano parametru
+              updatedTimes = updatedTimes.filter(time => time !== remainingMinutes);
+            }
+          } else if (client.reminderStartMode === 'from_start') {
+            // W trybie "od startu" usuwamy czas który odpowiada upłyniętym minutom od startu
+            const start = DateTime.fromISO(client.startTime);
+            const now = DateTime.now();
+            const elapsedMinutes = Math.floor(now.diff(start, 'minutes').minutes);
+            updatedTimes = updatedTimes.filter(time => time !== elapsedMinutes);
+          }
+          
+          // Jeśli nie ma już więcej przypomnień, usuwamy flagę reminder
+          if (updatedTimes.length === 0) {
+            return { ...c, reminderTimes: updatedTimes, reminder: false };
+          }
+          return { ...c, reminderTimes: updatedTimes };
+        }
+        return c;
+      }));
+    }
+  };
+
+  // Function to check for clients that need reminders and display them
+  const checkAndShowReminders = () => {
+    const now = DateTime.now();
+    
+    clients.forEach(client => {
+      if (client.reminder && client.reminderTimes && client.reminderTimes.length > 0 && !client.isPaused) {
+        const remainingTime = getRemainingTime(client.startTime, client.duration, client.isPaused, client.pauseStartTime);
+        
+        // W zależności od trybu przypomnienia, sprawdzamy czas w różny sposób
+        if (client.reminderMode === 'before') {
+          // Tryb "ZA"
+          if (client.reminderStartMode === 'from_start') {
+            // Liczone od rozpoczęcia gry, sprawdzamy czy upłynęło tyle minut od rozpoczęcia
+            const start = DateTime.fromISO(client.startTime);
+            const elapsedMinutes = Math.floor(now.diff(start, 'minutes').minutes);
+            
+            if (client.reminderTimes.includes(elapsedMinutes)) {
+              triggerReminder(client, remainingTime.minutes, elapsedMinutes);
+            }
+          } else if (client.reminderStartMode === 'from_now') {
+            // Liczone od momentu ustawienia przypomnienia
+            if (client.reminderSetTime) {
+              const reminderSetTime = DateTime.fromISO(client.reminderSetTime);
+              const elapsedMinutesFromReminderSet = Math.floor(now.diff(reminderSetTime, 'minutes').minutes);
+              
+              // Sprawdzamy, czy upłynęła taka liczba minut, jaka jest w przypomnieniu
+              client.reminderTimes?.forEach(reminderTime => {
+                if (elapsedMinutesFromReminderSet === reminderTime) {
+                  // Przekazujemy aktualny czas od ustawienia przypomnienia, aby wiedzieć który usunąć
+                  triggerReminder(client, remainingTime.minutes, elapsedMinutesFromReminderSet);
+                }
+              });
+            } else {
+              // Jeśli nie ma ustawionego czasu przypomnienia, zachowujemy stare zachowanie
+              if (client.reminderTimes.includes(remainingTime.minutes)) {
+                triggerReminder(client, remainingTime.minutes, remainingTime.minutes);
+              }
+            }
+          } else {
+            // Domyślnie, jeśli nie ustawiono trybu, używamy czasu od rozpoczęcia gry
+            const start = DateTime.fromISO(client.startTime);
+            const elapsedMinutes = Math.floor(now.diff(start, 'minutes').minutes);
+            
+            if (client.reminderTimes.includes(elapsedMinutes)) {
+              triggerReminder(client, remainingTime.minutes, elapsedMinutes);
+            }
+          }
+        } else if (client.reminderMode === 'every') {
+          // Tryb "CO" - czas jest zawsze liczony od rozpoczęcia gry
+          // Sprawdzamy czy upłynęła wielokrotność wybranego czasu
+          const start = DateTime.fromISO(client.startTime);
+          const elapsedMinutes = Math.floor(now.diff(start, 'minutes').minutes);
+          const reminderInterval = client.reminderTimes[0] || 15; // Domyślnie 15 minut
+          
+          if (elapsedMinutes > 0 && elapsedMinutes % reminderInterval === 0) {
+            triggerReminder(client, remainingTime.minutes, elapsedMinutes);
+          }
+        }
+      }
+    });
   };
 
   // Function to get payment amount based on duration, start time, and number of players
@@ -316,6 +445,12 @@ const AdminClientManager: React.FC = () => {
                   : undefined,
                 customStart: customStartEnabled,
                 comment: addComment ? comment : undefined,
+                reminder: addReminder,
+                reminderTimes: addReminder ? reminderTimes : undefined,
+                reminderMode: addReminder ? reminderMode : undefined,
+                reminderText: addReminder && reminderText ? reminderText : undefined,
+                reminderStartMode: addReminder ? reminderStartMode : undefined,
+                reminderSetTime: addReminder && reminderStartMode === 'from_now' ? DateTime.now().toISO() : client.reminderSetTime,
               }
             : client
         )
@@ -332,6 +467,12 @@ const AdminClientManager: React.FC = () => {
         customPrice: customPriceEnabled ? customPrice ?? undefined : undefined,
         customStart: customStartEnabled,
         comment: addComment ? comment : undefined,
+        reminder: addReminder,
+        reminderTimes: addReminder ? reminderTimes : undefined,
+        reminderMode: addReminder ? reminderMode : undefined,
+        reminderText: addReminder && reminderText ? reminderText : undefined,
+        reminderStartMode: addReminder ? reminderStartMode : undefined,
+        reminderSetTime: addReminder && reminderStartMode === 'from_now' ? DateTime.now().toISO() : undefined,
       };
       setClients((prev) => [...prev, newClient]);
     }
@@ -587,6 +728,12 @@ const AdminClientManager: React.FC = () => {
       setCustomMinute(start.minute);
       setAddComment(!!client.comment);
       setComment(client.comment ?? "");
+      setAddReminder(!!client.reminder);
+      setReminderCount(client.reminderTimes?.length || 1);
+      setReminderMode(client.reminderMode || 'before');
+      setReminderTimes(client.reminderTimes || [15]);
+      setReminderText(client.reminderText || "");
+      setReminderStartMode(client.reminderStartMode || 'from_start');
     }
   };
 
@@ -1062,6 +1209,150 @@ const AdminClientManager: React.FC = () => {
                 onChange={(e) => setComment(e.target.value)}
                 rows={2}
               />
+            )}
+          </div>
+
+          {/* Checkbox for reminder option */}
+          <div className="mb-4">
+            <label className="flex items-center gap-2 text-sm mb-2">
+              <input
+                type="checkbox"
+                checked={addReminder}
+                onChange={() => setAddReminder((v) => !v)}
+                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+              />
+              Ustaw przypomnienie
+            </label>
+            {addReminder && (
+              <div className="mt-2 p-3 rounded border-1 border-gray-600">
+                <div className="mb-3">
+                  <div className="flex gap-3 items-center mb-2">
+                    <label className="block text-sm">Liczba przypomnień:</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={reminderCount}
+                      onChange={(e) => {
+                        const newCount = Math.max(1, Math.min(5, parseInt(e.target.value) || 1));
+                        setReminderCount(newCount);
+                        
+                        // Dostosuj listę czasów do nowej liczby przypomnień
+                        if (newCount > reminderTimes.length) {
+                          // Dodaj brakujące czasy
+                          const newTimes = [...reminderTimes];
+                          for (let i = reminderTimes.length; i < newCount; i++) {
+                            newTimes.push(5);
+                          }
+                          setReminderTimes(newTimes);
+                        } else if (newCount < reminderTimes.length) {
+                          // Usuń nadmiarowe czasy
+                          setReminderTimes(reminderTimes.slice(0, newCount));
+                        }
+                      }}
+                      className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
+                    />
+                  </div>
+                  
+                  <div className="flex items-center gap-3 mb-2">
+                    <label className="text-sm whitespace-nowrap">Tryb:</label>
+                    <select
+                      value={reminderMode}
+                      onChange={(e) => {
+                        const newMode = e.target.value as 'before' | 'every';
+                        setReminderMode(newMode);
+                        if (newMode === 'before') {
+                          // Przy zmianie na "ZA" ustawiamy domyślne czasy dla wszystkich przypomnień
+                          if (reminderMode === 'every') {
+                            const defaultBeforeTimes = [15, 10, 5, 3, 1].slice(0, reminderCount || 1);
+                            setReminderTimes(defaultBeforeTimes);
+                          }
+                          // Jeśli nie ma żadnych przypomnień, dodajemy jedno domyślne
+                          if (!reminderTimes || reminderTimes.length === 0) {
+                            setReminderTimes([15]);
+                            setReminderCount(1);
+                          }
+                        } else {
+                          // Przy zmianie na "CO" automatycznie ustawiamy jedno przypomnienie
+                          setReminderCount(1);
+                          setReminderTimes([15]);
+                        }
+                      }}
+                      className="p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                    >
+                      <option value="before">ZA</option>
+                      <option value="every">CO</option>
+                    </select>
+                  </div>
+                  
+                  {reminderMode === 'before' && (
+                    <div className="flex items-center gap-3 mb-2">
+                      <label className="text-sm whitespace-nowrap">Licz od:</label>
+                      <select
+                        value={reminderStartMode}
+                        onChange={(e) => setReminderStartMode(e.target.value as 'from_start' | 'from_now')}
+                        className="p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                      >
+                        <option value="from_start">Od startu gry</option>
+                        <option value="from_now">Teraz</option>
+                      </select>
+                    </div>
+                  )}
+                  
+                  {reminderMode === 'before' ? (
+                    // Tryb "ZA" - pokazujemy tyle inputów, ile przypomnień
+                    (reminderTimes.length > 0 ? reminderTimes : [15]).map((time, index) => (
+                      <div key={`reminder-time-${index}`} className="flex items-center gap-2 mb-2">
+                        <label className="text-sm whitespace-nowrap">
+                          Przypomnienie {index + 1}:
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={60}
+                          value={time}
+                          onChange={(e) => {
+                            const newValue = Math.max(1, Math.min(60, parseInt(e.target.value) || 1));
+                            const newTimes = [...reminderTimes];
+                            newTimes[index] = newValue;
+                            setReminderTimes(newTimes);
+                          }}
+                          className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
+                        />
+                        <span className="text-sm text-gray-300">minut</span>
+                      </div>
+                    ))
+                  ) : (
+                    // Tryb "CO" - pokazujemy tylko jeden input
+                    <div className="flex items-center gap-2 mb-2">
+                      <label className="text-sm whitespace-nowrap">Co:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={reminderTimes && reminderTimes.length > 0 ? reminderTimes[0] : 15}
+                        onChange={(e) => {
+                          const newValue = Math.max(1, Math.min(60, parseInt(e.target.value) || 1));
+                          setReminderTimes([newValue]);
+                        }}
+                        className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
+                      />
+                      <span className="text-sm text-gray-300">minut</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mb-2">
+                  <label className="block text-sm mb-1">Tekst przypomnienia (opcjonalnie):</label>
+                  <textarea
+                    className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                    placeholder="Wpisz tekst przypomnienia..."
+                    value={reminderText}
+                    onChange={(e) => setReminderText(e.target.value)}
+                    rows={1}
+                  />
+                </div>
+              </div>
             )}
           </div>
 
@@ -1591,13 +1882,35 @@ const AdminClientManager: React.FC = () => {
                 (client) => editId === client.id
               );
 
+              // Sprawdzamy, czy jakakolwiek gra w tym slocie się zakończyła
+              const hasGameEnded = clientsInSlot.some((client) => {
+                const { isOver } = getRemainingTime(
+                  client.startTime,
+                  client.duration,
+                  client.isPaused,
+                  client.pauseStartTime
+                );
+                return isOver;
+              });
+
               return (
                 <div
                   key={index}
                   className={`bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words transition
-                              ${isEditing ? "ring-1 ring-[#00d9ff] z-10" : ""}
-                              ${clientsInSlot.some(client => client.isPaused) ? "ring-1 ring-orange-500 z-10" : ""}
-                              ${clientsInSlot.length === 0 ? 'hover:bg-[#242d40]' : ''}`}
+                    ${isEditing 
+                      ? "ring-1 ring-[#00d9ff] z-10" 
+                      : hasGameEnded 
+                        ? "ring-1 ring-red-500 z-20" 
+                        : clientsInSlot.some(client => client.isPaused) 
+                          ? "ring-1 ring-orange-500 z-10" 
+                          : clientsInSlot.some(client => client.reminder) 
+                            ? "ring-1 ring-pink-500 z-10" 
+                            : clientsInSlot.some(client => client.comment) 
+                              ? "ring-1 ring-green-500 z-10" 
+                              : clientsInSlot.length === 0 
+                                ? 'hover:bg-[#242d40]' 
+                                : ''
+                    }`}
                   style={{
                     transition: "transform 0.2s, box-shadow 0.2s",
                   }}
@@ -1608,10 +1921,10 @@ const AdminClientManager: React.FC = () => {
                     // Dodajemy różne style zależnie od tego czy miejsce jest zajęte czy puste
                     if (clientsInSlot.length === 0) {
                       // Dla pustych miejsc - niebieska obwódka
-                      e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]");
+                      e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]", "z-10");
                     } else {
                       // Dla zajętych miejsc - pomarańczowa obwódka wskazująca na możliwość zamiany
-                      e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-orange-500");
+                      e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-amber-500", "z-10");
                     }
                   }}
                   onDragLeave={(e) => {
@@ -1853,19 +2166,21 @@ const AdminClientManager: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          <div className="flex justify-end gap-2 mt-4 text-[15px]">
+                          <div className="flex justify-end gap-2 mt-4 text-[15px] h-[17px]">
                             {client.isPaused && (
-                              <div className="text-orange-500 text-sm font-semibold mr-auto">
+                              <div className="text-orange-500 text-[14px] font-semibold mr-auto flex items-center">
                                 Pauza: {getRemainingTime(client.startTime, client.duration, client.isPaused, client.pauseStartTime).pauseDuration}
                               </div>
                             )}
                             <button
                               onClick={() => {
-                                // Tutaj może być implementacja powiadomienia
-                                alert(`Wysłano powiadomienie dla stanowiska ${stanowiskoLabels[stationForThisSlot]}`);
+                                handleEditClient(client);
+                                if (!client.reminder) {
+                                  setAddReminder(true);
+                                }
                               }}
-                              className="text-gray-500 hover:text-pink-500"
-                              title="Przypomnij"
+                              className={`${client.reminder ? 'text-pink-500 hover:text-pink-500' : 'text-gray-500 hover:text-pink-500'}`}
+                              title={client.reminder ? `Przypomnienie ustawione` : "Ustaw przypomnienie"}
                             >
                               <FaBell />
                             </button>
@@ -2294,6 +2609,54 @@ const AdminClientManager: React.FC = () => {
                 className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-900 hover:scale-105 hover:shadow-lg font-bold transition"
               >
                 Usuń
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reminder modal */}
+      {showReminderModal && activeReminder && (
+        <div
+          className="fixed left-0 top-0 w-full h-full z-50 flex items-center justify-center backdrop-blur-sm"
+          onClick={() => {
+            setShowReminderModal(false);
+            setActiveReminder(null);
+          }}
+        >
+          <div
+            className="bg-[#1e2636] p-6 rounded-lg shadow-lg min-w-[320px] border border-pink-500"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-bold mb-4 text-[#00d9ff]">
+              Przypomnienie
+            </h3>
+            <p className="mb-2 text-white">
+              {activeReminder?.client?.reminderText || "Czas przypomnienia:"}
+            </p>
+            <p className="mb-6 text-white">
+              Stanowiska:{" "}
+              <span className="font-semibold text-[#00d9ff]">
+                {activeReminder?.client?.stations
+                  .map((s) => stanowiskoLabels[s])
+                  .join(", ")}
+              </span>
+            </p>
+            <p className="mb-6 text-white">
+              Pozostało:{" "}
+              <span className="font-semibold text-[#00d9ff]">
+                {activeReminder?.time} minut
+              </span>
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => {
+                  setShowReminderModal(false);
+                  setActiveReminder(null);
+                }}
+                className="px-4 py-2 rounded bg-[#00d9ff] text-[#1e2636] hover:bg-[#00a0c0] hover:scale-105 hover:shadow-lg font-bold transition"
+              >
+                Zamknij
               </button>
             </div>
           </div>
