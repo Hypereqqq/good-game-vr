@@ -27,5 +27,7 @@ export interface ClientGame {
   customStart?: boolean;        // Optional custom start time (if true, startTime is used)
   comment?: string;             // Optional comment for the game
   playedMinutes?: number;       // Optional played minutes (if the game has started)
+  isPaused?: boolean;           // Optional flag indicating if game is paused
+  pauseStartTime?: string;      // Optional ISO string date when the game was paused
 }
 

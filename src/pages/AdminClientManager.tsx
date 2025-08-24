@@ -9,7 +9,7 @@ import { clientsAtom } from "../store/clients";
 import { v4 as uuidv4 } from "uuid";
 import { ClientGame } from "../types/types";
 import { DateTime } from "luxon";
-import { FaTrash, FaEdit, FaCommentDots } from "react-icons/fa";
+import { FaTrash, FaEdit, FaCommentDots, FaBell, FaPause, FaPlay } from "react-icons/fa";
 
 // This object maps station IDs to their labels for display purposes
 const stanowiskoLabels: Record<number, string> = {
@@ -169,10 +169,35 @@ const AdminClientManager: React.FC = () => {
   // Function to get remaining time in a human-readable format
   const getRemainingTime = (
     startTime: string,
-    duration: number
-  ): { text: string; minutes: number; isOver: boolean } => {
+    duration: number,
+    isPaused: boolean = false,
+    pauseStartTime?: string
+  ): { text: string; minutes: number; isOver: boolean; pauseDuration?: string } => {
     const now = DateTime.now();
     const end = DateTime.fromISO(startTime).plus({ minutes: duration });
+    
+    // Jeśli gra jest wstrzymana, obliczamy czas trwania pauzy
+    if (isPaused && pauseStartTime) {
+      const pauseStart = DateTime.fromISO(pauseStartTime);
+      
+      // Obliczamy pozostały czas w momencie wstrzymania
+      const diffAtPauseSeconds = Math.floor(end.diff(pauseStart, "seconds").seconds);
+      const diffMinutesAtPause = Math.ceil(diffAtPauseSeconds / 60);
+      
+      // Obliczamy czas trwania pauzy do wyświetlenia
+      const pauseDurationSeconds = Math.floor(now.diff(pauseStart, "seconds").seconds);
+      const pauseMinutes = Math.floor(pauseDurationSeconds / 60);
+      const pauseSeconds = pauseDurationSeconds % 60;
+      
+      return {
+        text: `${diffMinutesAtPause} min`,
+        minutes: diffMinutesAtPause,
+        isOver: false,
+        pauseDuration: `${pauseMinutes}:${pauseSeconds < 10 ? '0' : ''}${pauseSeconds}`
+      };
+    }
+
+    // Standardowa kalkulacja czasu pozostałego
     const diffSeconds = Math.floor(end.diff(now, "seconds").seconds);
 
     if (diffSeconds <= 0) {
@@ -317,6 +342,42 @@ const AdminClientManager: React.FC = () => {
   // Function to handle deleting a client
   const handleDeleteClient = (id: string) => {
     setClients((prev) => prev.filter((client) => client.id !== id));
+  };
+
+  // Function to handle pausing and resuming a game
+  const handlePauseResumeGame = (clientId: string) => {
+    setClients((prev) => {
+      return prev.map((client) => {
+        if (client.id !== clientId) return client;
+        
+        const now = DateTime.now();
+        
+        if (client.isPaused && client.pauseStartTime) {
+          // Wznowienie gry - przesuwamy czas startowy o czas trwania pauzy
+          const pauseStartTime = DateTime.fromISO(client.pauseStartTime);
+          const pauseDuration = now.diff(pauseStartTime);
+          
+          // Przesunięcie czasu startowego o czas trwania pauzy
+          const newStartTime = DateTime.fromISO(client.startTime)
+            .plus({ milliseconds: pauseDuration.milliseconds })
+            .toISO();
+            
+          return {
+            ...client,
+            startTime: newStartTime,
+            isPaused: false,
+            pauseStartTime: undefined,
+          } as ClientGame;
+        } else {
+          // Wstrzymanie gry
+          return {
+            ...client,
+            isPaused: true,
+            pauseStartTime: now.toISO(),
+          } as ClientGame;
+        }
+      });
+    });
   };
 
   // Function to handle moving a client to a new station using drag and drop
@@ -708,8 +769,8 @@ const AdminClientManager: React.FC = () => {
           const bEnd = calculateEndTime(b.startTime, b.duration).toMillis();
           return sortConfig.direction === "asc" ? aEnd - bEnd : bEnd - aEnd;
         case "remaining":
-          const aRem = getRemainingTime(a.startTime, a.duration).minutes;
-          const bRem = getRemainingTime(b.startTime, b.duration).minutes;
+          const aRem = getRemainingTime(a.startTime, a.duration, a.isPaused, a.pauseStartTime).minutes;
+          const bRem = getRemainingTime(b.startTime, b.duration, b.isPaused, b.pauseStartTime).minutes;
           return sortConfig.direction === "asc" ? aRem - bRem : bRem - aRem;
         case "paid":
           // First sort by paid status
@@ -1535,6 +1596,7 @@ const AdminClientManager: React.FC = () => {
                   key={index}
                   className={`bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words transition
                               ${isEditing ? "ring-1 ring-[#00d9ff] z-10" : ""}
+                              ${clientsInSlot.some(client => client.isPaused) ? "ring-1 ring-orange-500 z-10" : ""}
                               ${clientsInSlot.length === 0 ? 'hover:bg-[#242d40]' : ''}`}
                   style={{
                     transition: "transform 0.2s, box-shadow 0.2s",
@@ -1634,6 +1696,7 @@ const AdminClientManager: React.FC = () => {
                         >
                           <FaTrash />
                         </button>
+                        
                       </div>
                     )}
                   </div>
@@ -1735,10 +1798,10 @@ const AdminClientManager: React.FC = () => {
                             }
                           }}
                         >
-                          <div className="font-semibold">
+                          <div className="font-semibold text-blue-300">
                             {client.duration} min
                           </div>
-                          <div className="text-sm mt-4 text-gray-400">
+                          <div className="text-sm mt-2 text-gray-400">
                             {DateTime.fromISO(client.startTime).toFormat(
                               "HH:mm"
                             )}{" "}
@@ -1751,7 +1814,9 @@ const AdminClientManager: React.FC = () => {
                           {(() => {
                             const { text, minutes, isOver } = getRemainingTime(
                               client.startTime,
-                              client.duration
+                              client.duration,
+                              client.isPaused,
+                              client.pauseStartTime
                             );
                             let colorClass = "text-white";
                             let blinkClass = "";
@@ -1787,6 +1852,32 @@ const AdminClientManager: React.FC = () => {
                                     ).toFixed(2)} zł`}
                               </span>
                             )}
+                          </div>
+                          <div className="flex justify-end gap-2 mt-4 text-[15px]">
+                            {client.isPaused && (
+                              <div className="text-orange-500 text-sm font-semibold mr-auto">
+                                Pauza: {getRemainingTime(client.startTime, client.duration, client.isPaused, client.pauseStartTime).pauseDuration}
+                              </div>
+                            )}
+                            <button
+                              onClick={() => {
+                                // Tutaj może być implementacja powiadomienia
+                                alert(`Wysłano powiadomienie dla stanowiska ${stanowiskoLabels[stationForThisSlot]}`);
+                              }}
+                              className="text-gray-500 hover:text-pink-500"
+                              title="Przypomnij"
+                            >
+                              <FaBell />
+                            </button>
+                            <button
+                              onClick={() => {
+                                handlePauseResumeGame(client.id);
+                              }}
+                              className={`${client.isPaused ? 'text-orange-500 hover:text-green-500' : 'text-gray-500 hover:text-orange-500'}`}
+                              title={client.isPaused ? "Wznów grę" : "Wstrzymaj grę"}
+                            >
+                              {client.isPaused ? <FaPlay /> : <FaPause />}
+                            </button>
                           </div>
                         </div>
                       );
@@ -2046,7 +2137,9 @@ const AdminClientManager: React.FC = () => {
                   );
                   const remaining = getRemainingTime(
                     client.startTime,
-                    client.duration
+                    client.duration,
+                    client.isPaused,
+                    client.pauseStartTime
                   );
                   const price = getPaymentAmount(
                     client.duration,
