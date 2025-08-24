@@ -194,6 +194,13 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
               <li>
+                Dodano opcję ustawienia przypomnień dla klienta i grupy. Po wciśnięciu przycisku pojawia się opcja wybrania ilości przypomnień,
+                momentu od którego są liczone, oraz ich częstotliwości. Można wpisać również dodatkowy tekst.
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
                 Usunięto możliwość wpisania nazwy klienta / grupy.
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
               </li>
