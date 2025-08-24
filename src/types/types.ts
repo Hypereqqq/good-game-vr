@@ -18,7 +18,6 @@ export interface Reservation {
 
 export interface ClientGame {
   id: string;                   // Unique ID
-  name: string;                 // Name of the group or client
   stations: number[];           // List of station numbers (1-8)
   players: number;              // Number of players in the group (1-8)
   duration: number;             // Duration of the game in minutes (30, 60, 90, 120)

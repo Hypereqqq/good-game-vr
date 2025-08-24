@@ -37,7 +37,6 @@ const AdminClientManager: React.FC = () => {
   // State management using Jotai atoms
   const [clients, setClients] = useAtom(clientsAtom);
   const [peopleCount, setPeopleCount] = useState(1); // Number of players in the group
-  const [name, setName] = useState(""); // Name of the client or group
   const [slots, setSlots] = useState<number[]>([1]); // Default slot for the first player
   const [duration, setDuration] = useState(30); // Default duration in minutes
   const [paid, setPaid] = useState(false); // If the game is paid
@@ -70,7 +69,6 @@ const AdminClientManager: React.FC = () => {
   const [removePrices, setRemovePrices] = useState<(number | "")[]>([]); // Prices for players to remove from the group, empty string if not set
 
   const [editingQueueId, setEditingQueueId] = useState<string | null>(null); // ID of the client being edited in the queue
-  const [editingQueueName, setEditingQueueName] = useState(""); // Name of the client being edited in the queue
   const [editingQueuePrice, setEditingQueuePrice] = useState<number | "">(""); // Price of the client being edited in the queue, empty string if not set
 
   const [, setTick] = useState(0); // State to force re-render every second
@@ -150,7 +148,6 @@ const AdminClientManager: React.FC = () => {
 
   // Reset form function to clear all fields
   const resetForm = () => {
-    setName("");
     setPeopleCount(1);
     setSlots([1]);
     setDuration(30);
@@ -275,7 +272,6 @@ const AdminClientManager: React.FC = () => {
           client.id === editId
             ? {
                 ...client,
-                name,
                 players: peopleCount,
                 stations,
                 duration,
@@ -303,7 +299,6 @@ const AdminClientManager: React.FC = () => {
     } else {
       const newClient: ClientGame = {
         id: uuidv4(),
-        name,
         stations,
         players: peopleCount,
         duration,
@@ -505,7 +500,6 @@ const AdminClientManager: React.FC = () => {
       resetForm(); // pełne resetowanie
     } else {
       setEditId(client.id);
-      setName(client.name);
       setPeopleCount(client.players);
       setSplitEnabled(false);
       setSplitGroupsCount(2);
@@ -805,18 +799,6 @@ const AdminClientManager: React.FC = () => {
                 +
               </button>
             </div>
-          </div>
-
-          {/* Input for client or group name */}
-          <div className="mb-4">
-            <label className="block text-sm">Nazwa grupy / klienta:</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white mb-2"
-              placeholder="Wpisz nazwę"
-            />
           </div>
 
           {/* Select dropdown for player slots */}
@@ -1754,7 +1736,7 @@ const AdminClientManager: React.FC = () => {
                           }}
                         >
                           <div className="font-semibold">
-                            {client.name} – {client.duration} min
+                            {client.duration} min
                           </div>
                           <div className="text-sm mt-4 text-gray-400">
                             {DateTime.fromISO(client.startTime).toFormat(
@@ -1827,7 +1809,6 @@ const AdminClientManager: React.FC = () => {
                 <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
                   <thead>
                     <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
-                      <th className="p-3">Nazwa</th>
                       <th className="p-3">Stanowisko</th>
                       <th className="p-3">Czas</th>
                       <th className="p-3">Kwota</th>
@@ -1843,20 +1824,6 @@ const AdminClientManager: React.FC = () => {
                           key={client.id}
                           className="border-b border-gray-700 hover:bg-[#2b3242]"
                         >
-                          <td className="p-3 text-white">
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={editingQueueName}
-                                onChange={(e) =>
-                                  setEditingQueueName(e.target.value)
-                                }
-                                className="w-40 p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
-                              />
-                            ) : (
-                              client.name
-                            )}
-                          </td>
                           <td className="p-3 text-white">
                             {client.stations
                               .map((s) => stanowiskoLabels[s])
@@ -1944,7 +1911,6 @@ const AdminClientManager: React.FC = () => {
                                         q.id === client.id
                                           ? {
                                               ...q,
-                                              name: editingQueueName,
                                               customPrice:
                                                 editingQueuePrice === ""
                                                   ? undefined
@@ -1965,7 +1931,6 @@ const AdminClientManager: React.FC = () => {
                                   className="text-gray-500 hover:text-yellow-500 transition"
                                   onClick={() => {
                                     setEditingQueueId(client.id);
-                                    setEditingQueueName(client.name ?? "");
                                     setEditingQueuePrice(
                                       client.customPrice != null
                                         ? client.customPrice
@@ -2014,7 +1979,6 @@ const AdminClientManager: React.FC = () => {
             <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
               <thead>
                 <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
-                  <th className="p-3">Nazwa</th>
                   <th
                     className={`p-3 cursor-pointer select-none transition ${
                       sortConfig.key === "players" ? "bg-[#193a4d]" : ""
@@ -2098,7 +2062,6 @@ const AdminClientManager: React.FC = () => {
                         isEditing ? "bg-[#2a354a] " : ""
                       }`}
                     >
-                      <td className="p-3 text-white">{client.name}</td>
                       <td className="p-3 text-white">{client.players}</td>
                       <td className="p-3 text-white">
                         {client.stations
@@ -2209,15 +2172,7 @@ const AdminClientManager: React.FC = () => {
               Potwierdź usunięcie
             </h3>
             <p className="mb-2 text-white">
-              Czy na pewno chcesz usunąć klienta
-              {clientToDelete.name ? (
-                <>
-                  {" "}
-                  <span className="font-semibold">{clientToDelete.name}</span>?
-                </>
-              ) : (
-                "?"
-              )}
+              Czy na pewno chcesz usunąć klienta?
             </p>
             <p className="mb-6 text-white">
               Stanowiska:{" "}
