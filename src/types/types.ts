@@ -36,5 +36,6 @@ export interface ClientGame {
   reminderText?: string;        // Optional text for reminder
   reminderStartMode?: 'from_now' | 'from_start'; // Optional mode for reminder start time: from now or from game start
   reminderSetTime?: string;     // Optional ISO string date when the reminder was set
+  lastEveryTriggeredMinute?: number; // Optional: minute index of last acknowledged 'every' reminder
 }
 

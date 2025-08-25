@@ -195,6 +195,11 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
+              <li>
+                Poprawiono błąd, gdzie modal przypomnienia pojawiał się ponownie po wciśnięciu zamknij
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
               
             </ul>
           </div>

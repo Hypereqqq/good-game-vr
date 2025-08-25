@@ -9,7 +9,14 @@ import { clientsAtom } from "../store/clients";
 import { v4 as uuidv4 } from "uuid";
 import { ClientGame } from "../types/types";
 import { DateTime } from "luxon";
-import { FaTrash, FaEdit, FaCommentDots, FaBell, FaPause, FaPlay } from "react-icons/fa";
+import {
+  FaTrash,
+  FaEdit,
+  FaCommentDots,
+  FaBell,
+  FaPause,
+  FaPlay,
+} from "react-icons/fa";
 
 // This object maps station IDs to their labels for display purposes
 const stanowiskoLabels: Record<number, string> = {
@@ -50,12 +57,19 @@ const AdminClientManager: React.FC = () => {
   const [comment, setComment] = useState<string>(""); // Comment for the client or group
   const [addReminder, setAddReminder] = useState(false); // If reminder is enabled
   const [reminderCount, setReminderCount] = useState<number>(1); // Number of reminders
-  const [reminderMode, setReminderMode] = useState<'before' | 'every'>('before'); // Mode for reminders
+  const [reminderMode, setReminderMode] = useState<"before" | "every">(
+    "before"
+  ); // Mode for reminders
   const [reminderTimes, setReminderTimes] = useState<number[]>([15]); // Times for reminders in minutes
   const [reminderText, setReminderText] = useState<string>(""); // Optional text for reminder
-  const [reminderStartMode, setReminderStartMode] = useState<'from_now' | 'from_start'>('from_start'); // Whether reminder time is counted from now or from start time
+  const [reminderStartMode, setReminderStartMode] = useState<
+    "from_now" | "from_start"
+  >("from_start"); // Whether reminder time is counted from now or from start time
   const [showReminderModal, setShowReminderModal] = useState<boolean>(false); // If reminder modal is shown
-  const [activeReminder, setActiveReminder] = useState<{client: ClientGame, time: number} | null>(null); // Current active reminder
+  const [activeReminder, setActiveReminder] = useState<{
+    client: ClientGame;
+    time: number;
+  } | null>(null); // Current active reminder
   const [duplicateSlots, setDuplicateSlots] = useState<number[]>([]); // Indices of duplicate slots
   const [showDuplicateError, setShowDuplicateError] = useState(false); // If there are duplicate slots
   const [splitEnabled, setSplitEnabled] = useState(false); // If split group feature is enabled
@@ -103,13 +117,13 @@ const AdminClientManager: React.FC = () => {
   useEffect(() => {
     setOriginalClients(clients);
   }, [clients]);
-  
+
   // Check for reminders every minute
   useEffect(() => {
     const interval = setInterval(() => {
       checkAndShowReminders();
-    }, 1000); 
-    
+    }, 1000);
+
     return () => clearInterval(interval);
   }, [clients]);
 
@@ -178,10 +192,10 @@ const AdminClientManager: React.FC = () => {
     setComment("");
     setAddReminder(false);
     setReminderCount(1);
-    setReminderMode('before');
+    setReminderMode("before");
     setReminderTimes([15]);
     setReminderText("");
-    setReminderStartMode('from_start');
+    setReminderStartMode("from_start");
   };
 
   // Function to calculate end time based on start time and duration
@@ -195,28 +209,39 @@ const AdminClientManager: React.FC = () => {
     duration: number,
     isPaused: boolean = false,
     pauseStartTime?: string
-  ): { text: string; minutes: number; isOver: boolean; pauseDuration?: string } => {
+  ): {
+    text: string;
+    minutes: number;
+    isOver: boolean;
+    pauseDuration?: string;
+  } => {
     const now = DateTime.now();
     const end = DateTime.fromISO(startTime).plus({ minutes: duration });
-    
+
     // Jeśli gra jest wstrzymana, obliczamy czas trwania pauzy
     if (isPaused && pauseStartTime) {
       const pauseStart = DateTime.fromISO(pauseStartTime);
-      
+
       // Obliczamy pozostały czas w momencie wstrzymania
-      const diffAtPauseSeconds = Math.floor(end.diff(pauseStart, "seconds").seconds);
+      const diffAtPauseSeconds = Math.floor(
+        end.diff(pauseStart, "seconds").seconds
+      );
       const diffMinutesAtPause = Math.ceil(diffAtPauseSeconds / 60);
-      
+
       // Obliczamy czas trwania pauzy do wyświetlenia
-      const pauseDurationSeconds = Math.floor(now.diff(pauseStart, "seconds").seconds);
+      const pauseDurationSeconds = Math.floor(
+        now.diff(pauseStart, "seconds").seconds
+      );
       const pauseMinutes = Math.floor(pauseDurationSeconds / 60);
       const pauseSeconds = pauseDurationSeconds % 60;
-      
+
       return {
         text: `${diffMinutesAtPause} min`,
         minutes: diffMinutesAtPause,
         isOver: false,
-        pauseDuration: `${pauseMinutes}:${pauseSeconds < 10 ? '0' : ''}${pauseSeconds}`
+        pauseDuration: `${pauseMinutes}:${
+          pauseSeconds < 10 ? "0" : ""
+        }${pauseSeconds}`,
       };
     }
 
@@ -253,37 +278,57 @@ const AdminClientManager: React.FC = () => {
   // Calculate time remaining until the next reminder for a client (in MM:SS).
   // Returns null if no countdown is applicable.
   const getReminderCountdown = (client: ClientGame): string | null => {
-    if (!client.reminder || !client.reminderTimes || client.reminderTimes.length === 0) return null;
+    if (
+      !client.reminder ||
+      !client.reminderTimes ||
+      client.reminderTimes.length === 0
+    )
+      return null;
 
     // When paused, freeze countdown at the moment of pause (use pauseStartTime as reference)
-    const nowRef = client.isPaused && client.pauseStartTime ? DateTime.fromISO(client.pauseStartTime) : DateTime.now();
+    const nowRef =
+      client.isPaused && client.pauseStartTime
+        ? DateTime.fromISO(client.pauseStartTime)
+        : DateTime.now();
 
-    if (client.reminderMode === 'before') {
-      if (client.reminderStartMode === 'from_start') {
+    if (client.reminderMode === "before") {
+      if (client.reminderStartMode === "from_start") {
         const start = DateTime.fromISO(client.startTime);
-        const elapsedSeconds = Math.floor(nowRef.diff(start, 'seconds').seconds);
+        const elapsedSeconds = Math.floor(
+          nowRef.diff(start, "seconds").seconds
+        );
 
         // For each configured reminder (minutes), compute seconds remaining and pick the smallest positive
-        const remainingCandidates = client.reminderTimes.map((m) => m * 60 - elapsedSeconds);
+        const remainingCandidates = client.reminderTimes.map(
+          (m) => m * 60 - elapsedSeconds
+        );
         const positive = remainingCandidates.filter((r) => r > 0);
-        const nextSec = positive.length > 0 ? Math.min(...positive) : Math.min(...remainingCandidates);
+        const nextSec =
+          positive.length > 0
+            ? Math.min(...positive)
+            : Math.min(...remainingCandidates);
         if (nextSec === undefined) return null;
         return formatMMSS(nextSec <= 0 ? 0 : nextSec);
       } else {
         // from_now
         if (!client.reminderSetTime) return null;
         const set = DateTime.fromISO(client.reminderSetTime);
-        const elapsedSeconds = Math.floor(nowRef.diff(set, 'seconds').seconds);
-        const remainingCandidates = client.reminderTimes.map((m) => m * 60 - elapsedSeconds);
+        const elapsedSeconds = Math.floor(nowRef.diff(set, "seconds").seconds);
+        const remainingCandidates = client.reminderTimes.map(
+          (m) => m * 60 - elapsedSeconds
+        );
         const positive = remainingCandidates.filter((r) => r > 0);
-        const nextSec = positive.length > 0 ? Math.min(...positive) : Math.min(...remainingCandidates);
+        const nextSec =
+          positive.length > 0
+            ? Math.min(...positive)
+            : Math.min(...remainingCandidates);
         if (nextSec === undefined) return null;
         return formatMMSS(nextSec <= 0 ? 0 : nextSec);
       }
-    } else if (client.reminderMode === 'every') {
+    } else if (client.reminderMode === "every") {
       const interval = (client.reminderTimes[0] || 15) * 60; // in seconds
       const start = DateTime.fromISO(client.startTime);
-      const elapsedSeconds = Math.floor(nowRef.diff(start, 'seconds').seconds);
+      const elapsedSeconds = Math.floor(nowRef.diff(start, "seconds").seconds);
       if (elapsedSeconds < 0) return formatMMSS(interval);
       const mod = elapsedSeconds % interval;
       const nextSec = mod === 0 ? interval : interval - mod;
@@ -294,103 +339,156 @@ const AdminClientManager: React.FC = () => {
   };
 
   // Helper function to trigger a reminder
-  const triggerReminder = (client: ClientGame, remainingMinutes: number, elapsedMinutesFromReminderSet?: number) => {
+  const triggerReminder = (
+    client: ClientGame,
+    remainingMinutes: number,
+    elapsedMinutesFromReminderSet?: number
+  ) => {
     // Ustawienie aktywnego przypomnienia
     setActiveReminder({
       client: client,
-      time: remainingMinutes
+      time: remainingMinutes,
     });
-    
+
     // Wyświetlenie modalu z przypomnieniem
     setShowReminderModal(true);
-    
+
     // Opcjonalnie: usunięcie tego konkretnego czasu z listy przypomnień dla trybu "ZA"
-    if (client.reminderMode === 'before') {
-      setClients(prev => prev.map(c => {
-        if (c.id === client.id && c.reminderTimes) {
-          let updatedTimes = [...c.reminderTimes];
-          
-          if (client.reminderStartMode === 'from_now') {
-            // W trybie "od teraz" usuwamy czas który odpowiada upłyniętym minutom od ustawienia przypomnienia
-            if (elapsedMinutesFromReminderSet !== undefined) {
-              updatedTimes = updatedTimes.filter(time => time !== elapsedMinutesFromReminderSet);
-            } else {
-              // Fallback jeśli nie przekazano parametru
-              updatedTimes = updatedTimes.filter(time => time !== remainingMinutes);
+    if (client.reminderMode === "before") {
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.id === client.id && c.reminderTimes) {
+            let updatedTimes = [...c.reminderTimes];
+
+            if (client.reminderStartMode === "from_now") {
+              // W trybie "od teraz" usuwamy czas który odpowiada upłyniętym minutom od ustawienia przypomnienia
+              if (elapsedMinutesFromReminderSet !== undefined) {
+                updatedTimes = updatedTimes.filter(
+                  (time) => time !== elapsedMinutesFromReminderSet
+                );
+              } else {
+                // Fallback jeśli nie przekazano parametru
+                updatedTimes = updatedTimes.filter(
+                  (time) => time !== remainingMinutes
+                );
+              }
+            } else if (client.reminderStartMode === "from_start") {
+              // W trybie "od startu" usuwamy czas który odpowiada upłyniętym minutom od startu
+              const start = DateTime.fromISO(client.startTime);
+              const now = DateTime.now();
+              const elapsedMinutes = Math.floor(
+                now.diff(start, "minutes").minutes
+              );
+              updatedTimes = updatedTimes.filter(
+                (time) => time !== elapsedMinutes
+              );
             }
-          } else if (client.reminderStartMode === 'from_start') {
-            // W trybie "od startu" usuwamy czas który odpowiada upłyniętym minutom od startu
-            const start = DateTime.fromISO(client.startTime);
-            const now = DateTime.now();
-            const elapsedMinutes = Math.floor(now.diff(start, 'minutes').minutes);
-            updatedTimes = updatedTimes.filter(time => time !== elapsedMinutes);
+
+            // Jeśli nie ma już więcej przypomnień, usuwamy flagę reminder
+            if (updatedTimes.length === 0) {
+              return { ...c, reminderTimes: updatedTimes, reminder: false };
+            }
+            return { ...c, reminderTimes: updatedTimes };
           }
-          
-          // Jeśli nie ma już więcej przypomnień, usuwamy flagę reminder
-          if (updatedTimes.length === 0) {
-            return { ...c, reminderTimes: updatedTimes, reminder: false };
-          }
-          return { ...c, reminderTimes: updatedTimes };
-        }
-        return c;
-      }));
+          return c;
+        })
+      );
+    }
+    // Dla trybu "CO" oznaczamy która minuta została wywołana (żeby po zamknięciu nie wywoływało się wciąż to samo)
+    if (client.reminderMode === "every") {
+      const start = DateTime.fromISO(client.startTime);
+      const now = DateTime.now();
+      const elapsedMinutes = Math.floor(now.diff(start, "minutes").minutes);
+      setClients((prev) =>
+        prev.map((c) =>
+          c.id === client.id
+            ? { ...c, lastEveryTriggeredMinute: elapsedMinutes }
+            : c
+        )
+      );
     }
   };
 
   // Function to check for clients that need reminders and display them
   const checkAndShowReminders = () => {
     const now = DateTime.now();
-    
-    clients.forEach(client => {
-      if (client.reminder && client.reminderTimes && client.reminderTimes.length > 0 && !client.isPaused) {
-        const remainingTime = getRemainingTime(client.startTime, client.duration, client.isPaused, client.pauseStartTime);
-        
+
+    clients.forEach((client) => {
+      if (
+        client.reminder &&
+        client.reminderTimes &&
+        client.reminderTimes.length > 0 &&
+        !client.isPaused
+      ) {
+        const remainingTime = getRemainingTime(
+          client.startTime,
+          client.duration,
+          client.isPaused,
+          client.pauseStartTime
+        );
+
         // W zależności od trybu przypomnienia, sprawdzamy czas w różny sposób
-        if (client.reminderMode === 'before') {
+        if (client.reminderMode === "before") {
           // Tryb "ZA"
-          if (client.reminderStartMode === 'from_start') {
+          if (client.reminderStartMode === "from_start") {
             // Liczone od rozpoczęcia gry, sprawdzamy czy upłynęło tyle minut od rozpoczęcia
             const start = DateTime.fromISO(client.startTime);
-            const elapsedMinutes = Math.floor(now.diff(start, 'minutes').minutes);
-            
+            const elapsedMinutes = Math.floor(
+              now.diff(start, "minutes").minutes
+            );
+
             if (client.reminderTimes.includes(elapsedMinutes)) {
               triggerReminder(client, remainingTime.minutes, elapsedMinutes);
             }
-          } else if (client.reminderStartMode === 'from_now') {
+          } else if (client.reminderStartMode === "from_now") {
             // Liczone od momentu ustawienia przypomnienia
             if (client.reminderSetTime) {
               const reminderSetTime = DateTime.fromISO(client.reminderSetTime);
-              const elapsedMinutesFromReminderSet = Math.floor(now.diff(reminderSetTime, 'minutes').minutes);
-              
+              const elapsedMinutesFromReminderSet = Math.floor(
+                now.diff(reminderSetTime, "minutes").minutes
+              );
+
               // Sprawdzamy, czy upłynęła taka liczba minut, jaka jest w przypomnieniu
-              client.reminderTimes?.forEach(reminderTime => {
+              client.reminderTimes?.forEach((reminderTime) => {
                 if (elapsedMinutesFromReminderSet === reminderTime) {
                   // Przekazujemy aktualny czas od ustawienia przypomnienia, aby wiedzieć który usunąć
-                  triggerReminder(client, remainingTime.minutes, elapsedMinutesFromReminderSet);
+                  triggerReminder(
+                    client,
+                    remainingTime.minutes,
+                    elapsedMinutesFromReminderSet
+                  );
                 }
               });
             } else {
               // Jeśli nie ma ustawionego czasu przypomnienia, zachowujemy stare zachowanie
               if (client.reminderTimes.includes(remainingTime.minutes)) {
-                triggerReminder(client, remainingTime.minutes, remainingTime.minutes);
+                triggerReminder(
+                  client,
+                  remainingTime.minutes,
+                  remainingTime.minutes
+                );
               }
             }
           } else {
             // Domyślnie, jeśli nie ustawiono trybu, używamy czasu od rozpoczęcia gry
             const start = DateTime.fromISO(client.startTime);
-            const elapsedMinutes = Math.floor(now.diff(start, 'minutes').minutes);
-            
+            const elapsedMinutes = Math.floor(
+              now.diff(start, "minutes").minutes
+            );
+
             if (client.reminderTimes.includes(elapsedMinutes)) {
               triggerReminder(client, remainingTime.minutes, elapsedMinutes);
             }
           }
-        } else if (client.reminderMode === 'every') {
+        } else if (client.reminderMode === "every") {
           // Tryb "CO" - czas jest zawsze liczony od rozpoczęcia gry
           // Sprawdzamy czy upłynęła wielokrotność wybranego czasu
           const start = DateTime.fromISO(client.startTime);
-          const elapsedMinutes = Math.floor(now.diff(start, 'minutes').minutes);
+          const elapsedMinutes = Math.floor(now.diff(start, "minutes").minutes);
           const reminderInterval = client.reminderTimes[0] || 15; // Domyślnie 15 minut
-          
+          // Jeśli już wcześniej potwierdzono przypomnienie dla tej minuty, pomiń
+          if (client.lastEveryTriggeredMinute === elapsedMinutes) return;
+
           if (elapsedMinutes > 0 && elapsedMinutes % reminderInterval === 0) {
             triggerReminder(client, remainingTime.minutes, elapsedMinutes);
           }
@@ -501,9 +599,13 @@ const AdminClientManager: React.FC = () => {
                 reminder: addReminder,
                 reminderTimes: addReminder ? reminderTimes : undefined,
                 reminderMode: addReminder ? reminderMode : undefined,
-                reminderText: addReminder && reminderText ? reminderText : undefined,
+                reminderText:
+                  addReminder && reminderText ? reminderText : undefined,
                 reminderStartMode: addReminder ? reminderStartMode : undefined,
-                reminderSetTime: addReminder && reminderStartMode === 'from_now' ? DateTime.now().toISO() : client.reminderSetTime,
+                reminderSetTime:
+                  addReminder && reminderStartMode === "from_now"
+                    ? DateTime.now().toISO()
+                    : client.reminderSetTime,
               }
             : client
         )
@@ -525,7 +627,10 @@ const AdminClientManager: React.FC = () => {
         reminderMode: addReminder ? reminderMode : undefined,
         reminderText: addReminder && reminderText ? reminderText : undefined,
         reminderStartMode: addReminder ? reminderStartMode : undefined,
-        reminderSetTime: addReminder && reminderStartMode === 'from_now' ? DateTime.now().toISO() : undefined,
+        reminderSetTime:
+          addReminder && reminderStartMode === "from_now"
+            ? DateTime.now().toISO()
+            : undefined,
       };
       setClients((prev) => [...prev, newClient]);
     }
@@ -543,25 +648,29 @@ const AdminClientManager: React.FC = () => {
     setClients((prev) => {
       return prev.map((client) => {
         if (client.id !== clientId) return client;
-        
+
         const now = DateTime.now();
-        
+
         if (client.isPaused && client.pauseStartTime) {
           // Wznowienie gry - przesuwamy czas startowy o czas trwania pauzy
           const pauseStartTime = DateTime.fromISO(client.pauseStartTime);
           const pauseDuration = now.diff(pauseStartTime);
-          
+
           // Przesunięcie czasu startowego o czas trwania pauzy
           const newStartTime = DateTime.fromISO(client.startTime)
             .plus({ milliseconds: pauseDuration.milliseconds })
             .toISO();
           // Jeśli przypomnienie było ustawione "od teraz", przesuwamy także reminderSetTime
           let newReminderSetTime: string | undefined = undefined;
-          if (client.reminderStartMode === 'from_now' && client.reminderSetTime) {
+          if (
+            client.reminderStartMode === "from_now" &&
+            client.reminderSetTime
+          ) {
             try {
-              newReminderSetTime = DateTime.fromISO(String(client.reminderSetTime))
-                .plus({ milliseconds: pauseDuration.milliseconds })
-                .toISO() ?? undefined;
+              newReminderSetTime =
+                DateTime.fromISO(String(client.reminderSetTime))
+                  .plus({ milliseconds: pauseDuration.milliseconds })
+                  .toISO() ?? undefined;
             } catch (e) {
               // jeśli parsowanie się nie uda, zachowujemy oryginalny reminderSetTime
             }
@@ -587,44 +696,56 @@ const AdminClientManager: React.FC = () => {
   };
 
   // Function to handle moving a client to a new station using drag and drop
-  const handleDragClient = (clientId: string, newStationId: number, draggedStationId?: number) => {
+  const handleDragClient = (
+    clientId: string,
+    newStationId: number,
+    draggedStationId?: number
+  ) => {
     // Obsługa klientów przypisanych do stanowisk
     setClients((prev) => {
       // Znajdujemy przeciąganego klienta
-      const draggedClient = prev.find(c => c.id === clientId);
+      const draggedClient = prev.find((c) => c.id === clientId);
       if (!draggedClient) return prev;
 
       // Sprawdzamy, czy to jest przeciąganie w obrębie tej samej grupy (ten sam klient)
-      const isSameGroupDrag = draggedStationId !== undefined && 
-                              draggedClient.stations.length > 1 && 
-                              draggedClient.stations.includes(draggedStationId) && 
-                              draggedClient.stations.includes(newStationId);
-      
+      const isSameGroupDrag =
+        draggedStationId !== undefined &&
+        draggedClient.stations.length > 1 &&
+        draggedClient.stations.includes(draggedStationId) &&
+        draggedClient.stations.includes(newStationId);
+
       // Jeśli jest to przeciąganie w obrębie tej samej grupy, obsługujemy to inaczej
       if (isSameGroupDrag) {
-        return prev.map(client => {
+        return prev.map((client) => {
           if (client.id === clientId) {
             // Kopiujemy stanowiska
             const newStations = [...client.stations];
-            
+
             // Usuwamy nowe stanowisko z listy (jeśli już tam jest)
             const existingNewStationIndex = newStations.indexOf(newStationId);
             if (existingNewStationIndex !== -1) {
               // Zamieniamy miejscami ze stanowiskiem przeciąganym
-              const draggedStationIndex = newStations.indexOf(draggedStationId!);
+              const draggedStationIndex = newStations.indexOf(
+                draggedStationId!
+              );
               if (draggedStationIndex !== -1) {
                 // Zamieniamy stanowiska miejscami
-                [newStations[draggedStationIndex], newStations[existingNewStationIndex]] = 
-                [newStations[existingNewStationIndex], newStations[draggedStationIndex]];
+                [
+                  newStations[draggedStationIndex],
+                  newStations[existingNewStationIndex],
+                ] = [
+                  newStations[existingNewStationIndex],
+                  newStations[draggedStationIndex],
+                ];
               }
             }
-            
+
             return { ...client, stations: newStations };
           }
           return client;
         });
       }
-      
+
       // Sprawdzamy, czy nowe stanowisko jest już zajęte przez innego klienta
       const occupyingClient = prev.find(
         (c) => c.id !== clientId && c.stations.includes(newStationId)
@@ -634,70 +755,77 @@ const AdminClientManager: React.FC = () => {
       if (occupyingClient) {
         // Tworzymy nową tablicę klientów
         let updatedClients = [...prev];
-        
+
         // Dla grup z wieloma osobami
         if (draggedClient.stations.length > 1 && draggedStationId) {
           // Kopiujemy klienta i modyfikujemy jego stanowiska
-          const updatedDraggedClient = {...draggedClient};
+          const updatedDraggedClient = { ...draggedClient };
           const draggedStations = [...updatedDraggedClient.stations];
           const draggedIndex = draggedStations.indexOf(draggedStationId);
-          
+
           if (draggedIndex !== -1) {
             // Zmieniamy stanowisko przeciąganego klienta
             draggedStations[draggedIndex] = newStationId;
             updatedDraggedClient.stations = draggedStations;
-            
+
             // Znajdujemy klienta zajmującego docelowe stanowisko
-            const occupierIndex = updatedClients.findIndex(c => c.id === occupyingClient.id);
+            const occupierIndex = updatedClients.findIndex(
+              (c) => c.id === occupyingClient.id
+            );
             if (occupierIndex !== -1) {
-              const updatedOccupier = {...updatedClients[occupierIndex]};
-              
+              const updatedOccupier = { ...updatedClients[occupierIndex] };
+
               // Jeśli zajmujący też ma wiele stanowisk
               if (updatedOccupier.stations.length > 1) {
                 const occupierStations = [...updatedOccupier.stations];
                 const occupiedIndex = occupierStations.indexOf(newStationId);
-                
+
                 if (occupiedIndex !== -1) {
                   // Zamieniamy stanowisko zajmującego klienta
                   occupierStations[occupiedIndex] = draggedStationId;
                   updatedOccupier.stations = occupierStations;
-                  
+
                   // Aktualizujemy obu klientów
                   updatedClients[occupierIndex] = updatedOccupier;
-                  updatedClients = updatedClients.map(c => 
+                  updatedClients = updatedClients.map((c) =>
                     c.id === draggedClient.id ? updatedDraggedClient : c
                   );
-                  
+
                   return updatedClients;
                 }
               } else {
                 // Dla pojedynczego klienta zajmującego miejsce
                 updatedOccupier.stations = [draggedStationId];
                 updatedClients[occupierIndex] = updatedOccupier;
-                updatedClients = updatedClients.map(c => 
+                updatedClients = updatedClients.map((c) =>
                   c.id === draggedClient.id ? updatedDraggedClient : c
                 );
-                
+
                 return updatedClients;
               }
             }
           }
         } else {
           // Dla pojedynczych klientów przeciąganych na grupę lub pojedynczego klienta
-          const updatedDraggedClient = {...draggedClient, stations: [newStationId]};
-          
+          const updatedDraggedClient = {
+            ...draggedClient,
+            stations: [newStationId],
+          };
+
           // Znajdujemy klienta zajmującego docelowe stanowisko
-          const occupierIndex = updatedClients.findIndex(c => c.id === occupyingClient.id);
+          const occupierIndex = updatedClients.findIndex(
+            (c) => c.id === occupyingClient.id
+          );
           if (occupierIndex !== -1) {
             // Tworzymy kopię zajmującego klienta
-            const updatedOccupier = {...updatedClients[occupierIndex]};
-            
+            const updatedOccupier = { ...updatedClients[occupierIndex] };
+
             // Sprawdzamy czy zajmujący jest grupą
             if (updatedOccupier.stations.length > 1) {
               // Jeśli zajmujący to grupa, znajdujemy indeks zajmowanego stanowiska
               const occupierStations = [...updatedOccupier.stations];
               const occupiedIndex = occupierStations.indexOf(newStationId);
-              
+
               // Jeśli przeciągamy z konkretnego stanowiska
               if (draggedStationId) {
                 // Tylko zamieniamy jedno stanowisko w grupie
@@ -712,7 +840,7 @@ const AdminClientManager: React.FC = () => {
                   updatedOccupier.stations = occupierStations;
                 }
               }
-              
+
               updatedClients[occupierIndex] = updatedOccupier;
             } else {
               // Jeśli zajmujący to pojedynczy klient
@@ -723,19 +851,19 @@ const AdminClientManager: React.FC = () => {
                 // Jeśli nie mamy konkretnego stanowiska, używamy pierwszego z listy
                 updatedOccupier.stations = [draggedClient.stations[0]];
               }
-              
+
               updatedClients[occupierIndex] = updatedOccupier;
             }
           }
-          
-          updatedClients = updatedClients.map(c => 
+
+          updatedClients = updatedClients.map((c) =>
             c.id === draggedClient.id ? updatedDraggedClient : c
           );
-          
+
           return updatedClients;
         }
       }
-      
+
       // Jeśli miejsce nie jest zajęte, wykonujemy standardową operację
       return prev.map((client) => {
         if (client.id === clientId) {
@@ -795,10 +923,10 @@ const AdminClientManager: React.FC = () => {
       setComment(client.comment ?? "");
       setAddReminder(!!client.reminder);
       setReminderCount(client.reminderTimes?.length || 1);
-      setReminderMode(client.reminderMode || 'before');
+      setReminderMode(client.reminderMode || "before");
       setReminderTimes(client.reminderTimes || [15]);
       setReminderText(client.reminderText || "");
-      setReminderStartMode(client.reminderStartMode || 'from_start');
+      setReminderStartMode(client.reminderStartMode || "from_start");
     }
   };
 
@@ -981,8 +1109,18 @@ const AdminClientManager: React.FC = () => {
           const bEnd = calculateEndTime(b.startTime, b.duration).toMillis();
           return sortConfig.direction === "asc" ? aEnd - bEnd : bEnd - aEnd;
         case "remaining":
-          const aRem = getRemainingTime(a.startTime, a.duration, a.isPaused, a.pauseStartTime).minutes;
-          const bRem = getRemainingTime(b.startTime, b.duration, b.isPaused, b.pauseStartTime).minutes;
+          const aRem = getRemainingTime(
+            a.startTime,
+            a.duration,
+            a.isPaused,
+            a.pauseStartTime
+          ).minutes;
+          const bRem = getRemainingTime(
+            b.startTime,
+            b.duration,
+            b.isPaused,
+            b.pauseStartTime
+          ).minutes;
           return sortConfig.direction === "asc" ? aRem - bRem : bRem - aRem;
         case "paid":
           // First sort by paid status
@@ -1299,14 +1437,21 @@ const AdminClientManager: React.FC = () => {
                       max={10}
                       value={reminderCount}
                       onChange={(e) => {
-                        const newCount = Math.max(1, Math.min(5, parseInt(e.target.value) || 1));
+                        const newCount = Math.max(
+                          1,
+                          Math.min(5, parseInt(e.target.value) || 1)
+                        );
                         setReminderCount(newCount);
-                        
+
                         // Dostosuj listę czasów do nowej liczby przypomnień
                         if (newCount > reminderTimes.length) {
                           // Dodaj brakujące czasy
                           const newTimes = [...reminderTimes];
-                          for (let i = reminderTimes.length; i < newCount; i++) {
+                          for (
+                            let i = reminderTimes.length;
+                            i < newCount;
+                            i++
+                          ) {
                             newTimes.push(5);
                           }
                           setReminderTimes(newTimes);
@@ -1318,18 +1463,21 @@ const AdminClientManager: React.FC = () => {
                       className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
                     />
                   </div>
-                  
+
                   <div className="flex items-center gap-3 mb-2">
                     <label className="text-sm whitespace-nowrap">Tryb:</label>
                     <select
                       value={reminderMode}
                       onChange={(e) => {
-                        const newMode = e.target.value as 'before' | 'every';
+                        const newMode = e.target.value as "before" | "every";
                         setReminderMode(newMode);
-                        if (newMode === 'before') {
+                        if (newMode === "before") {
                           // Przy zmianie na "ZA" ustawiamy domyślne czasy dla wszystkich przypomnień
-                          if (reminderMode === 'every') {
-                            const defaultBeforeTimes = [15, 10, 5, 3, 1].slice(0, reminderCount || 1);
+                          if (reminderMode === "every") {
+                            const defaultBeforeTimes = [15, 10, 5, 3, 1].slice(
+                              0,
+                              reminderCount || 1
+                            );
                             setReminderTimes(defaultBeforeTimes);
                           }
                           // Jeśli nie ma żadnych przypomnień, dodajemy jedno domyślne
@@ -1349,13 +1497,19 @@ const AdminClientManager: React.FC = () => {
                       <option value="every">CO</option>
                     </select>
                   </div>
-                  
-                  {reminderMode === 'before' && (
+
+                  {reminderMode === "before" && (
                     <div className="flex items-center gap-3 mb-2">
-                      <label className="text-sm whitespace-nowrap">Licz od:</label>
+                      <label className="text-sm whitespace-nowrap">
+                        Licz od:
+                      </label>
                       <select
                         value={reminderStartMode}
-                        onChange={(e) => setReminderStartMode(e.target.value as 'from_start' | 'from_now')}
+                        onChange={(e) =>
+                          setReminderStartMode(
+                            e.target.value as "from_start" | "from_now"
+                          )
+                        }
                         className="p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
                       >
                         <option value="from_start">Od startu gry</option>
@@ -1363,30 +1517,38 @@ const AdminClientManager: React.FC = () => {
                       </select>
                     </div>
                   )}
-                  
-                  {reminderMode === 'before' ? (
+
+                  {reminderMode === "before" ? (
                     // Tryb "ZA" - pokazujemy tyle inputów, ile przypomnień
-                    (reminderTimes.length > 0 ? reminderTimes : [15]).map((time, index) => (
-                      <div key={`reminder-time-${index}`} className="flex items-center gap-2 mb-2">
-                        <label className="text-sm whitespace-nowrap">
-                          Przypomnienie {index + 1}:
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          max={60}
-                          value={time}
-                          onChange={(e) => {
-                            const newValue = Math.max(1, Math.min(60, parseInt(e.target.value) || 1));
-                            const newTimes = [...reminderTimes];
-                            newTimes[index] = newValue;
-                            setReminderTimes(newTimes);
-                          }}
-                          className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
-                        />
-                        <span className="text-sm text-gray-300">minut</span>
-                      </div>
-                    ))
+                    (reminderTimes.length > 0 ? reminderTimes : [15]).map(
+                      (time, index) => (
+                        <div
+                          key={`reminder-time-${index}`}
+                          className="flex items-center gap-2 mb-2"
+                        >
+                          <label className="text-sm whitespace-nowrap">
+                            Przypomnienie {index + 1}:
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={60}
+                            value={time}
+                            onChange={(e) => {
+                              const newValue = Math.max(
+                                1,
+                                Math.min(60, parseInt(e.target.value) || 1)
+                              );
+                              const newTimes = [...reminderTimes];
+                              newTimes[index] = newValue;
+                              setReminderTimes(newTimes);
+                            }}
+                            className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
+                          />
+                          <span className="text-sm text-gray-300">minut</span>
+                        </div>
+                      )
+                    )
                   ) : (
                     // Tryb "CO" - pokazujemy tylko jeden input
                     <div className="flex items-center gap-2 mb-2">
@@ -1395,9 +1557,16 @@ const AdminClientManager: React.FC = () => {
                         type="number"
                         min={1}
                         max={60}
-                        value={reminderTimes && reminderTimes.length > 0 ? reminderTimes[0] : 15}
+                        value={
+                          reminderTimes && reminderTimes.length > 0
+                            ? reminderTimes[0]
+                            : 15
+                        }
                         onChange={(e) => {
-                          const newValue = Math.max(1, Math.min(60, parseInt(e.target.value) || 1));
+                          const newValue = Math.max(
+                            1,
+                            Math.min(60, parseInt(e.target.value) || 1)
+                          );
                           setReminderTimes([newValue]);
                         }}
                         className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
@@ -1406,9 +1575,11 @@ const AdminClientManager: React.FC = () => {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="mb-2">
-                  <label className="block text-sm mb-1">Tekst przypomnienia (opcjonalnie):</label>
+                  <label className="block text-sm mb-1">
+                    Tekst przypomnienia (opcjonalnie):
+                  </label>
                   <textarea
                     className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
                     placeholder="Wpisz tekst przypomnienia..."
@@ -1962,19 +2133,20 @@ const AdminClientManager: React.FC = () => {
                 <div
                   key={index}
                   className={`bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words transition
-                    ${isEditing 
-                      ? "ring-1 ring-[#00d9ff] z-10" 
-                      : hasGameEnded 
-                        ? "ring-1 ring-red-500 z-20" 
-                        : clientsInSlot.some(client => client.isPaused) 
-                          ? "ring-1 ring-orange-500 z-10" 
-                          : clientsInSlot.some(client => client.reminder) 
-                            ? "ring-1 ring-pink-500 z-10" 
-                            : clientsInSlot.some(client => client.comment) 
-                              ? "ring-1 ring-green-500 z-10" 
-                              : clientsInSlot.length === 0 
-                                ? 'hover:bg-[#242d40]' 
-                                : ''
+                    ${
+                      isEditing
+                        ? "ring-1 ring-[#00d9ff] z-10"
+                        : hasGameEnded
+                        ? "ring-1 ring-red-500 z-20"
+                        : clientsInSlot.some((client) => client.isPaused)
+                        ? "ring-1 ring-orange-500 z-10"
+                        : clientsInSlot.some((client) => client.reminder)
+                        ? "ring-1 ring-pink-500 z-10"
+                        : clientsInSlot.some((client) => client.comment)
+                        ? "ring-1 ring-green-500 z-10"
+                        : clientsInSlot.length === 0
+                        ? "hover:bg-[#242d40]"
+                        : ""
                     }`}
                   style={{
                     transition: "transform 0.2s, box-shadow 0.2s",
@@ -1982,34 +2154,58 @@ const AdminClientManager: React.FC = () => {
                   onDragOver={(e) => {
                     // Pozwalamy na upuszczenie na każde miejsce - puste lub zajęte
                     e.preventDefault();
-                    
+
                     // Dodajemy różne style zależnie od tego czy miejsce jest zajęte czy puste
                     if (clientsInSlot.length === 0) {
                       // Dla pustych miejsc - niebieska obwódka
-                      e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]", "z-10");
+                      e.currentTarget.classList.add(
+                        "bg-[#2a3a56]",
+                        "ring-1",
+                        "ring-[#00d9ff]",
+                        "z-10"
+                      );
                     } else {
                       // Dla zajętych miejsc - pomarańczowa obwódka wskazująca na możliwość zamiany
-                      e.currentTarget.classList.add("bg-[#2a3a56]", "ring-1", "ring-amber-500", "z-10");
+                      e.currentTarget.classList.add(
+                        "bg-[#2a3a56]",
+                        "ring-1",
+                        "ring-amber-500",
+                        "z-10"
+                      );
                     }
                   }}
                   onDragLeave={(e) => {
                     // Usuwamy wszystkie style podświetlające, niezależnie od tego czy miejsce było puste czy zajęte
-                    e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]", "ring-orange-500");
+                    e.currentTarget.classList.remove(
+                      "bg-[#2a3a56]",
+                      "ring-1",
+                      "ring-[#00d9ff]",
+                      "ring-orange-500"
+                    );
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
                     // Usuwamy wszystkie style podświetlające
-                    e.currentTarget.classList.remove("bg-[#2a3a56]", "ring-1", "ring-[#00d9ff]", "ring-orange-500");
+                    e.currentTarget.classList.remove(
+                      "bg-[#2a3a56]",
+                      "ring-1",
+                      "ring-[#00d9ff]",
+                      "ring-orange-500"
+                    );
                     const dragData = e.dataTransfer.getData("text/plain");
-                    
+
                     // Sprawdzamy, czy dane zawierają ID stanowiska (format clientId:stationId)
-                    const [clientId, stationId] = dragData.includes(':') 
-                      ? dragData.split(':') 
+                    const [clientId, stationId] = dragData.includes(":")
+                      ? dragData.split(":")
                       : [dragData, null];
-                    
+
                     // Obsługujemy upuszczanie na dowolne miejsce - puste lub zajęte
                     if (clientId) {
-                      handleDragClient(clientId, slotIndex, stationId ? parseInt(stationId) : undefined);
+                      handleDragClient(
+                        clientId,
+                        slotIndex,
+                        stationId ? parseInt(stationId) : undefined
+                      );
                     }
                   }}
                 >
@@ -2074,7 +2270,6 @@ const AdminClientManager: React.FC = () => {
                         >
                           <FaTrash />
                         </button>
-                        
                       </div>
                     )}
                   </div>
@@ -2082,10 +2277,14 @@ const AdminClientManager: React.FC = () => {
                   {clientsInSlot.length > 0 ? (
                     clientsInSlot.map((client, i) => {
                       // Dla grup z wieloma stanowiskami, musimy znaleźć, które stanowisko odpowiada temu slotowi
-                      const stationForThisSlot = client.stations.includes(slotIndex) ? slotIndex : client.stations[i];
+                      const stationForThisSlot = client.stations.includes(
+                        slotIndex
+                      )
+                        ? slotIndex
+                        : client.stations[i];
                       return (
-                        <div 
-                          key={i} 
+                        <div
+                          key={i}
                           className="text-sm text-blue-300 mb-2"
                           draggable="false"
                           onMouseDown={(e) => {
@@ -2095,49 +2294,59 @@ const AdminClientManager: React.FC = () => {
                               element.classList.add("cursor-move");
                               // Dodajemy flagę, że element jest w trybie przeciągania
                               element.setAttribute("data-drag-enabled", "true");
-                              
+
                               // Ustawiamy timer na reset po 2 sekundach jeśli nie zostanie przeciągnięty
                               const resetTimer = setTimeout(() => {
                                 // Sprawdzamy czy element ma włączoną możliwość przeciągania
                                 // i nie jest aktualnie przeciągany
-                                if (element.getAttribute("data-drag-enabled") === "true" && 
-                                    !element.classList.contains("opacity-50")) {
+                                if (
+                                  element.getAttribute("data-drag-enabled") ===
+                                    "true" &&
+                                  !element.classList.contains("opacity-50")
+                                ) {
                                   element.setAttribute("draggable", "false");
                                   element.classList.remove("cursor-move");
                                   element.removeAttribute("data-drag-enabled");
                                 }
                               }, 2000);
-                              
+
                               // Zapisujemy timer resetu w atrybucie elementu
-                              element.setAttribute("data-reset-timer", String(resetTimer));
+                              element.setAttribute(
+                                "data-reset-timer",
+                                String(resetTimer)
+                              );
                             }, 500); // zmienione z 1000 na 500ms (pół sekundy)
-                            
+
                             // Zapisujemy timer w atrybucie elementu
                             element.setAttribute("data-timer", String(timer));
                           }}
                           onMouseUp={(e) => {
                             const element = e.currentTarget;
-                            const timer = Number(element.getAttribute("data-timer"));
+                            const timer = Number(
+                              element.getAttribute("data-timer")
+                            );
                             if (timer) {
                               clearTimeout(timer);
                               element.removeAttribute("data-timer");
                             }
-                            
+
                             // Nie czyścimy timera resetu, aby pozwolić mu działać
                             // nawet po puszczeniu przycisku myszy
-                            
+
                             if (!element.classList.contains("cursor-move")) {
                               element.setAttribute("draggable", "false");
                             }
                           }}
                           onMouseLeave={(e) => {
                             const element = e.currentTarget;
-                            const timer = Number(element.getAttribute("data-timer"));
+                            const timer = Number(
+                              element.getAttribute("data-timer")
+                            );
                             if (timer) {
                               clearTimeout(timer);
                               element.removeAttribute("data-timer");
                             }
-                            
+
                             // Nie czyścimy timera resetu, aby pozwolił mu działać
                             // nawet po opuszczeniu elementu kursorem
                           }}
@@ -2145,20 +2354,27 @@ const AdminClientManager: React.FC = () => {
                             // Jeśli jest więcej niż jedno stanowisko (grupa), dodajemy informację o konkretnym stanowisku
                             if (client.stations.length > 1) {
                               // Tworzymy specjalne ID dla przeciągania: clientId:stationId
-                              e.dataTransfer.setData("text/plain", `${client.id}:${stationForThisSlot}`);
+                              e.dataTransfer.setData(
+                                "text/plain",
+                                `${client.id}:${stationForThisSlot}`
+                              );
                             } else {
                               // Dla pojedynczych klientów, po prostu używamy ich ID
                               e.dataTransfer.setData("text/plain", client.id);
                             }
-                            
+
                             // Dodajemy klasę wskazującą, że element jest przeciągany
                             e.currentTarget.classList.add("opacity-50");
-                            
+
                             // Czyścimy timer resetu, ponieważ element jest teraz przeciągany
-                            const resetTimer = Number(e.currentTarget.getAttribute("data-reset-timer"));
+                            const resetTimer = Number(
+                              e.currentTarget.getAttribute("data-reset-timer")
+                            );
                             if (resetTimer) {
                               clearTimeout(resetTimer);
-                              e.currentTarget.removeAttribute("data-reset-timer");
+                              e.currentTarget.removeAttribute(
+                                "data-reset-timer"
+                              );
                             }
                           }}
                           onDragEnd={(e) => {
@@ -2166,13 +2382,19 @@ const AdminClientManager: React.FC = () => {
                             e.currentTarget.classList.remove("opacity-50");
                             e.currentTarget.classList.remove("cursor-move");
                             e.currentTarget.setAttribute("draggable", "false");
-                            e.currentTarget.removeAttribute("data-drag-enabled");
-                            
+                            e.currentTarget.removeAttribute(
+                              "data-drag-enabled"
+                            );
+
                             // Czyścimy timer resetu jeśli istnieje
-                            const resetTimer = Number(e.currentTarget.getAttribute("data-reset-timer"));
+                            const resetTimer = Number(
+                              e.currentTarget.getAttribute("data-reset-timer")
+                            );
                             if (resetTimer) {
                               clearTimeout(resetTimer);
-                              e.currentTarget.removeAttribute("data-reset-timer");
+                              e.currentTarget.removeAttribute(
+                                "data-reset-timer"
+                              );
                             }
                           }}
                         >
@@ -2234,15 +2456,45 @@ const AdminClientManager: React.FC = () => {
                           <div className="flex justify-end gap-2 mt-4 text-[15px] h-[17px]">
                             {/* left area: show pause (if paused) and reminder (if set) */}
                             <div className="mr-auto flex items-center gap-3">
-                              {client.isPaused && (
+
+                              {client.isPaused && client.reminder && (
+                                <>
+                                <div className="text-pink-400 text-[14px]  font-semibold">
+                                  U:{" "}
+                                  {getReminderCountdown(client) ?? "--:--"}
+                                </div>
                                 <div className="text-orange-500 text-[14px] font-semibold">
-                                  Pauza: {getRemainingTime(client.startTime, client.duration, client.isPaused, client.pauseStartTime).pauseDuration}
+                                  P:{" "}
+                                  {
+                                    getRemainingTime(
+                                      client.startTime,
+                                      client.duration,
+                                      client.isPaused,
+                                      client.pauseStartTime
+                                    ).pauseDuration
+                                  }
+                                </div>
+                                </>
+                              )}
+                              
+                              {client.isPaused && !client.reminder && (
+                                <div className="text-orange-500 text-[14px] font-semibold">
+                                  Pauza:{" "}
+                                  {
+                                    getRemainingTime(
+                                      client.startTime,
+                                      client.duration,
+                                      client.isPaused,
+                                      client.pauseStartTime
+                                    ).pauseDuration
+                                  }
                                 </div>
                               )}
 
                               {client.reminder && !client.isPaused && (
                                 <div className="text-pink-400 text-[14px] font-semibold">
-                                  Uwaga: {getReminderCountdown(client) ?? '--:--'}
+                                  Uwaga:{" "}
+                                  {getReminderCountdown(client) ?? "--:--"}
                                 </div>
                               )}
                             </div>
@@ -2261,8 +2513,16 @@ const AdminClientManager: React.FC = () => {
                                   setAddReminder(true);
                                 }
                               }}
-                              className={`${client.reminder ? 'text-pink-500 hover:text-pink-500' : 'text-gray-500 hover:text-pink-500'}`}
-                              title={client.reminder ? `Przypomnienie ustawione` : "Ustaw przypomnienie"}
+                              className={`${
+                                client.reminder
+                                  ? "text-pink-500 hover:text-pink-500"
+                                  : "text-gray-500 hover:text-pink-500"
+                              }`}
+                              title={
+                                client.reminder
+                                  ? `Przypomnienie ustawione`
+                                  : "Ustaw przypomnienie"
+                              }
                             >
                               <FaBell />
                             </button>
@@ -2270,8 +2530,14 @@ const AdminClientManager: React.FC = () => {
                               onClick={() => {
                                 handlePauseResumeGame(client.id);
                               }}
-                              className={`${client.isPaused ? 'text-orange-500 hover:text-green-500' : 'text-gray-500 hover:text-orange-500'}`}
-                              title={client.isPaused ? "Wznów grę" : "Wstrzymaj grę"}
+                              className={`${
+                                client.isPaused
+                                  ? "text-orange-500 hover:text-green-500"
+                                  : "text-gray-500 hover:text-orange-500"
+                              }`}
+                              title={
+                                client.isPaused ? "Wznów grę" : "Wstrzymaj grę"
+                              }
                             >
                               {client.isPaused ? <FaPlay /> : <FaPause />}
                             </button>
@@ -2733,6 +2999,23 @@ const AdminClientManager: React.FC = () => {
             <div className="flex justify-end gap-4">
               <button
                 onClick={() => {
+                  // Jeśli aktywne przypomnienie jest trybu 'every', zarejestruj jego potwierdzenie
+                  if (activeReminder?.client?.reminderMode === "every") {
+                    const c = activeReminder.client;
+                    const start = DateTime.fromISO(c.startTime);
+                    const now = DateTime.now();
+                    const elapsedMinutes = Math.floor(
+                      now.diff(start, "minutes").minutes
+                    );
+                    setClients((prev) =>
+                      prev.map((pc) =>
+                        pc.id === c.id
+                          ? { ...pc, lastEveryTriggeredMinute: elapsedMinutes }
+                          : pc
+                      )
+                    );
+                  }
+
                   setShowReminderModal(false);
                   setActiveReminder(null);
                 }}
