@@ -240,6 +240,59 @@ const AdminClientManager: React.FC = () => {
     };
   };
 
+  // Format seconds to MM:SS
+  const formatMMSS = (seconds: number) => {
+    const s = Math.max(0, Math.floor(seconds));
+    const mm = Math.floor(s / 60);
+    const ss = s % 60;
+    const paddedMM = String(mm).padStart(2, "0");
+    const paddedSS = String(ss).padStart(2, "0");
+    return `${paddedMM}:${paddedSS}`;
+  };
+
+  // Calculate time remaining until the next reminder for a client (in MM:SS).
+  // Returns null if no countdown is applicable.
+  const getReminderCountdown = (client: ClientGame): string | null => {
+    if (!client.reminder || !client.reminderTimes || client.reminderTimes.length === 0) return null;
+
+    // When paused, freeze countdown at the moment of pause (use pauseStartTime as reference)
+    const nowRef = client.isPaused && client.pauseStartTime ? DateTime.fromISO(client.pauseStartTime) : DateTime.now();
+
+    if (client.reminderMode === 'before') {
+      if (client.reminderStartMode === 'from_start') {
+        const start = DateTime.fromISO(client.startTime);
+        const elapsedSeconds = Math.floor(nowRef.diff(start, 'seconds').seconds);
+
+        // For each configured reminder (minutes), compute seconds remaining and pick the smallest positive
+        const remainingCandidates = client.reminderTimes.map((m) => m * 60 - elapsedSeconds);
+        const positive = remainingCandidates.filter((r) => r > 0);
+        const nextSec = positive.length > 0 ? Math.min(...positive) : Math.min(...remainingCandidates);
+        if (nextSec === undefined) return null;
+        return formatMMSS(nextSec <= 0 ? 0 : nextSec);
+      } else {
+        // from_now
+        if (!client.reminderSetTime) return null;
+        const set = DateTime.fromISO(client.reminderSetTime);
+        const elapsedSeconds = Math.floor(nowRef.diff(set, 'seconds').seconds);
+        const remainingCandidates = client.reminderTimes.map((m) => m * 60 - elapsedSeconds);
+        const positive = remainingCandidates.filter((r) => r > 0);
+        const nextSec = positive.length > 0 ? Math.min(...positive) : Math.min(...remainingCandidates);
+        if (nextSec === undefined) return null;
+        return formatMMSS(nextSec <= 0 ? 0 : nextSec);
+      }
+    } else if (client.reminderMode === 'every') {
+      const interval = (client.reminderTimes[0] || 15) * 60; // in seconds
+      const start = DateTime.fromISO(client.startTime);
+      const elapsedSeconds = Math.floor(nowRef.diff(start, 'seconds').seconds);
+      if (elapsedSeconds < 0) return formatMMSS(interval);
+      const mod = elapsedSeconds % interval;
+      const nextSec = mod === 0 ? interval : interval - mod;
+      return formatMMSS(nextSec <= 0 ? 0 : nextSec);
+    }
+
+    return null;
+  };
+
   // Helper function to trigger a reminder
   const triggerReminder = (client: ClientGame, remainingMinutes: number, elapsedMinutesFromReminderSet?: number) => {
     // Ustawienie aktywnego przypomnienia
@@ -502,12 +555,24 @@ const AdminClientManager: React.FC = () => {
           const newStartTime = DateTime.fromISO(client.startTime)
             .plus({ milliseconds: pauseDuration.milliseconds })
             .toISO();
-            
+          // Jeśli przypomnienie było ustawione "od teraz", przesuwamy także reminderSetTime
+          let newReminderSetTime: string | undefined = undefined;
+          if (client.reminderStartMode === 'from_now' && client.reminderSetTime) {
+            try {
+              newReminderSetTime = DateTime.fromISO(String(client.reminderSetTime))
+                .plus({ milliseconds: pauseDuration.milliseconds })
+                .toISO() ?? undefined;
+            } catch (e) {
+              // jeśli parsowanie się nie uda, zachowujemy oryginalny reminderSetTime
+            }
+          }
+
           return {
             ...client,
             startTime: newStartTime,
             isPaused: false,
             pauseStartTime: undefined,
+            reminderSetTime: newReminderSetTime,
           } as ClientGame;
         } else {
           // Wstrzymanie gry
@@ -2167,14 +2232,31 @@ const AdminClientManager: React.FC = () => {
                             )}
                           </div>
                           <div className="flex justify-end gap-2 mt-4 text-[15px] h-[17px]">
-                            {client.isPaused && (
-                              <div className="text-orange-500 text-[14px] font-semibold mr-auto flex items-center">
-                                Pauza: {getRemainingTime(client.startTime, client.duration, client.isPaused, client.pauseStartTime).pauseDuration}
-                              </div>
-                            )}
+                            {/* left area: show pause (if paused) and reminder (if set) */}
+                            <div className="mr-auto flex items-center gap-3">
+                              {client.isPaused && (
+                                <div className="text-orange-500 text-[14px] font-semibold">
+                                  Pauza: {getRemainingTime(client.startTime, client.duration, client.isPaused, client.pauseStartTime).pauseDuration}
+                                </div>
+                              )}
+
+                              {client.reminder && !client.isPaused && (
+                                <div className="text-pink-400 text-[14px] font-semibold">
+                                  Uwaga: {getReminderCountdown(client) ?? '--:--'}
+                                </div>
+                              )}
+                            </div>
                             <button
                               onClick={() => {
-                                handleEditClient(client);
+                                // If not currently editing this client, open editor.
+                                // If already editing this client, don't toggle edit off — only open reminder UI.
+                                if (editId !== client.id) {
+                                  handleEditClient(client);
+                                } else {
+                                  // already editing this client: keep edit mode, just open reminder section
+                                  setAddReminder(true);
+                                }
+                                // If client previously didn't have reminder, ensure the reminder UI is shown
                                 if (!client.reminder) {
                                   setAddReminder(true);
                                 }
