@@ -29,6 +29,7 @@ export interface ClientGame {
   playedMinutes?: number;       // Optional played minutes (if the game has started)
   isPaused?: boolean;           // Optional flag indicating if game is paused
   pauseStartTime?: string;      // Optional ISO string date when the game was paused
+  pauseHistory?: Array<{startTime: string, endTime?: string}>; // Historia pauz dla dokładnych obliczeń czasu
   reminder?: boolean;           // Optional flag indicating if game has a reminder
   reminderTimes?: number[];     // Optional array of times (minutes) for reminders
   reminderMode?: 'before' | 'every'; // Optional mode for reminders: before end or periodic

@@ -180,6 +180,22 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
+              Drobne poprawki
+              <span className="text-purple-400 font-bold"> (V.1.2.5)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">25 sierpnia 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodano licznik czasu do przypomnienia
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
               System pauzowania i przypomnień
               <span className="text-purple-400 font-bold"> (V.1.2.0)</span>
             </h3>
@@ -681,7 +697,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Komentarze i sortowanie
-              <span className="text-purple-400 font-bold"> (V.0.4.0)</span>
+              <span className="text-purple-400 font-bold"> (V.0.3.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">16 maja 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -713,7 +729,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Ulepszenia niestandardowej kwoty i godziny
-              <span className="text-purple-400 font-bold"> (V.0.3.0)</span>
+              <span className="text-purple-400 font-bold"> (V.0.2.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">26 kwietnia 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -734,7 +750,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Nowe opcje i edycja
-              <span className="text-purple-400 font-bold"> (V.0.2.0)</span>
+              <span className="text-purple-400 font-bold"> (V.0.1.5)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">1 kwietnia 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -748,7 +764,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Naprawa wyboru stanowisk
-              <span className="text-purple-400 font-bold"> (V.0.1.5)</span>
+              <span className="text-purple-400 font-bold"> (V.0.1.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">27 marca 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
@@ -762,7 +778,7 @@ const AdminPanel: React.FC = () => {
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Start systemu klientów
-              <span className="text-purple-400 font-bold"> (V.0.1.0)</span>
+              <span className="text-purple-400 font-bold"> (V.0.0.5)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">17 marca 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
