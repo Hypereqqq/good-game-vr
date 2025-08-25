@@ -190,6 +190,11 @@ const AdminPanel: React.FC = () => {
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>
+              <li>
+                Dodano funkcjonalność, gdzie podczas pauzy czas przypomnienia również jest wstrzymany
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
               
             </ul>
           </div>
