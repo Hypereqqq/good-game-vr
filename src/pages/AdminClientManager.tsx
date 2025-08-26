@@ -2384,7 +2384,7 @@ const AdminClientManager: React.FC = () => {
             <div>
               {/* Sekcja Stopera */}
               <div className="mb-4">
-                <h3 className="text-lg font-bold text-[#00d9ff] mb-4">Stoper</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Stoper</h3>
                 <div className="bg-[#0f1525] p-4 rounded-lg">
                   <div className="text-center mb-4">
                     <div className="text-2xl font-bold text-white">
@@ -2453,7 +2453,7 @@ const AdminClientManager: React.FC = () => {
 
               {/* Sekcja Minutnika */}
               <div className="mb-4">
-                <h3 className="text-lg font-bold text-[#00d9ff] mb-4">Minutnik</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Minutnik</h3>
                 <div className="bg-[#0f1525] p-4 rounded-lg">
                   <div className="text-center mb-4">
                     <div className="text-2xl  font-bold text-white">
@@ -3584,7 +3584,7 @@ const AdminClientManager: React.FC = () => {
           </div>
           
           <div className="text-center mb-3">
-            <div className="text-xl font-mono font-bold text-white">
+            <div className="text-xl  font-bold text-white">
               {formatTime(stopwatchTime)}
             </div>
           </div>
