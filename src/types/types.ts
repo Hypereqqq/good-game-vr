@@ -16,6 +16,14 @@ export interface Reservation {
   cancelled: boolean;           // Is the reservation cancelled?
 }
 
+export interface GameSegment {
+  gameType: string;
+  startTime: string; // ISO timestamp
+  endTime?: string; // ISO timestamp (undefined = aktualnie grane)
+  duration: number; // w minutach
+  players: number[]; // indeksy graczy, którzy grali w tę grę
+}
+
 export interface ClientGame {
   id: string;                   // Unique ID
   stations: number[];           // List of station numbers (1-8)
@@ -37,5 +45,11 @@ export interface ClientGame {
   reminderStartMode?: 'from_now' | 'from_start'; // Optional mode for reminder start time: from now or from game start
   reminderSetTime?: string;     // Optional ISO string date when the reminder was set
   lastEveryTriggeredMinute?: number; // Optional: minute index of last acknowledged 'every' reminder
+  // Pola dla gier
+  hasGameSelection?: boolean;   // Czy włączony wybór gry
+  gameMode?: 'same' | 'different'; // Czy wszyscy grają w to samo
+  gameType?: string;            // Dla trybu 'same' - jedna gra dla całej grupy
+  individualGames?: string[];   // Dla trybu 'different' - tablica gier dla każdego gracza
+  gameSegments?: GameSegment[]; // Historia segmentów czasowych gier
 }
 

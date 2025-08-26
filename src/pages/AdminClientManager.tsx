@@ -8,7 +8,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useAtom } from "jotai";
 import { clientsAtom } from "../store/clients";
 import { v4 as uuidv4 } from "uuid";
-import { ClientGame } from "../types/types";
+import { ClientGame, GameSegment } from "../types/types";
 import { DateTime } from "luxon";
 import {
   FaTrash,
@@ -43,6 +43,186 @@ type RemoveOption = {
 };
 
 const AdminClientManager: React.FC = () => {
+
+  // --- Statistics in localStorage helpers ---
+  const STATS_KEY = 'ggvr_stats_v1';
+
+  type StatsShape = {
+    games: Record<string, number>; // total minutes per game
+    revenuePerGame: Record<string, number>; // revenue aggregated per game
+    sessions: Array<{
+      clientId: string;
+      stations: number[];
+      players: number;
+      startTime: string;
+      endTime?: string;
+      playedMinutes?: number;
+      gameSegments?: GameSegment[];
+      revenue?: number;
+      perStationMinutes?: Record<number, number>;
+      perPlayerMinutes?: number[];
+      perSegmentRevenue?: Array<{ gameType: string; minutes: number; revenue: number; players: number[] }>;
+    }>;
+    aggregates: {
+      totalSessions: number;
+      totalMinutes: number;
+      totalRevenue: number;
+      avgSessionMinutes: number;
+      stationUsage: Record<number, { sessions: number; minutes: number }>;
+    };
+  };
+
+  const loadStats = (): StatsShape => {
+    try {
+      const raw = localStorage.getItem(STATS_KEY);
+      if (!raw) return { games: {}, revenuePerGame: {}, sessions: [], aggregates: { totalSessions: 0, totalMinutes: 0, totalRevenue: 0, avgSessionMinutes: 0, stationUsage: {} } };
+      return JSON.parse(raw) as StatsShape;
+    } catch (e) {
+      console.error('Failed to load stats', e);
+      return { games: {}, revenuePerGame: {}, sessions: [], aggregates: { totalSessions: 0, totalMinutes: 0, totalRevenue: 0, avgSessionMinutes: 0, stationUsage: {} } };
+    }
+  };
+
+  const saveStats = (s: StatsShape) => {
+    try {
+      localStorage.setItem(STATS_KEY, JSON.stringify(s));
+    } catch (e) {
+      console.error('Failed to save stats', e);
+    }
+  };
+
+  const recordClientToStats = (client: ClientGame) => {
+  const stats = loadStats();
+  // Ensure aggregates exist
+  stats.aggregates = stats.aggregates || { totalSessions: 0, totalMinutes: 0, totalRevenue: 0, avgSessionMinutes: 0, stationUsage: {} };
+
+    // Record sessions entry
+  // Compute played minutes using pauseHistory when possible
+  const now = DateTime.now();
+
+  const computePlayedMinutes = () => {
+    // If explicit playedMinutes is present, prefer it
+    if (typeof client.playedMinutes === 'number') return Math.max(0, Math.floor(client.playedMinutes));
+
+    // If we have explicit segments, sum their durations (trusted source)
+    if (client.gameSegments && client.gameSegments.length > 0) {
+      const total = client.gameSegments.reduce((acc, s) => acc + (s.duration || Math.max(0, Math.floor(DateTime.fromISO(s.endTime ?? now.toISO()).diff(DateTime.fromISO(s.startTime), 'minutes').minutes))), 0);
+      return Math.max(0, Math.floor(total));
+    }
+
+    // Otherwise, derive from startTime and pauseHistory.
+    // Note: existing resume logic shifts client.startTime forward to exclude past pauses.
+    // Strategy: compute naive elapsed from (now - startTime). If there's an ongoing pause (last pause has no endTime), subtract only that ongoing pause duration.
+    let elapsedMs = now.diff(DateTime.fromISO(client.startTime)).milliseconds;
+
+    let ongoingPauseMs = 0;
+    if (client.pauseHistory && client.pauseHistory.length > 0) {
+      const last = client.pauseHistory[client.pauseHistory.length - 1];
+      if (last && !last.endTime) {
+        try {
+          ongoingPauseMs = now.diff(DateTime.fromISO(last.startTime)).milliseconds;
+        } catch (e) {
+          ongoingPauseMs = 0;
+        }
+      }
+    }
+
+    const playedMs = Math.max(0, elapsedMs - ongoingPauseMs);
+    return Math.max(0, Math.floor(playedMs / 60000));
+  };
+
+  const sessionEntry: any = {
+      clientId: client.id,
+      stations: client.stations,
+      players: client.players,
+      startTime: client.startTime,
+      endTime: DateTime.fromISO(client.startTime).plus({ minutes: client.duration }).toISO() || undefined,
+      playedMinutes: computePlayedMinutes(),
+      gameSegments: client.gameSegments || [],
+  paid: !!client.paid,
+    };
+  stats.sessions.push(sessionEntry);
+
+    // Aggregate minutes per game based on segments. If no segments, attribute full duration to gameType
+    // We'll compute per-segment minutes and revenue
+    let sessionRevenue = 0;
+    const perStationMinutes: Record<number, number> = {};
+    const perPlayerMinutes: number[] = [];
+    const perSegmentRevenue: Array<{ gameType: string; minutes: number; revenue: number; players: number[] }> = [];
+
+    if (client.gameSegments && client.gameSegments.length > 0) {
+      client.gameSegments.forEach(seg => {
+        const minutes = seg.duration || Math.max(0, Math.floor(DateTime.fromISO(seg.endTime ?? DateTime.now().toISO()).diff(DateTime.fromISO(seg.startTime), 'minutes').minutes));
+        // Assign minutes to games
+        stats.games[seg.gameType] = (stats.games[seg.gameType] || 0) + minutes;
+
+        // Estimate revenue for this segment: proportionally to players in segment
+        // We'll use average per-player rate: derive simplistic revenue = getSinglePlayerAmount(minutes, seg.startTime) * playersCount
+        const playersCount = seg.players.length || client.players || 1;
+        const revenue = getSinglePlayerAmount(minutes, seg.startTime) * playersCount;
+        stats.revenuePerGame[seg.gameType] = (stats.revenuePerGame[seg.gameType] || 0) + revenue;
+        sessionRevenue += revenue;
+
+        // per segment record
+        perSegmentRevenue.push({ gameType: seg.gameType, minutes, revenue, players: seg.players });
+
+        // assign to per-player and per-station
+        seg.players.forEach(pi => {
+          perPlayerMinutes[pi] = (perPlayerMinutes[pi] || 0) + minutes;
+          const station = client.stations[pi];
+          if (station != null) {
+            perStationMinutes[station] = (perStationMinutes[station] || 0) + minutes;
+            stats.aggregates.stationUsage[station] = stats.aggregates.stationUsage[station] || { sessions: 0, minutes: 0 };
+            stats.aggregates.stationUsage[station].minutes += minutes;
+          }
+        });
+      });
+    } else if (client.hasGameSelection) {
+      // No segments: attribute full duration
+  const totalMinutes = sessionEntry.playedMinutes ?? client.duration;
+      if (client.gameMode === 'same' && client.gameType) {
+        stats.games[client.gameType] = (stats.games[client.gameType] || 0) + totalMinutes;
+        const revenue = getPaymentAmount(client.duration, client.startTime, client.players);
+        stats.revenuePerGame[client.gameType] = (stats.revenuePerGame[client.gameType] || 0) + revenue;
+        sessionRevenue += revenue;
+      } else if (client.gameMode === 'different' && client.individualGames) {
+        // approximate per-player equal split
+        const perPlayer = Math.round(totalMinutes);
+        client.individualGames.forEach((game, idx) => {
+          if (game) {
+            stats.games[game] = (stats.games[game] || 0) + perPlayer;
+            const revenue = getSinglePlayerAmount(perPlayer, client.startTime);
+            stats.revenuePerGame[game] = (stats.revenuePerGame[game] || 0) + revenue;
+            sessionRevenue += revenue;
+            perPlayerMinutes[idx] = (perPlayerMinutes[idx] || 0) + perPlayer;
+            const station = client.stations[idx];
+            if (station != null) {
+              perStationMinutes[station] = (perStationMinutes[station] || 0) + perPlayer;
+              stats.aggregates.stationUsage[station] = stats.aggregates.stationUsage[station] || { sessions: 0, minutes: 0 };
+              stats.aggregates.stationUsage[station].minutes += perPlayer;
+            }
+          }
+        });
+      }
+    }
+
+    // update session entry with computed fields
+    sessionEntry.revenue = sessionRevenue;
+    sessionEntry.perStationMinutes = perStationMinutes;
+    sessionEntry.perPlayerMinutes = perPlayerMinutes;
+    sessionEntry.perSegmentRevenue = perSegmentRevenue;
+
+    // Update aggregates
+    stats.aggregates.totalSessions = (stats.aggregates.totalSessions || 0) + 1;
+  const minutesThisSession = (sessionEntry.playedMinutes ?? client.duration) || 0;
+    stats.aggregates.totalMinutes = (stats.aggregates.totalMinutes || 0) + minutesThisSession;
+    stats.aggregates.totalRevenue = (stats.aggregates.totalRevenue || 0) + sessionRevenue;
+    stats.aggregates.avgSessionMinutes = Math.round((stats.aggregates.totalMinutes / stats.aggregates.totalSessions) || 0);
+
+    saveStats(stats);
+  };
+
+
   // Key for local storage to persist clients and queue clients
   const LOCAL_STORAGE_KEY = "ggvr_clients";
   const QUEUE_LOCAL_STORAGE_KEY = "ggvr_queueClients";
@@ -100,10 +280,18 @@ const AdminClientManager: React.FC = () => {
   const [editingQueueId, setEditingQueueId] = useState<string | null>(null); // ID of the client being edited in the queue
   const [editingQueuePrice, setEditingQueuePrice] = useState<number | "">(""); // Price of the client being edited in the queue, empty string if not set
 
+  // Game selection states
+  const [hasGameSelection, setHasGameSelection] = useState(false); // If game selection is enabled
+  const [gameMode, setGameMode] = useState<'same' | 'different'>('same'); // Whether all players play the same game
+  const [gameType, setGameType] = useState<string>(""); // Game for 'same' mode
+  const [individualGames, setIndividualGames] = useState<string[]>([]); // Games for 'different' mode
+
   // Stoper states
   const [stopwatchRunning, setStopwatchRunning] = useState(false);
   const [stopwatchTime, setStopwatchTime] = useState(0); // czas w sekundach
-  const [stopwatchStartTime, setStopwatchStartTime] = useState<number | null>(null);
+  const [stopwatchStartTime, setStopwatchStartTime] = useState<number | null>(
+    null
+  );
   const [stopwatchPausedTime, setStopwatchPausedTime] = useState(0);
   const [measurements, setMeasurements] = useState<number[]>([]);
   const [showStopwatchBubble, setShowStopwatchBubble] = useState(false);
@@ -118,11 +306,19 @@ const AdminClientManager: React.FC = () => {
   const [showTimerModal, setShowTimerModal] = useState(false);
 
   // Bubble position states
-  const [stopwatchBubblePosition, setStopwatchBubblePosition] = useState({ x: 20, y: 20 });
-  const [timerBubblePosition, setTimerBubblePosition] = useState({ x: 300, y: 20 });
+  const [stopwatchBubblePosition, setStopwatchBubblePosition] = useState({
+    x: 20,
+    y: 20,
+  });
+  const [timerBubblePosition, setTimerBubblePosition] = useState({
+    x: 300,
+    y: 20,
+  });
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [activeBox, setActiveBox] = useState<'stopwatch' | 'timer' | null>(null);
+  const [activeBox, setActiveBox] = useState<"stopwatch" | "timer" | null>(
+    null
+  );
 
   const [, setTick] = useState(0); // State to force re-render every second
   const [showDeleteModal, setShowDeleteModal] = useState(false); // If delete confirmation modal is shown
@@ -251,7 +447,7 @@ const AdminClientManager: React.FC = () => {
         const elapsed = Math.floor((now - timerStartTime) / 1000);
         const totalSeconds = timerMinutes * 60 + timerSeconds;
         const remaining = totalSeconds - elapsed;
-        
+
         if (remaining <= 0) {
           setTimerRemainingSeconds(0);
           setTimerRunning(false);
@@ -267,14 +463,49 @@ const AdminClientManager: React.FC = () => {
   // Mouse event listeners for dragging
   useEffect(() => {
     if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
     }
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isDragging, dragOffset.x, dragOffset.y]);
+
+  // Update individual games array when peopleCount changes
+  useEffect(() => {
+    if (gameMode === 'different') {
+      setIndividualGames(prev => {
+        const newIndividualGames = Array(peopleCount).fill("").map((_, i) => 
+          prev[i] || ""
+        );
+        return newIndividualGames;
+      });
+    }
+  }, [peopleCount, gameMode]);
+
+  // Update game segments duration in real time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setClients(prev => prev.map(client => {
+        if (client.gameSegments && client.gameSegments.some(seg => !seg.endTime)) {
+          const updatedSegments = client.gameSegments.map(segment => {
+            if (!segment.endTime) {
+              return {
+                ...segment,
+                duration: Math.floor(DateTime.now().diff(DateTime.fromISO(segment.startTime), 'minutes').minutes)
+              };
+            }
+            return segment;
+          });
+          return { ...client, gameSegments: updatedSegments };
+        }
+        return client;
+      }));
+    }, 60000); // co minutę
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Reset form function to clear all fields
   const resetForm = () => {
@@ -295,6 +526,11 @@ const AdminClientManager: React.FC = () => {
     setReminderTimes([15]);
     setReminderText("");
     setReminderStartMode("from_start");
+    // Reset game fields
+    setHasGameSelection(false);
+    setGameMode('same');
+    setGameType("");
+    setIndividualGames([]);
   };
 
   // Function to calculate end time based on start time and duration
@@ -624,11 +860,15 @@ const AdminClientManager: React.FC = () => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    
+
     if (hours > 0) {
-      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      return `${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
     }
-    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${minutes.toString().padStart(2, "0")}:${secs
+      .toString()
+      .padStart(2, "0")}`;
   };
 
   // Stopwatch functions
@@ -653,7 +893,7 @@ const AdminClientManager: React.FC = () => {
   };
 
   const measureStopwatch = () => {
-    setMeasurements(prev => [...prev, stopwatchTime]);
+    setMeasurements((prev) => [...prev, stopwatchTime]);
   };
 
   // Timer functions
@@ -679,36 +919,143 @@ const AdminClientManager: React.FC = () => {
     setShowTimerBubble(false);
   };
 
+  // Game management functions
+  const availableGames = [
+    "Arizona Sunshine",
+    "Arizona Sunshine 2",
+    "Beat Saber",
+    "Elven Assassin",
+    "Serious Sam",
+    "Pavlov VR",
+    "Superhot",
+    "Waltz of the Wizard",
+    "Spiderman",
+    "All in One Sports",
+    "Gorilla Tag",
+    "Pistol Whip",
+    "Private Property",
+    "Job Simulator",
+    "Half-Life Alyx",
+    "Blade & Sorcery",
+    "Rec Room"
+  ];
+
+  const updateIndividualGame = (index: number, game: string) => {
+    const updatedGames = [...individualGames];
+    updatedGames[index] = game;
+    setIndividualGames(updatedGames);
+  };
+
+  const startGameSegment = (clientId: string, gameType: string, playerIndexes: number[] = []) => {
+    setClients(prev => prev.map(client => {
+      if (client.id === clientId) {
+        // Zakończ poprzedni segmenty tylko jeśli dotyczą tych samych graczy
+        const updatedSegments = (client.gameSegments || []).map(segment => {
+          if (!segment.endTime) {
+            // Jeśli nie podano konkretnych indeksów graczy (playerIndexes.length === 0)
+            // traktujemy to jako "dla wszystkich" i kończymy każdy aktywny segment.
+            const shouldEnd = playerIndexes.length === 0 || segment.players.some(p => playerIndexes.includes(p));
+            if (shouldEnd) {
+              return {
+                ...segment,
+                endTime: DateTime.now().toISO(),
+                duration: Math.floor(DateTime.now().diff(DateTime.fromISO(segment.startTime), 'minutes').minutes)
+              };
+            }
+          }
+          return segment;
+        });
+
+        // Dodaj nowy segment
+        const newSegment: GameSegment = {
+          gameType,
+          startTime: DateTime.now().toISO(),
+          duration: 0,
+          players: playerIndexes.length > 0 ? playerIndexes : Array.from({length: client.players || 1}, (_, i) => i)
+        };
+
+        return {
+          ...client,
+          gameSegments: [...updatedSegments, newSegment]
+        };
+      }
+      return client;
+    }));
+  };
+
+  const getCurrentGameDisplay = (client: ClientGame, station?: number): string => {
+    if (!client.hasGameSelection) return "";
+    
+    const activeSegments = client.gameSegments?.filter(seg => !seg.endTime) || [];
+    
+    if (activeSegments.length === 0) {
+      if (client.gameMode === 'same') {
+        return client.gameType || "";
+      } else {
+        // For different games mode, show specific game for this station
+        if (station && client.individualGames && client.stations) {
+          // Find the index of this station in client.stations array (this gives us player index)
+          const playerIndex = client.stations.indexOf(station);
+          if (playerIndex !== -1 && client.individualGames[playerIndex]) {
+            return client.individualGames[playerIndex];
+          }
+        }
+        return client.individualGames?.filter(g => g).length ? "Różne gry" : "";
+      }
+    }
+    
+    if (client.gameMode === 'same') {
+      const currentGame = activeSegments[0]?.gameType;
+      return currentGame || "";
+    } else {
+      // For different games mode with active segments
+      if (station && activeSegments.length > 0 && client.stations) {
+        // Find player index for this station
+        const playerIndex = client.stations.indexOf(station);
+        if (playerIndex !== -1) {
+          // Find segment that includes this player
+          const stationSegment = activeSegments.find(seg => 
+            seg.players.includes(playerIndex)
+          );
+          if (stationSegment) {
+            return stationSegment.gameType;
+          }
+        }
+      }
+      return activeSegments.length > 1 ? "Różne gry" : activeSegments[0]?.gameType || "";
+    }
+  };
+
   // Bubble dragging functions
   const handleStopwatchMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
-    setActiveBox('stopwatch');
+    setActiveBox("stopwatch");
     setDragOffset({
       x: e.clientX - stopwatchBubblePosition.x,
-      y: e.clientY - stopwatchBubblePosition.y
+      y: e.clientY - stopwatchBubblePosition.y,
     });
   };
 
   const handleTimerMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
-    setActiveBox('timer');
+    setActiveBox("timer");
     setDragOffset({
       x: e.clientX - timerBubblePosition.x,
-      y: e.clientY - timerBubblePosition.y
+      y: e.clientY - timerBubblePosition.y,
     });
   };
 
   const handleMouseMove = (e: MouseEvent) => {
     if (isDragging && activeBox) {
-      if (activeBox === 'stopwatch') {
+      if (activeBox === "stopwatch") {
         setStopwatchBubblePosition({
           x: e.clientX - dragOffset.x,
-          y: e.clientY - dragOffset.y
+          y: e.clientY - dragOffset.y,
         });
-      } else if (activeBox === 'timer') {
+      } else if (activeBox === "timer") {
         setTimerBubblePosition({
           x: e.clientX - dragOffset.x,
-          y: e.clientY - dragOffset.y
+          y: e.clientY - dragOffset.y,
         });
       }
     }
@@ -805,10 +1152,36 @@ const AdminClientManager: React.FC = () => {
                   addReminder && reminderStartMode === "from_now"
                     ? DateTime.now().toISO()
                     : client.reminderSetTime,
+                // Game fields update
+                hasGameSelection,
+                gameMode: hasGameSelection ? gameMode : undefined,
+                gameType: hasGameSelection && gameMode === 'same' ? gameType : undefined,
+                individualGames: hasGameSelection && gameMode === 'different' ? individualGames : undefined,
+                // Keep existing gameSegments when editing
               }
             : client
         )
       );
+      
+      // Start new game segment if game changed and game selection is enabled
+      if (hasGameSelection) {
+        const editedClient = clients.find(c => c.id === editId);
+        if (editedClient) {
+          if (gameMode === 'same' && gameType && gameType !== editedClient.gameType) {
+            startGameSegment(editId, gameType);
+          } else if (gameMode === 'different' && individualGames.some((game, i) => 
+            game && game !== (editedClient.individualGames?.[i] || '')
+          )) {
+            // Start segments for changed individual games
+            individualGames.forEach((game, i) => {
+              if (game && game !== (editedClient.individualGames?.[i] || '')) {
+                startGameSegment(editId, game, [i]);
+              }
+            });
+          }
+        }
+      }
+      
       setEditId(null);
     } else {
       const newClient: ClientGame = {
@@ -830,8 +1203,30 @@ const AdminClientManager: React.FC = () => {
           addReminder && reminderStartMode === "from_now"
             ? DateTime.now().toISO()
             : undefined,
+        // Game fields
+        hasGameSelection,
+        gameMode: hasGameSelection ? gameMode : undefined,
+        gameType: hasGameSelection && gameMode === 'same' ? gameType : undefined,
+        individualGames: hasGameSelection && gameMode === 'different' ? individualGames : undefined,
+        gameSegments: hasGameSelection ? [] : undefined,
       };
       setClients((prev) => [...prev, newClient]);
+      
+      // Start initial game segment if game selection is enabled
+      if (hasGameSelection) {
+        setTimeout(() => {
+          if (gameMode === 'same' && gameType) {
+            startGameSegment(newClient.id, gameType);
+          } else if (gameMode === 'different' && individualGames.some(g => g)) {
+            // For different games, start segments for each player with their game
+            individualGames.forEach((game, index) => {
+              if (game) {
+                startGameSegment(newClient.id, game, [index]);
+              }
+            });
+          }
+        }, 100);
+      }
     }
 
     resetForm();
@@ -839,6 +1234,27 @@ const AdminClientManager: React.FC = () => {
 
   // Function to handle deleting a client
   const handleDeleteClient = (id: string) => {
+    setClients((prev) => {
+      const toRemove = prev.find(c => c.id === id);
+      if (toRemove) {
+        try {
+          // If client wasn't paid, treat deletion as paid (we don't release without payment)
+          if (!toRemove.paid) {
+            const copyPaid = { ...toRemove, paid: true } as ClientGame;
+            recordClientToStats(copyPaid);
+          } else {
+            recordClientToStats(toRemove);
+          }
+        } catch (e) {
+          console.error('Failed to record stats for removed client', e);
+        }
+      }
+      return prev.filter((client) => client.id !== id);
+    });
+  };
+
+  // Remove client without recording to stats
+  const handleDeleteClientWithoutStats = (id: string) => {
     setClients((prev) => prev.filter((client) => client.id !== id));
   };
 
@@ -850,7 +1266,7 @@ const AdminClientManager: React.FC = () => {
 
         const now = DateTime.now();
 
-        if (client.isPaused && client.pauseStartTime) {
+  if (client.isPaused && client.pauseStartTime) {
           // Wznowienie gry - przesuwamy czas startowy o czas trwania pauzy
           const pauseStartTime = DateTime.fromISO(client.pauseStartTime);
           const pauseDuration = now.diff(pauseStartTime);
@@ -875,19 +1291,34 @@ const AdminClientManager: React.FC = () => {
             }
           }
 
+          // Mark the last pause in pauseHistory with endTime
+          const newPauseHistory = (client.pauseHistory || []).slice();
+          if (newPauseHistory.length > 0) {
+            const lastIdx = newPauseHistory.length - 1;
+            if (!newPauseHistory[lastIdx].endTime) {
+              newPauseHistory[lastIdx] = { ...newPauseHistory[lastIdx], endTime: now.toISO() };
+            }
+          }
+
           return {
             ...client,
             startTime: newStartTime,
             isPaused: false,
             pauseStartTime: undefined,
+            pauseHistory: newPauseHistory,
             reminderSetTime: newReminderSetTime,
           } as ClientGame;
         } else {
           // Wstrzymanie gry
+          // Add a new pause record with startTime (endTime will be set on resume)
+          const newPauseHistory = (client.pauseHistory || []).slice();
+          newPauseHistory.push({ startTime: now.toISO() });
+
           return {
             ...client,
             isPaused: true,
             pauseStartTime: now.toISO(),
+            pauseHistory: newPauseHistory,
           } as ClientGame;
         }
       });
@@ -1127,6 +1558,12 @@ const AdminClientManager: React.FC = () => {
       setReminderTimes(client.reminderTimes || [15]);
       setReminderText(client.reminderText || "");
       setReminderStartMode(client.reminderStartMode || "from_start");
+      
+      // Load game fields
+      setHasGameSelection(client.hasGameSelection || false);
+      setGameMode(client.gameMode || 'same');
+      setGameType(client.gameType || "");
+      setIndividualGames(client.individualGames || []);
     }
   };
 
@@ -2353,6 +2790,75 @@ const AdminClientManager: React.FC = () => {
                 </>
               )}
 
+              {/* Game selection section */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm mb-2">
+                  <input
+                    type="checkbox"
+                    checked={hasGameSelection}
+                    onChange={() => setHasGameSelection(!hasGameSelection)}
+                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                  />
+                  Wybór gry
+                </label>
+
+                {hasGameSelection && (
+                  <div className="space-y-3">
+                    {/* Game mode selection - only show for groups */}
+                    {peopleCount > 1 && (
+                      <div>
+                        <label className="block text-sm mb-1">Tryb gier:</label>
+                        <select
+                          value={gameMode}
+                          onChange={(e) => setGameMode(e.target.value as 'same' | 'different')}
+                          className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white text-sm"
+                        >
+                          <option value="same">Wszyscy grają w to samo</option>
+                          <option value="different">Każdy gra w co innego</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {(peopleCount === 1 || gameMode === 'same') ? (
+                      /* Single select for entire group or single client */
+                      <div>
+                        <label className="block text-sm mb-1">{peopleCount === 1 ? 'Gra dla klienta:' : 'Gra dla grupy:'}</label>
+                        <select
+                          value={gameType}
+                          onChange={(e) => setGameType(e.target.value)}
+                          className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white text-sm"
+                        >
+                          <option value="">Wybierz grę...</option>
+                          {availableGames.map(game => (
+                            <option key={game} value={game}>{game}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      /* Individual selects for each player */
+                      <div className="space-y-2">
+                        <label className="block text-sm mb-1">Gry dla poszczególnych graczy:</label>
+                        {Array.from({ length: peopleCount }).map((_, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-sm w-20 text-gray-300">Gracz {i + 1}:</span>
+                            <select
+                              value={individualGames[i] || ''}
+                              onChange={(e) => updateIndividualGame(i, e.target.value)}
+                              className="flex-1 p-2 rounded bg-[#0f1525] border border-gray-600 text-white text-sm"
+                            >
+                              <option value="">Wybierz grę...</option>
+                              {availableGames.map(game => (
+                                <option key={game} value={game}>{game}</option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Checkbox for paid game option */}
               <div className="mb-4">
                 <label className="flex items-center gap-2 text-sm">
@@ -2384,14 +2890,16 @@ const AdminClientManager: React.FC = () => {
             <div>
               {/* Sekcja Stopera */}
               <div className="mb-4">
-                <h3 className="text-lg font-semibold text-white mb-2">Stoper</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  Stoper
+                </h3>
                 <div className="bg-[#0f1525] p-4 rounded-lg">
                   <div className="text-center mb-4">
                     <div className="text-2xl font-bold text-white">
                       {formatTime(stopwatchTime)}
                     </div>
                   </div>
-                  
+
                   <div className="flex text-sm gap-2 font-semibold mb-4 justify-center">
                     {!stopwatchRunning ? (
                       <button
@@ -2410,7 +2918,7 @@ const AdminClientManager: React.FC = () => {
                         Pauza
                       </button>
                     )}
-                    
+
                     <button
                       onClick={measureStopwatch}
                       disabled={!stopwatchRunning}
@@ -2418,7 +2926,7 @@ const AdminClientManager: React.FC = () => {
                     >
                       Pomiar
                     </button>
-                    
+
                     <button
                       onClick={resetStopwatch}
                       className="px-4 py-2 bg-red-500 hover:bg-red-800 text-white rounded transition"
@@ -2427,21 +2935,27 @@ const AdminClientManager: React.FC = () => {
                     </button>
                   </div>
 
-                  {!showStopwatchBubble && (stopwatchRunning || measurements.length > 0) && (
-                    <button
-                      onClick={() => setShowStopwatchBubble(true)}
-                      className="w-full px-4 py-2 bg-[#1e2636] hover:bg-[#147a8f] text-white rounded transition"
-                    >
-                      Pokaż
-                    </button>
-                  )}
+                  {!showStopwatchBubble &&
+                    (stopwatchRunning || measurements.length > 0) && (
+                      <button
+                        onClick={() => setShowStopwatchBubble(true)}
+                        className="w-full px-4 py-2 bg-[#1e2636] hover:bg-[#147a8f] text-white rounded transition"
+                      >
+                        Pokaż
+                      </button>
+                    )}
 
                   {measurements.length > 0 && (
                     <div className="mt-4">
-                      <h4 className="font-semibold text-gray-300 mb-2">Pomiary:</h4>
+                      <h4 className="font-semibold text-gray-300 mb-2">
+                        Pomiary:
+                      </h4>
                       <div className="max-h-32 overflow-y-auto bg-[#1e2636] p-2 rounded">
                         {measurements.map((time, index) => (
-                          <div key={index} className="text-sm text-gray-300 font-mono">
+                          <div
+                            key={index}
+                            className="text-sm text-gray-300 font-mono"
+                          >
                             {index + 1}. {formatTime(time)}
                           </div>
                         ))}
@@ -2453,32 +2967,51 @@ const AdminClientManager: React.FC = () => {
 
               {/* Sekcja Minutnika */}
               <div className="mb-4">
-                <h3 className="text-lg font-semibold text-white mb-2">Minutnik</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">
+                  Minutnik
+                </h3>
                 <div className="bg-[#0f1525] p-4 rounded-lg">
                   <div className="text-center mb-4">
                     <div className="text-2xl  font-bold text-white">
-                      {timerRunning ? formatTime(timerRemainingSeconds) : formatTime(timerMinutes * 60 + timerSeconds)}
+                      {timerRunning
+                        ? formatTime(timerRemainingSeconds)
+                        : formatTime(timerMinutes * 60 + timerSeconds)}
                     </div>
                   </div>
 
                   {!timerRunning && (
                     <div className="flex gap-4 mb-4">
                       <div className="flex-1">
-                        <label className="block text-sm text-gray-300 mb-1">Minuty</label>
+                        <label className="block text-sm text-gray-300 mb-1">
+                          Minuty
+                        </label>
                         <input
                           type="number"
                           value={timerMinutes}
-                          onChange={(e) => setTimerMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+                          onChange={(e) =>
+                            setTimerMinutes(
+                              Math.max(0, parseInt(e.target.value) || 0)
+                            )
+                          }
                           className="w-full p-2 rounded bg-[#1e2636] border border-gray-600 text-white"
                           min="0"
                         />
                       </div>
                       <div className="flex-1">
-                        <label className="block text-sm text-gray-300 mb-1">Sekundy</label>
+                        <label className="block text-sm text-gray-300 mb-1">
+                          Sekundy
+                        </label>
                         <input
                           type="number"
                           value={timerSeconds}
-                          onChange={(e) => setTimerSeconds(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+                          onChange={(e) =>
+                            setTimerSeconds(
+                              Math.max(
+                                0,
+                                Math.min(59, parseInt(e.target.value) || 0)
+                              )
+                            )
+                          }
                           className="w-full p-2 rounded bg-[#1e2636] border border-gray-600 text-white"
                           min="0"
                           max="59"
@@ -2486,8 +3019,8 @@ const AdminClientManager: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  
-                  <div className="flex gap-2 justify-center text-sm font-semibold">
+
+                  <div className="flex gap-2 justify-center text-sm Analiza przepełnienia (kolejki)font-semibold">
                     {!timerRunning ? (
                       <button
                         onClick={startTimer}
@@ -2506,7 +3039,7 @@ const AdminClientManager: React.FC = () => {
                         Pauza
                       </button>
                     )}
-                    
+
                     <button
                       onClick={resetTimer}
                       className="px-4 py-2 bg-red-500 hover:bg-red-800 text-white rounded transition"
@@ -2872,18 +3405,20 @@ const AdminClientManager: React.FC = () => {
                                 }
                               }}
                             >
-                              <div className="font-semibold text-blue-300">
-                                {client.duration} min
-                              </div>
-                              <div className="text-sm mt-2 text-gray-400">
-                                {DateTime.fromISO(client.startTime).toFormat(
-                                  "HH:mm"
-                                )}{" "}
-                                –{" "}
-                                {calculateEndTime(
-                                  client.startTime,
-                                  client.duration
-                                ).toFormat("HH:mm")}
+                              <div className="flex justify-between">
+                                <div className="font-semibold text-gray-300">
+                                  {client.duration} min
+                                </div>
+                                <div className="text-sm  text-gray-400">
+                                  {DateTime.fromISO(client.startTime).toFormat(
+                                    "HH:mm"
+                                  )}{" "}
+                                  –{" "}
+                                  {calculateEndTime(
+                                    client.startTime,
+                                    client.duration
+                                  ).toFormat("HH:mm")}
+                                </div>
                               </div>
                               {(() => {
                                 const { text, minutes, isOver } =
@@ -2905,12 +3440,23 @@ const AdminClientManager: React.FC = () => {
                                 }
                                 return (
                                   <div
-                                    className={`text-sm mt-1 ${colorClass} ${blinkClass}`}
+                                    className={`text-sm mt-2 ${colorClass} ${blinkClass}`}
                                   >
                                     Pozostało: {text}
                                   </div>
                                 );
                               })()}
+                              <div className="text-sm ">
+                                {client.hasGameSelection ? (
+                                  <span className="text-gray-500">
+                                    {getCurrentGameDisplay(client, stationForThisSlot) || "Nie wybrano gry"}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-500">
+                                    Brak wyboru gry
+                                  </span>
+                                )}
+                              </div>
                               <div className="text-sm mt-4">
                                 {client.paid ? (
                                   <span className="text-green-400 font-semibold">
@@ -2928,7 +3474,8 @@ const AdminClientManager: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              <div className="flex justify-end gap-2 mt-4 text-[15px] h-[17px]">
+                              
+                              <div className="flex justify-end gap-2 mt-5 text-[15px] h-[17px]">
                                 {/* left area: show pause (if paused) and reminder (if set) */}
                                 <div className="mr-auto flex gap-3">
                                   {client.isPaused && client.reminder && (
@@ -3427,18 +3974,15 @@ const AdminClientManager: React.FC = () => {
               </h3>
               <p className="mb-2 text-white">
                 Liczba aktywnych klientów:{" "}
-                <span className="font-semibold text-[#00d9ff]">
-                </span>
+                <span className="font-semibold text-[#00d9ff]"></span>
               </p>
               <p className="mb-2 text-white">
                 Liczba wstrzymanych klientów:{" "}
-                <span className="font-semibold text-[#00d9ff]">
-                </span>
+                <span className="font-semibold text-[#00d9ff]"></span>
               </p>
               <p className="mb-2 text-white">
                 Liczba klientów z przypomnieniami:{" "}
-                <span className="font-semibold text-[#00d9ff]">
-                </span>
+                <span className="font-semibold text-[#00d9ff]"></span>
               </p>
             </div>
           )}
@@ -3481,6 +4025,19 @@ const AdminClientManager: React.FC = () => {
                 className="px-4 py-2 rounded bg-gray-600 text-white hover:bg-gray-700 transition"
               >
                 Anuluj
+              </button>
+              <button
+                onClick={() => {
+                  if (clientToDelete) {
+                    handleDeleteClientWithoutStats(clientToDelete.id);
+                  }
+                  setShowDeleteModal(false);
+                  setClientToDelete(null);
+                }}
+                className="px-4 py-2 rounded bg-yellow-600 text-white hover:bg-yellow-800 hover:scale-105 hover:shadow-lg font-semibold transition"
+                title="Usuń klienta bez zapisywania do statystyk"
+              >
+                Usuń bez statystyk
               </button>
               <button
                 onClick={() => {
@@ -3569,7 +4126,7 @@ const AdminClientManager: React.FC = () => {
           style={{
             left: stopwatchBubblePosition.x,
             top: stopwatchBubblePosition.y,
-            width: '250px'
+            width: "250px",
           }}
           onMouseDown={handleStopwatchMouseDown}
         >
@@ -3582,13 +4139,13 @@ const AdminClientManager: React.FC = () => {
               ✕
             </button>
           </div>
-          
+
           <div className="text-center mb-3">
             <div className="text-xl  font-bold text-white">
               {formatTime(stopwatchTime)}
             </div>
           </div>
-          
+
           <div className="flex gap-1 mb-3 font-semibold">
             {!stopwatchRunning ? (
               <button
@@ -3605,7 +4162,7 @@ const AdminClientManager: React.FC = () => {
                 Pauza
               </button>
             )}
-            
+
             <button
               onClick={measureStopwatch}
               disabled={!stopwatchRunning}
@@ -3613,7 +4170,7 @@ const AdminClientManager: React.FC = () => {
             >
               Pomiar
             </button>
-            
+
             <button
               onClick={resetStopwatch}
               className="flex-1 px-2 py-1 bg-red-500 hover:bg-red-800 text-white rounded text-sm transition"
@@ -3638,7 +4195,7 @@ const AdminClientManager: React.FC = () => {
           style={{
             left: timerBubblePosition.x,
             top: timerBubblePosition.y,
-            width: '250px'
+            width: "250px",
           }}
           onMouseDown={handleTimerMouseDown}
         >
@@ -3651,13 +4208,13 @@ const AdminClientManager: React.FC = () => {
               ✕
             </button>
           </div>
-          
+
           <div className="text-center mb-3">
             <div className="text-xl  font-bold text-white">
               {formatTime(timerRemainingSeconds)}
             </div>
           </div>
-          
+
           <div className="flex gap-1 mb-3 font-semibold">
             {!timerRunning ? (
               <button
@@ -3677,7 +4234,7 @@ const AdminClientManager: React.FC = () => {
                 Pauza
               </button>
             )}
-            
+
             <button
               onClick={resetTimer}
               className="flex-1 px-2 py-1 bg-red-500 hover:bg-red-800 text-white rounded text-sm transition"
@@ -3702,9 +4259,7 @@ const AdminClientManager: React.FC = () => {
             <h3 className="text-lg font-bold mb-4 text-[#00d9ff]">
               Czas upłynął!
             </h3>
-            <p className="mb-6 text-white">
-              Minutnik zakończył odliczanie.
-            </p>
+            <p className="mb-6 text-white">Minutnik zakończył odliczanie.</p>
             <div className="flex justify-end gap-4">
               <button
                 onClick={() => {
