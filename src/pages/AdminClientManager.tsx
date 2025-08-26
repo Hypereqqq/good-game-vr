@@ -17,7 +17,12 @@ import {
   FaBell,
   FaPause,
   FaPlay,
+  FaHome,
+  FaClock,
+  FaChartBar,
 } from "react-icons/fa";
+
+type SubpageType = "main" | "stoper" | "stats";
 
 // This object maps station IDs to their labels for display purposes
 const stanowiskoLabels: Record<number, string> = {
@@ -43,6 +48,7 @@ const AdminClientManager: React.FC = () => {
   const QUEUE_LOCAL_STORAGE_KEY = "ggvr_queueClients";
 
   // State management using Jotai atoms
+  const [subpage, setSubpage] = useState<SubpageType>("main");
   const [clients, setClients] = useAtom(clientsAtom);
   const [peopleCount, setPeopleCount] = useState(1); // Number of players in the group
   const [slots, setSlots] = useState<number[]>([1]); // Default slot for the first player
@@ -124,7 +130,6 @@ const AdminClientManager: React.FC = () => {
     }
     return map;
   };
-  
 
   // Load clients from local storage on initial render
   useEffect(() => {
@@ -225,7 +230,6 @@ const AdminClientManager: React.FC = () => {
   const calculateEndTime = (startTime: string, duration: number) => {
     return DateTime.fromISO(startTime).plus({ minutes: duration });
   };
-  
 
   // Function to get remaining time in a human-readable format
   const getRemainingTime = (
@@ -1200,950 +1204,1046 @@ const AdminClientManager: React.FC = () => {
       {/* Main container for the client management page */}
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row gap-8">
         <div className="w-full md:w-1/3 bg-[#1e2636] p-6 rounded-lg shadow-md">
-          <h2 className="text-xl font-bold text-[#00d9ff] mb-4 uppercase">
-            Zarządzaj klientami
-          </h2>
+          <div className="flex ">
+            <h2 className="text-xl font-bold text-[#00d9ff] mb-4 uppercase">
+              {subpage === "main"
+                ? "Zarządzaj klientami"
+                : subpage === "stoper"
+                ? "Stoper"
+                : "Statystyki"}
+            </h2>
+            <div className="flex flex-1 gap-2 justify-end">
+              <button
+                className={`w-8 h-8 rounded flex items-center justify-center transition ${
+                  subpage === "main"
+                    ? "bg-[#0f1525] text-gray-300 shadow"
+                    : "bg-[#1e2636] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Strona główna"
+                onClick={() => setSubpage("main")}
+              >
+                <FaHome size={18} />
+              </button>
+              <button
+                className={`w-8 h-8 rounded flex items-center justify-center transition ${
+                  subpage === "stoper"
+                    ? "bg-[#0f1525] text-gray-300 shadow"
+                    : "bg-[#1e2636] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Stoper"
+                onClick={() => setSubpage("stoper")}
+              >
+                <FaClock size={18} />
+              </button>
+              <button
+                className={`w-8 h-8 rounded flex items-center justify-center transition ${
+                  subpage === "stats"
+                    ? "bg-[#0f1525] text-gray-300 shadow"
+                    : "bg-[#1e2636] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Statystyki"
+                onClick={() => setSubpage("stats")}
+              >
+                <FaChartBar size={20} />
+              </button>
+            </div>
+          </div>
 
           {/* Form for adding or editing a client */}
-          <div className="mb-4">
-            <label className="block mb-1 text-sm">Liczba osób:</label>
-            <div className="flex items-center gap-2">
-              {/* Button to decrease the number of players */}
-              <button
-                onClick={() => handlePeopleChange(-1)}
-                className="w-7 h-7 flex items-center justify-center bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50 transition"
-                disabled={peopleCount <= 1}
-                style={{ minWidth: "1rem", minHeight: "1rem" }}
-                type="button"
-              >
-                -
-              </button>
-              <span
-                className="inline-flex items-center justify-center text-lg font-bold"
-                style={{ width: "1.25rem", textAlign: "center" }}
-              >
-                {peopleCount}
-              </span>
-              {/* Button to increase the number of players */}
-              <button
-                onClick={() => handlePeopleChange(1)}
-                className="w-7 h-7 flex items-center justify-center bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50 transition"
-                disabled={peopleCount >= 8 || allStationsTaken}
-                style={{ minWidth: "1rem", minHeight: "1rem" }}
-                type="button"
-              >
-                +
-              </button>
-            </div>
-          </div>
-
-          {/* Select dropdown for player slots */}
-          {Array.from({ length: peopleCount }).map((_, i) => (
-            <div key={i} className="mb-2">
-              <label className="block text-sm">
-                Stanowisko dla gracza {i + 1}:
-              </label>
-              <select
-                value={slots[i]}
-                onChange={(e) => {
-                  const updated = [...slots];
-                  updated[i] = parseInt(e.target.value);
-                  setSlots(updated);
-                  setDuplicateSlots([]); // Reset duplicate slots when changing a slot
-                  setShowDuplicateError(false);
-                }}
-                className={`w-full p-2 rounded bg-[#0f1525] border ${
-                  duplicateSlots.includes(i)
-                    ? "border-red-500"
-                    : "border-gray-600"
-                } text-white`}
-              >
-                {sortedStationOrder
-                  .filter(
-                    (stationId) =>
-                      !occupiedStations.includes(stationId) ||
-                      slots[i] === stationId
-                  )
-                  .map((stationId) => (
-                    <option key={stationId} value={stationId}>
-                      {stanowiskoLabels[stationId]}
-                    </option>
-                  ))}
-              </select>
-            </div>
-          ))}
-
-          {/* Error message for duplicate slots */}
-          {showDuplicateError && (
-            <div className="mb-4 text-red-500 text-sm">
-              Wszystkie stanowiska muszą być unikalne!
-            </div>
-          )}
-
-          {/* Button to add or update the client */}
-          <div className="mb-4">
-            <label className="block mb-1 text-sm">Czas gry (minuty):</label>
-            <input
-              type="number"
-              value={duration}
-              onChange={(e) => setDuration(parseInt(e.target.value))}
-              className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
-            />
-            <div className="flex flex-wrap gap-2 mt-2">
-              {[30, 15, 5, 1].map((val) => (
-                <button
-                  key={`plus-${val}`}
-                  onClick={() => setDuration((prev) => prev + val)}
-                  className="px-3 py-1 bg-[#0d7a25] hover:bg-green-600 text-white text-sm rounded"
-                  type="button"
-                >
-                  +{val}
-                </button>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {[30, 15, 5, 1].map((val) => (
-                <button
-                  key={`minus-${val}`}
-                  onClick={() => setDuration((prev) => Math.max(1, prev - val))}
-                  className="px-3 py-1 bg-[#911e1e] hover:bg-red-600 text-white text-sm rounded"
-                  type="button"
-                >
-                  -{val}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Checkbox for paid game option */}
-          <div className="mb-4">
-            <label className="flex items-center gap-2 text-sm mb-2">
-              <input
-                type="checkbox"
-                checked={customStartEnabled}
-                onChange={() => setCustomStartEnabled(!customStartEnabled)}
-                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-              />
-              Niestandardowa godzina rozpoczęcia
-            </label>
-
-            {customStartEnabled && (
-              <div className="flex gap-4">
-                <div className="w-1/2">
-                  <label className="block text-sm mb-1">Godzina:</label>
-                  <input
-                    type="number"
-                    min={-1}
-                    max={24}
-                    value={customHour}
-                    onChange={(e) => {
-                      let newHour = Number(e.target.value);
-                      if (newHour < 0) newHour = 23; // Zapętlanie godzin wstecz
-                      if (newHour > 23) newHour = 0; // Zapętlanie godzin do przodu
-                      setCustomHour(newHour);
-                    }}
-                    className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
-                  />
-                </div>
-                <div className="w-1/2">
-                  <label className="block text-sm mb-1">Minuty:</label>
-                  <input
-                    type="number"
-                    min={-1}
-                    max={60}
-                    value={customMinute}
-                    onChange={(e) => {
-                      let newMinute = Number(e.target.value);
-                      if (newMinute < 0) newMinute = 59; // Zapętlanie minut wstecz
-                      if (newMinute > 59) newMinute = 0; // Zapętlanie minut do przodu
-                      setCustomMinute(newMinute);
-                    }}
-                    className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
-                  />
+          {subpage === "main" && (
+            <div>
+              <div className="mb-4">
+                <label className="block mb-1 text-sm">Liczba osób:</label>
+                <div className="flex items-center gap-2">
+                  {/* Button to decrease the number of players */}
+                  <button
+                    onClick={() => handlePeopleChange(-1)}
+                    className="w-7 h-7 flex items-center justify-center bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50 transition"
+                    disabled={peopleCount <= 1}
+                    style={{ minWidth: "1rem", minHeight: "1rem" }}
+                    type="button"
+                  >
+                    -
+                  </button>
+                  <span
+                    className="inline-flex items-center justify-center text-lg font-bold"
+                    style={{ width: "1.25rem", textAlign: "center" }}
+                  >
+                    {peopleCount}
+                  </span>
+                  {/* Button to increase the number of players */}
+                  <button
+                    onClick={() => handlePeopleChange(1)}
+                    className="w-7 h-7 flex items-center justify-center bg-[#00d9ff] text-black font-bold rounded disabled:opacity-50 transition"
+                    disabled={peopleCount >= 8 || allStationsTaken}
+                    style={{ minWidth: "1rem", minHeight: "1rem" }}
+                    type="button"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
 
-          {/* Checkbox for paid game option */}
-          <div className="mb-4">
-            <label className="flex items-center gap-2 text-sm mb-2">
-              <input
-                type="checkbox"
-                checked={customPriceEnabled}
-                onChange={() => setCustomPriceEnabled(!customPriceEnabled)}
-                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-              />
-              Niestandardowa kwota
-            </label>
+              {/* Select dropdown for player slots */}
+              {Array.from({ length: peopleCount }).map((_, i) => (
+                <div key={i} className="mb-2">
+                  <label className="block text-sm">
+                    Stanowisko dla gracza {i + 1}:
+                  </label>
+                  <select
+                    value={slots[i]}
+                    onChange={(e) => {
+                      const updated = [...slots];
+                      updated[i] = parseInt(e.target.value);
+                      setSlots(updated);
+                      setDuplicateSlots([]); // Reset duplicate slots when changing a slot
+                      setShowDuplicateError(false);
+                    }}
+                    className={`w-full p-2 rounded bg-[#0f1525] border ${
+                      duplicateSlots.includes(i)
+                        ? "border-red-500"
+                        : "border-gray-600"
+                    } text-white`}
+                  >
+                    {sortedStationOrder
+                      .filter(
+                        (stationId) =>
+                          !occupiedStations.includes(stationId) ||
+                          slots[i] === stationId
+                      )
+                      .map((stationId) => (
+                        <option key={stationId} value={stationId}>
+                          {stanowiskoLabels[stationId]}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              ))}
 
-            {customPriceEnabled && (
-              <>
+              {/* Error message for duplicate slots */}
+              {showDuplicateError && (
+                <div className="mb-4 text-red-500 text-sm">
+                  Wszystkie stanowiska muszą być unikalne!
+                </div>
+              )}
+
+              {/* Button to add or update the client */}
+              <div className="mb-4">
+                <label className="block mb-1 text-sm">Czas gry (minuty):</label>
                 <input
                   type="number"
-                  min={0}
-                  step={1}
-                  value={customPrice ?? ""}
-                  onChange={(e) => setCustomPrice(Number(e.target.value))}
-                  className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white mb-2"
-                  placeholder="Podaj kwotę zł"
+                  value={duration}
+                  onChange={(e) => setDuration(parseInt(e.target.value))}
+                  className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
                 />
-
-                <div className="flex flex-wrap gap-2">
-                  {[50, 25, 15, 10, 5, 1].map((val) => (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {[30, 15, 5, 1].map((val) => (
                     <button
-                      key={val}
-                      onClick={() =>
-                        setCustomPrice((prev) => (prev ?? 0) + val)
-                      }
+                      key={`plus-${val}`}
+                      onClick={() => setDuration((prev) => prev + val)}
                       className="px-3 py-1 bg-[#0d7a25] hover:bg-green-600 text-white text-sm rounded"
+                      type="button"
                     >
                       +{val}
                     </button>
                   ))}
-                  {[50, 25, 15, 10, 5, 1].map((val) => (
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {[30, 15, 5, 1].map((val) => (
                     <button
                       key={`minus-${val}`}
                       onClick={() =>
-                        setCustomPrice((prev) => Math.max(0, (prev ?? 0) - val))
+                        setDuration((prev) => Math.max(1, prev - val))
                       }
                       className="px-3 py-1 bg-[#911e1e] hover:bg-red-600 text-white text-sm rounded"
+                      type="button"
                     >
                       -{val}
                     </button>
                   ))}
                 </div>
-              </>
-            )}
-          </div>
+              </div>
 
-          {/* Checkbox for paid game option */}
-          <div className="mb-4">
-            <label className="flex items-center gap-2 text-sm mb-2">
-              <input
-                type="checkbox"
-                checked={addComment}
-                onChange={() => setAddComment((v) => !v)}
-                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-              />
-              Dodaj komentarz
-            </label>
-            {addComment && (
-              <textarea
-                ref={commentInputRef}
-                className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
-                placeholder="Wpisz komentarz..."
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={2}
-              />
-            )}
-          </div>
+              {/* Checkbox for paid game option */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm mb-2">
+                  <input
+                    type="checkbox"
+                    checked={customStartEnabled}
+                    onChange={() => setCustomStartEnabled(!customStartEnabled)}
+                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                  />
+                  Niestandardowa godzina rozpoczęcia
+                </label>
 
-          {/* Checkbox for reminder option */}
-          <div className="mb-4">
-            <label className="flex items-center gap-2 text-sm mb-2">
-              <input
-                type="checkbox"
-                checked={addReminder}
-                onChange={() => setAddReminder((v) => !v)}
-                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-              />
-              Ustaw przypomnienie
-            </label>
-            {addReminder && (
-              <div className="mt-2 p-3 rounded border-1 border-gray-600">
-                <div className="mb-3">
-                  <div className="flex gap-3 items-center mb-2">
-                    <label className="block text-sm">Liczba przypomnień:</label>
+                {customStartEnabled && (
+                  <div className="flex gap-4">
+                    <div className="w-1/2">
+                      <label className="block text-sm mb-1">Godzina:</label>
+                      <input
+                        type="number"
+                        min={-1}
+                        max={24}
+                        value={customHour}
+                        onChange={(e) => {
+                          let newHour = Number(e.target.value);
+                          if (newHour < 0) newHour = 23; // Zapętlanie godzin wstecz
+                          if (newHour > 23) newHour = 0; // Zapętlanie godzin do przodu
+                          setCustomHour(newHour);
+                        }}
+                        className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                      />
+                    </div>
+                    <div className="w-1/2">
+                      <label className="block text-sm mb-1">Minuty:</label>
+                      <input
+                        type="number"
+                        min={-1}
+                        max={60}
+                        value={customMinute}
+                        onChange={(e) => {
+                          let newMinute = Number(e.target.value);
+                          if (newMinute < 0) newMinute = 59; // Zapętlanie minut wstecz
+                          if (newMinute > 59) newMinute = 0; // Zapętlanie minut do przodu
+                          setCustomMinute(newMinute);
+                        }}
+                        className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Checkbox for paid game option */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm mb-2">
+                  <input
+                    type="checkbox"
+                    checked={customPriceEnabled}
+                    onChange={() => setCustomPriceEnabled(!customPriceEnabled)}
+                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                  />
+                  Niestandardowa kwota
+                </label>
+
+                {customPriceEnabled && (
+                  <>
                     <input
                       type="number"
-                      min={1}
-                      max={10}
-                      value={reminderCount}
-                      onChange={(e) => {
-                        const newCount = Math.max(
-                          1,
-                          Math.min(5, parseInt(e.target.value) || 1)
-                        );
-                        setReminderCount(newCount);
-
-                        // Dostosuj listę czasów do nowej liczby przypomnień
-                        if (newCount > reminderTimes.length) {
-                          // Dodaj brakujące czasy
-                          const newTimes = [...reminderTimes];
-                          for (
-                            let i = reminderTimes.length;
-                            i < newCount;
-                            i++
-                          ) {
-                            newTimes.push(5);
-                          }
-                          setReminderTimes(newTimes);
-                        } else if (newCount < reminderTimes.length) {
-                          // Usuń nadmiarowe czasy
-                          setReminderTimes(reminderTimes.slice(0, newCount));
-                        }
-                      }}
-                      className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
+                      min={0}
+                      step={1}
+                      value={customPrice ?? ""}
+                      onChange={(e) => setCustomPrice(Number(e.target.value))}
+                      className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white mb-2"
+                      placeholder="Podaj kwotę zł"
                     />
-                  </div>
 
-                  <div className="flex items-center gap-3 mb-2">
-                    <label className="text-sm whitespace-nowrap">Tryb:</label>
-                    <select
-                      value={reminderMode}
-                      onChange={(e) => {
-                        const newMode = e.target.value as "before" | "every";
-                        setReminderMode(newMode);
-                        if (newMode === "before") {
-                          // Przy zmianie na "ZA" ustawiamy domyślne czasy dla wszystkich przypomnień
-                          if (reminderMode === "every") {
-                            const defaultBeforeTimes = [15, 10, 5, 3, 1].slice(
-                              0,
-                              reminderCount || 1
-                            );
-                            setReminderTimes(defaultBeforeTimes);
+                    <div className="flex flex-wrap gap-2">
+                      {[50, 25, 15, 10, 5, 1].map((val) => (
+                        <button
+                          key={val}
+                          onClick={() =>
+                            setCustomPrice((prev) => (prev ?? 0) + val)
                           }
-                          // Jeśli nie ma żadnych przypomnień, dodajemy jedno domyślne
-                          if (!reminderTimes || reminderTimes.length === 0) {
-                            setReminderTimes([15]);
-                            setReminderCount(1);
-                          }
-                        } else {
-                          // Przy zmianie na "CO" automatycznie ustawiamy jedno przypomnienie
-                          setReminderCount(1);
-                          setReminderTimes([15]);
-                        }
-                      }}
-                      className="p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
-                    >
-                      <option value="before">ZA</option>
-                      <option value="every">CO</option>
-                    </select>
-                  </div>
-
-                  {reminderMode === "before" && (
-                    <div className="flex items-center gap-3 mb-2">
-                      <label className="text-sm whitespace-nowrap">
-                        Licz od:
-                      </label>
-                      <select
-                        value={reminderStartMode}
-                        onChange={(e) =>
-                          setReminderStartMode(
-                            e.target.value as "from_start" | "from_now"
-                          )
-                        }
-                        className="p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
-                      >
-                        <option value="from_start">Od startu gry</option>
-                        <option value="from_now">Teraz</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {reminderMode === "before" ? (
-                    // Tryb "ZA" - pokazujemy tyle inputów, ile przypomnień
-                    (reminderTimes.length > 0 ? reminderTimes : [15]).map(
-                      (time, index) => (
-                        <div
-                          key={`reminder-time-${index}`}
-                          className="flex items-center gap-2 mb-2"
+                          className="px-3 py-1 bg-[#0d7a25] hover:bg-green-600 text-white text-sm rounded"
                         >
+                          +{val}
+                        </button>
+                      ))}
+                      {[50, 25, 15, 10, 5, 1].map((val) => (
+                        <button
+                          key={`minus-${val}`}
+                          onClick={() =>
+                            setCustomPrice((prev) =>
+                              Math.max(0, (prev ?? 0) - val)
+                            )
+                          }
+                          className="px-3 py-1 bg-[#911e1e] hover:bg-red-600 text-white text-sm rounded"
+                        >
+                          -{val}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Checkbox for paid game option */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm mb-2">
+                  <input
+                    type="checkbox"
+                    checked={addComment}
+                    onChange={() => setAddComment((v) => !v)}
+                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                  />
+                  Dodaj komentarz
+                </label>
+                {addComment && (
+                  <textarea
+                    ref={commentInputRef}
+                    className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                    placeholder="Wpisz komentarz..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    rows={2}
+                  />
+                )}
+              </div>
+
+              {/* Checkbox for reminder option */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm mb-2">
+                  <input
+                    type="checkbox"
+                    checked={addReminder}
+                    onChange={() => setAddReminder((v) => !v)}
+                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                  />
+                  Ustaw przypomnienie
+                </label>
+                {addReminder && (
+                  <div className="mt-2 p-3 rounded border-1 border-gray-600">
+                    <div className="mb-3">
+                      <div className="flex gap-3 items-center mb-2">
+                        <label className="block text-sm">
+                          Liczba przypomnień:
+                        </label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          value={reminderCount}
+                          onChange={(e) => {
+                            const newCount = Math.max(
+                              1,
+                              Math.min(5, parseInt(e.target.value) || 1)
+                            );
+                            setReminderCount(newCount);
+
+                            // Dostosuj listę czasów do nowej liczby przypomnień
+                            if (newCount > reminderTimes.length) {
+                              // Dodaj brakujące czasy
+                              const newTimes = [...reminderTimes];
+                              for (
+                                let i = reminderTimes.length;
+                                i < newCount;
+                                i++
+                              ) {
+                                newTimes.push(5);
+                              }
+                              setReminderTimes(newTimes);
+                            } else if (newCount < reminderTimes.length) {
+                              // Usuń nadmiarowe czasy
+                              setReminderTimes(
+                                reminderTimes.slice(0, newCount)
+                              );
+                            }
+                          }}
+                          className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
+                        />
+                      </div>
+
+                      <div className="flex items-center gap-3 mb-2">
+                        <label className="text-sm whitespace-nowrap">
+                          Tryb:
+                        </label>
+                        <select
+                          value={reminderMode}
+                          onChange={(e) => {
+                            const newMode = e.target.value as
+                              | "before"
+                              | "every";
+                            setReminderMode(newMode);
+                            if (newMode === "before") {
+                              // Przy zmianie na "ZA" ustawiamy domyślne czasy dla wszystkich przypomnień
+                              if (reminderMode === "every") {
+                                const defaultBeforeTimes = [
+                                  15, 10, 5, 3, 1,
+                                ].slice(0, reminderCount || 1);
+                                setReminderTimes(defaultBeforeTimes);
+                              }
+                              // Jeśli nie ma żadnych przypomnień, dodajemy jedno domyślne
+                              if (
+                                !reminderTimes ||
+                                reminderTimes.length === 0
+                              ) {
+                                setReminderTimes([15]);
+                                setReminderCount(1);
+                              }
+                            } else {
+                              // Przy zmianie na "CO" automatycznie ustawiamy jedno przypomnienie
+                              setReminderCount(1);
+                              setReminderTimes([15]);
+                            }
+                          }}
+                          className="p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                        >
+                          <option value="before">ZA</option>
+                          <option value="every">CO</option>
+                        </select>
+                      </div>
+
+                      {reminderMode === "before" && (
+                        <div className="flex items-center gap-3 mb-2">
                           <label className="text-sm whitespace-nowrap">
-                            Przypomnienie {index + 1}:
+                            Licz od:
+                          </label>
+                          <select
+                            value={reminderStartMode}
+                            onChange={(e) =>
+                              setReminderStartMode(
+                                e.target.value as "from_start" | "from_now"
+                              )
+                            }
+                            className="p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                          >
+                            <option value="from_start">Od startu gry</option>
+                            <option value="from_now">Teraz</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {reminderMode === "before" ? (
+                        // Tryb "ZA" - pokazujemy tyle inputów, ile przypomnień
+                        (reminderTimes.length > 0 ? reminderTimes : [15]).map(
+                          (time, index) => (
+                            <div
+                              key={`reminder-time-${index}`}
+                              className="flex items-center gap-2 mb-2"
+                            >
+                              <label className="text-sm whitespace-nowrap">
+                                Przypomnienie {index + 1}:
+                              </label>
+                              <input
+                                type="number"
+                                min={1}
+                                max={60}
+                                value={time}
+                                onChange={(e) => {
+                                  const newValue = Math.max(
+                                    1,
+                                    Math.min(60, parseInt(e.target.value) || 1)
+                                  );
+                                  const newTimes = [...reminderTimes];
+                                  newTimes[index] = newValue;
+                                  setReminderTimes(newTimes);
+                                }}
+                                className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
+                              />
+                              <span className="text-sm text-gray-300">
+                                minut
+                              </span>
+                            </div>
+                          )
+                        )
+                      ) : (
+                        // Tryb "CO" - pokazujemy tylko jeden input
+                        <div className="flex items-center gap-2 mb-2">
+                          <label className="text-sm whitespace-nowrap">
+                            Co:
                           </label>
                           <input
                             type="number"
                             min={1}
                             max={60}
-                            value={time}
+                            value={
+                              reminderTimes && reminderTimes.length > 0
+                                ? reminderTimes[0]
+                                : 15
+                            }
                             onChange={(e) => {
                               const newValue = Math.max(
                                 1,
                                 Math.min(60, parseInt(e.target.value) || 1)
                               );
-                              const newTimes = [...reminderTimes];
-                              newTimes[index] = newValue;
-                              setReminderTimes(newTimes);
+                              setReminderTimes([newValue]);
                             }}
                             className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
                           />
                           <span className="text-sm text-gray-300">minut</span>
                         </div>
-                      )
-                    )
-                  ) : (
-                    // Tryb "CO" - pokazujemy tylko jeden input
-                    <div className="flex items-center gap-2 mb-2">
-                      <label className="text-sm whitespace-nowrap">Co:</label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={60}
-                        value={
-                          reminderTimes && reminderTimes.length > 0
-                            ? reminderTimes[0]
-                            : 15
-                        }
-                        onChange={(e) => {
-                          const newValue = Math.max(
-                            1,
-                            Math.min(60, parseInt(e.target.value) || 1)
-                          );
-                          setReminderTimes([newValue]);
-                        }}
-                        className="w-16 p-1 text-center rounded bg-[#0f1525] border border-gray-600 text-white"
+                      )}
+                    </div>
+
+                    <div className="mb-2">
+                      <label className="block text-sm mb-1">
+                        Tekst przypomnienia (opcjonalnie):
+                      </label>
+                      <textarea
+                        className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                        placeholder="Wpisz tekst przypomnienia..."
+                        value={reminderText}
+                        onChange={(e) => setReminderText(e.target.value)}
+                        rows={1}
                       />
-                      <span className="text-sm text-gray-300">minut</span>
                     </div>
-                  )}
-                </div>
-
-                <div className="mb-2">
-                  <label className="block text-sm mb-1">
-                    Tekst przypomnienia (opcjonalnie):
-                  </label>
-                  <textarea
-                    className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
-                    placeholder="Wpisz tekst przypomnienia..."
-                    value={reminderText}
-                    onChange={(e) => setReminderText(e.target.value)}
-                    rows={1}
-                  />
-                </div>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* Button to add or update the client */}
-          {editId && peopleCount > 1 && (
-            <>
-              <div className="mb-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={splitEnabled}
-                    onChange={() => setSplitEnabled((v) => !v)}
-                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-                  />
-                  Podziel grupę
-                </label>
-              </div>
-              {splitEnabled && (
-                <div className="mb-4 mt-2 p-3 rounded  border border-[#00d9ff]">
-                  <div className="font-semibold text-[#00d9ff] mb-2">
-                    Podział grupy {peopleCount} osobowej
+              {/* Button to add or update the client */}
+              {editId && peopleCount > 1 && (
+                <>
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={splitEnabled}
+                        onChange={() => setSplitEnabled((v) => !v)}
+                        className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                      />
+                      Podziel grupę
+                    </label>
                   </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <label className="text-sm">Liczba grup:</label>
-                    <select
-                      value={splitGroupsCount}
-                      onChange={(e) => {
-                        const val =
-                          e.target.value === "" ? "" : Number(e.target.value);
-                        setSplitGroupsCount(val);
-                        if (val === "" || isNaN(Number(val))) {
-                          setSplitGroups([]);
-                          return;
-                        }
-                        const base = Math.floor(peopleCount / Number(val));
-                        const rest = peopleCount % Number(val);
-                        setSplitGroups(
-                          Array.from({ length: Number(val) }, (_, i) => ({
-                            players: i < rest ? base + 1 : base,
-                            stations: Array(i < rest ? base + 1 : base).fill(
-                              null
-                            ),
-                          }))
-                        );
-                        setSplitError(false);
-                      }}
-                      className="w-24 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
-                    >
-                      <option value="">Wybierz...</option>
-                      {Array.from(
-                        { length: peopleCount - 1 },
-                        (_, i) => i + 2
-                      ).map((n) => (
-                        <option key={n} value={n}>
-                          {n}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  {splitGroupsCount !== "" && (
-                    <>
-                      <table className="w-full text-sm mb-4 bg-[#1e2636] rounded">
-                        <thead>
-                          <tr>
-                            <th className="p-2 text-left border-b border-gray-600">
-                              Grupa
-                            </th>
-                            <th className="p-2 text-left border-b border-gray-600">
-                              Liczba osób
-                            </th>
-                            <th className="p-2 text-left border-b border-gray-600">
-                              Stanowiska
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {splitGroups.map((group, idx) => (
-                            <tr key={idx} className="border-b border-gray-700">
-                              <td className="p-2 font-semibold align-top">
-                                Grupa {idx + 1}
-                              </td>
-                              <td className="p-2 align-top">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  max={peopleCount}
-                                  value={group.players}
-                                  onChange={(e) => {
-                                    const val = Math.max(
-                                      1,
-                                      Math.min(
-                                        peopleCount,
-                                        Number(e.target.value)
-                                      )
-                                    );
-                                    const updated = [...splitGroups];
-                                    const sumOther = updated.reduce(
-                                      (acc, g, i2) =>
-                                        i2 === idx ? acc : acc + g.players,
-                                      0
-                                    );
-                                    updated[idx].players = Math.max(
-                                      1,
-                                      Math.min(val, peopleCount - sumOther)
-                                    );
-                                    if (
-                                      updated[idx].stations.length >
-                                      updated[idx].players
-                                    ) {
-                                      updated[idx].stations = updated[
-                                        idx
-                                      ].stations.slice(0, updated[idx].players);
-                                    } else {
-                                      updated[idx].stations = [
-                                        ...updated[idx].stations,
-                                        ...Array(
-                                          updated[idx].players -
-                                            updated[idx].stations.length
-                                        ).fill(null),
-                                      ];
-                                    }
-                                    setSplitGroups(updated);
-                                  }}
-                                  className="w-16 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
-                                />
-                              </td>
-                              <td className="p-2">
-                                <div className="flex flex-col gap-2">
-                                  {Array.from({ length: group.players }).map(
-                                    (_, pIdx) => {
-                                      const stationValue = group.stations[pIdx];
-                                      const allStations = splitGroups.flatMap(
-                                        (g) => g.stations
-                                      );
-                                      const isDuplicate =
-                                        stationValue &&
-                                        allStations.filter(
-                                          (s) => s === stationValue
-                                        ).length > 1 &&
-                                        stationValue !== null;
-
-                                      return (
-                                        <select
-                                          key={pIdx}
-                                          value={stationValue ?? ""}
-                                          onChange={(e) => {
-                                            const updated = [...splitGroups];
-                                            updated[idx].stations[pIdx] =
-                                              Number(e.target.value);
-                                            setSplitGroups(updated);
-                                            setSplitError(false);
-                                          }}
-                                          className={`w-28 p-1 rounded bg-[#0f1525] border ${
-                                            isDuplicate
-                                              ? "border-red-500"
-                                              : "border-gray-600"
-                                          } text-white`}
-                                        >
-                                          <option value="">Stanowisko</option>
-                                          {slots.map((s) => (
-                                            <option key={s} value={s}>
-                                              {stanowiskoLabels[s]}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      );
-                                    }
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {splitError && (
-                        <div className="mb-2 mt-2 text-red-500 text-sm">
-                          Każde stanowisko musi być unikalne!
-                        </div>
-                      )}
-                      {splitGroups.some((g) => g.stations.some((s) => !s)) && (
-                        <div className="mb-2 mt-2 text-red-500 text-sm">
-                          Wszystkie stanowiska muszą zostać wybrane!
-                        </div>
-                      )}
-                      {splitGroups.reduce((a, b) => a + b.players, 0) <
-                        peopleCount && (
-                        <div className="mb-2 mt-2 text-red-500 text-sm">
-                          Wybrano za mało osób w grupach!
-                        </div>
-                      )}
-
-                      <button
-                        className="mt-2 px-4 py-1 rounded bg-[#00d9ff] text-black font-bold hover:bg-[#ffcc00] transition"
-                        onClick={handleSplitGroup}
-                        disabled={
-                          splitGroups.some(
-                            (g) =>
-                              g.players < 1 ||
-                              !g.stations ||
-                              g.stations.length !== g.players ||
-                              g.stations.some((s) => !s)
-                          ) ||
-                          splitGroups.reduce((a, b) => a + b.players, 0) !==
-                            peopleCount
-                        }
-                      >
-                        Podziel grupę
-                      </button>
-                    </>
-                  )}
-                  {splitGroupsCount === "" && (
-                    <div className="mb-2 mt-2 text-red-500 text-sm">
-                      Wybierz liczbę grup!
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* Button to add or update the client */}
-          {editId && peopleCount > 1 && (
-            <>
-              <div className="mb-4">
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={removeFromGroupEnabled}
-                    onChange={() => {
-                      setRemoveFromGroupEnabled((v) => !v);
-                      setRemoveCount("");
-                      setRemoveStations([]);
-                      setRemoveOptions([]);
-                    }}
-                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-                  />
-                  Usuń z grupy
-                </label>
-              </div>
-              {removeFromGroupEnabled && (
-                <div className="mb-4 p-3 rounded border-2 border-[#ff0000]/40 bg-[#1e2636]">
-                  <div className="font-semibold text-[#ff0000] mb-2">
-                    Usuwanie osób z grupy {peopleCount} osobowej
-                  </div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <label className="text-sm">Ile osób usunąć:</label>
-                    <select
-                      value={removeCount}
-                      onChange={(e) => {
-                        const val =
-                          e.target.value === "" ? "" : Number(e.target.value);
-                        setRemoveCount(val);
-                        setRemoveStations(
-                          val === "" ? [] : Array(val).fill(null)
-                        );
-                        setRemoveOptions(
-                          val === "" ? [] : Array(val).fill({ type: "paid" })
-                        );
-                        setRemoveNames(val === "" ? [] : Array(val).fill(""));
-                        setRemovePrices(val === "" ? [] : Array(val).fill(""));
-                      }}
-                      className="w-24 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
-                    >
-                      <option value="">Wybierz...</option>
-                      {Array.from({ length: peopleCount }, (_, i) => i + 1).map(
-                        (n) => (
-                          <option key={n} value={n}>
-                            {n}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </div>
-                  {/* Render remove stations and options if removeCount is set */}
-                  {removeCount !== "" && (
-                    <>
-                      <div className="mt-2 flex flex-col gap-4">
-                        {Array.from({ length: Number(removeCount) }).map(
-                          (_, idx) => {
-                            const station = removeStations[idx];
-                            const client = clients.find((c) => c.id === editId);
-                            let startTime = "";
-                            let duration = "";
-                            let nowTime = "";
-                            let played = "";
-                            let defaultPrice = "";
-                            if (client && station) {
-                              startTime = DateTime.fromISO(
-                                client.startTime
-                              ).toFormat("HH:mm");
-                              duration = client.duration + " min";
-                              nowTime = DateTime.now().toFormat("HH:mm");
-                              const playedMinutes = Math.max(
-                                0,
-                                Math.floor(
-                                  DateTime.now().diff(
-                                    DateTime.fromISO(client.startTime),
-                                    "minutes"
-                                  ).minutes
-                                )
-                              );
-                              played = playedMinutes + " min";
-
-                              // Wylicz kwotę za faktycznie zagrany czas
-                              const start = DateTime.fromISO(client.startTime);
-                              const isWeekend = [5, 6, 7].includes(
-                                start.weekday
-                              );
-                              const rate = isWeekend ? 45 : 39;
-                              defaultPrice = (
-                                (rate / 30) *
-                                playedMinutes
-                              ).toFixed(2);
+                  {splitEnabled && (
+                    <div className="mb-4 mt-2 p-3 rounded  border border-[#00d9ff]">
+                      <div className="font-semibold text-[#00d9ff] mb-2">
+                        Podział grupy {peopleCount} osobowej
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-sm">Liczba grup:</label>
+                        <select
+                          value={splitGroupsCount}
+                          onChange={(e) => {
+                            const val =
+                              e.target.value === ""
+                                ? ""
+                                : Number(e.target.value);
+                            setSplitGroupsCount(val);
+                            if (val === "" || isNaN(Number(val))) {
+                              setSplitGroups([]);
+                              return;
                             }
-                            return (
-                              <div
-                                key={idx}
-                                className="flex flex-col gap-1 border-b border-gray-700 pb-2"
-                              >
-                                <label className="text-sm">
-                                  Stanowisko do usunięcia {idx + 1}:
-                                </label>
-                                <select
-                                  value={removeStations[idx] ?? ""}
-                                  onChange={(e) => {
-                                    const updated = [...removeStations];
-                                    updated[idx] = Number(e.target.value);
-                                    setRemoveStations(updated);
-                                    const pricesUpd = [...removePrices];
-                                    const client = clients.find(
-                                      (c) => c.id === editId
-                                    );
-                                    const c = client
-                                      ? (() => {
-                                          const playedMinutes = Math.max(
-                                            0,
-                                            Math.floor(
-                                              DateTime.now().diff(
-                                                DateTime.fromISO(
-                                                  client.startTime
-                                                ),
-                                                "minutes"
-                                              ).minutes
-                                            )
-                                          );
-                                          const start = DateTime.fromISO(
-                                            client.startTime
-                                          );
-                                          const isWeekend = [5, 6, 7].includes(
-                                            start.weekday
-                                          );
-                                          const rate = isWeekend ? 45 : 39;
-                                          return (
-                                            (rate / 30) *
-                                            playedMinutes
-                                          ).toFixed(2);
-                                        })()
-                                      : "";
-                                    pricesUpd[idx] = c === "" ? "" : Number(c);
-                                    setRemovePrices(pricesUpd);
-                                  }}
-                                  className="w-28 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                            const base = Math.floor(peopleCount / Number(val));
+                            const rest = peopleCount % Number(val);
+                            setSplitGroups(
+                              Array.from({ length: Number(val) }, (_, i) => ({
+                                players: i < rest ? base + 1 : base,
+                                stations: Array(
+                                  i < rest ? base + 1 : base
+                                ).fill(null),
+                              }))
+                            );
+                            setSplitError(false);
+                          }}
+                          className="w-24 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                        >
+                          <option value="">Wybierz...</option>
+                          {Array.from(
+                            { length: peopleCount - 1 },
+                            (_, i) => i + 2
+                          ).map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {splitGroupsCount !== "" && (
+                        <>
+                          <table className="w-full text-sm mb-4 bg-[#1e2636] rounded">
+                            <thead>
+                              <tr>
+                                <th className="p-2 text-left border-b border-gray-600">
+                                  Grupa
+                                </th>
+                                <th className="p-2 text-left border-b border-gray-600">
+                                  Liczba osób
+                                </th>
+                                <th className="p-2 text-left border-b border-gray-600">
+                                  Stanowiska
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {splitGroups.map((group, idx) => (
+                                <tr
+                                  key={idx}
+                                  className="border-b border-gray-700"
                                 >
-                                  <option value="">Stanowisko</option>
-                                  {slots.map((s) => (
-                                    <option key={s} value={s}>
-                                      {stanowiskoLabels[s]}
-                                    </option>
-                                  ))}
-                                </select>
-                                <div className="flex gap-4 mt-1">
-                                  <label className="flex items-center gap-1 text-xs">
-                                    <input
-                                      type="radio"
-                                      checked={
-                                        removeOptions[idx]?.type === "paid"
-                                      }
-                                      onChange={() => {
-                                        const updated = [...removeOptions];
-                                        updated[idx] = { type: "paid" };
-                                        setRemoveOptions(updated);
-                                      }}
-                                    />
-                                    Opłacone
-                                  </label>
-                                  <label className="flex items-center gap-1 text-xs">
-                                    <input
-                                      type="radio"
-                                      checked={
-                                        removeOptions[idx]?.type === "toPay"
-                                      }
-                                      onChange={() => {
-                                        const updated = [...removeOptions];
-                                        updated[idx] = { type: "toPay" };
-                                        setRemoveOptions(updated);
-                                      }}
-                                    />
-                                    Do opłacenia
-                                  </label>
-                                </div>
-                                {/* INPUTY i info tylko dla opcji do zapłaty */}
-                                {removeOptions[idx]?.type === "toPay" && (
-                                  <>
-                                    <div className="text-xs text-gray-300 mt-2 mb-1">
-                                      <div>
-                                        <span className="font-semibold">
-                                          Czas gry:
-                                        </span>{" "}
-                                        {duration}
-                                      </div>
-                                      <div>
-                                        <span className="font-semibold">
-                                          Start:
-                                        </span>{" "}
-                                        {startTime}
-                                      </div>
-                                      <div>
-                                        <span className="font-semibold">
-                                          Teraz:
-                                        </span>{" "}
-                                        {nowTime}
-                                      </div>
-                                      <div>
-                                        <span className="font-semibold">
-                                          Grano:
-                                        </span>{" "}
-                                        {played}
-                                      </div>
-                                    </div>
-                                    <label className="block text-xs font-semibold mt-2 mb-0.5">
-                                      Kwota do zapłaty
-                                    </label>
+                                  <td className="p-2 font-semibold align-top">
+                                    Grupa {idx + 1}
+                                  </td>
+                                  <td className="p-2 align-top">
                                     <input
                                       type="number"
-                                      min={0}
-                                      step="0.01"
-                                      placeholder="Kwota"
-                                      value={removePrices[idx] ?? defaultPrice}
+                                      min={1}
+                                      max={peopleCount}
+                                      value={group.players}
                                       onChange={(e) => {
-                                        const updated = [...removePrices];
-                                        updated[idx] =
-                                          e.target.value === ""
-                                            ? ""
-                                            : Number(e.target.value);
-                                        setRemovePrices(updated);
+                                        const val = Math.max(
+                                          1,
+                                          Math.min(
+                                            peopleCount,
+                                            Number(e.target.value)
+                                          )
+                                        );
+                                        const updated = [...splitGroups];
+                                        const sumOther = updated.reduce(
+                                          (acc, g, i2) =>
+                                            i2 === idx ? acc : acc + g.players,
+                                          0
+                                        );
+                                        updated[idx].players = Math.max(
+                                          1,
+                                          Math.min(val, peopleCount - sumOther)
+                                        );
+                                        if (
+                                          updated[idx].stations.length >
+                                          updated[idx].players
+                                        ) {
+                                          updated[idx].stations = updated[
+                                            idx
+                                          ].stations.slice(
+                                            0,
+                                            updated[idx].players
+                                          );
+                                        } else {
+                                          updated[idx].stations = [
+                                            ...updated[idx].stations,
+                                            ...Array(
+                                              updated[idx].players -
+                                                updated[idx].stations.length
+                                            ).fill(null),
+                                          ];
+                                        }
+                                        setSplitGroups(updated);
                                       }}
-                                      className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                                      className="w-16 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
                                     />
-                                  </>
-                                )}
-                              </div>
-                            );
-                          }
-                        )}
-                      </div>
-                      <button
-                        className="mt-4 px-4 py-2 rounded bg-red-600 text-white font-bold hover:bg-red-800 transition disabled:opacity-50"
-                        disabled={
-                          removeStations.length !== Number(removeCount) ||
-                          removeStations.some((s) => !s) ||
-                          removeOptions.length !== Number(removeCount) ||
-                          removeOptions.some((opt) => !opt.type)
-                        }
-                        onClick={() => {
-                          handleRemoveFromGroup(removeNames, removePrices);
-                        }}
-                      >
-                        Usuń wybrane osoby
-                      </button>
-                    </>
+                                  </td>
+                                  <td className="p-2">
+                                    <div className="flex flex-col gap-2">
+                                      {Array.from({
+                                        length: group.players,
+                                      }).map((_, pIdx) => {
+                                        const stationValue =
+                                          group.stations[pIdx];
+                                        const allStations = splitGroups.flatMap(
+                                          (g) => g.stations
+                                        );
+                                        const isDuplicate =
+                                          stationValue &&
+                                          allStations.filter(
+                                            (s) => s === stationValue
+                                          ).length > 1 &&
+                                          stationValue !== null;
+
+                                        return (
+                                          <select
+                                            key={pIdx}
+                                            value={stationValue ?? ""}
+                                            onChange={(e) => {
+                                              const updated = [...splitGroups];
+                                              updated[idx].stations[pIdx] =
+                                                Number(e.target.value);
+                                              setSplitGroups(updated);
+                                              setSplitError(false);
+                                            }}
+                                            className={`w-28 p-1 rounded bg-[#0f1525] border ${
+                                              isDuplicate
+                                                ? "border-red-500"
+                                                : "border-gray-600"
+                                            } text-white`}
+                                          >
+                                            <option value="">Stanowisko</option>
+                                            {slots.map((s) => (
+                                              <option key={s} value={s}>
+                                                {stanowiskoLabels[s]}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        );
+                                      })}
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {splitError && (
+                            <div className="mb-2 mt-2 text-red-500 text-sm">
+                              Każde stanowisko musi być unikalne!
+                            </div>
+                          )}
+                          {splitGroups.some((g) =>
+                            g.stations.some((s) => !s)
+                          ) && (
+                            <div className="mb-2 mt-2 text-red-500 text-sm">
+                              Wszystkie stanowiska muszą zostać wybrane!
+                            </div>
+                          )}
+                          {splitGroups.reduce((a, b) => a + b.players, 0) <
+                            peopleCount && (
+                            <div className="mb-2 mt-2 text-red-500 text-sm">
+                              Wybrano za mało osób w grupach!
+                            </div>
+                          )}
+
+                          <button
+                            className="mt-2 px-4 py-1 rounded bg-[#00d9ff] text-black font-bold hover:bg-[#ffcc00] transition"
+                            onClick={handleSplitGroup}
+                            disabled={
+                              splitGroups.some(
+                                (g) =>
+                                  g.players < 1 ||
+                                  !g.stations ||
+                                  g.stations.length !== g.players ||
+                                  g.stations.some((s) => !s)
+                              ) ||
+                              splitGroups.reduce((a, b) => a + b.players, 0) !==
+                                peopleCount
+                            }
+                          >
+                            Podziel grupę
+                          </button>
+                        </>
+                      )}
+                      {splitGroupsCount === "" && (
+                        <div className="mb-2 mt-2 text-red-500 text-sm">
+                          Wybierz liczbę grup!
+                        </div>
+                      )}
+                    </div>
                   )}
-                </div>
+                </>
               )}
-            </>
+
+              {/* Button to add or update the client */}
+              {editId && peopleCount > 1 && (
+                <>
+                  <div className="mb-4">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={removeFromGroupEnabled}
+                        onChange={() => {
+                          setRemoveFromGroupEnabled((v) => !v);
+                          setRemoveCount("");
+                          setRemoveStations([]);
+                          setRemoveOptions([]);
+                        }}
+                        className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                      />
+                      Usuń z grupy
+                    </label>
+                  </div>
+                  {removeFromGroupEnabled && (
+                    <div className="mb-4 p-3 rounded border-2 border-[#ff0000]/40 bg-[#1e2636]">
+                      <div className="font-semibold text-[#ff0000] mb-2">
+                        Usuwanie osób z grupy {peopleCount} osobowej
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <label className="text-sm">Ile osób usunąć:</label>
+                        <select
+                          value={removeCount}
+                          onChange={(e) => {
+                            const val =
+                              e.target.value === ""
+                                ? ""
+                                : Number(e.target.value);
+                            setRemoveCount(val);
+                            setRemoveStations(
+                              val === "" ? [] : Array(val).fill(null)
+                            );
+                            setRemoveOptions(
+                              val === ""
+                                ? []
+                                : Array(val).fill({ type: "paid" })
+                            );
+                            setRemoveNames(
+                              val === "" ? [] : Array(val).fill("")
+                            );
+                            setRemovePrices(
+                              val === "" ? [] : Array(val).fill("")
+                            );
+                          }}
+                          className="w-24 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                        >
+                          <option value="">Wybierz...</option>
+                          {Array.from(
+                            { length: peopleCount },
+                            (_, i) => i + 1
+                          ).map((n) => (
+                            <option key={n} value={n}>
+                              {n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {/* Render remove stations and options if removeCount is set */}
+                      {removeCount !== "" && (
+                        <>
+                          <div className="mt-2 flex flex-col gap-4">
+                            {Array.from({ length: Number(removeCount) }).map(
+                              (_, idx) => {
+                                const station = removeStations[idx];
+                                const client = clients.find(
+                                  (c) => c.id === editId
+                                );
+                                let startTime = "";
+                                let duration = "";
+                                let nowTime = "";
+                                let played = "";
+                                let defaultPrice = "";
+                                if (client && station) {
+                                  startTime = DateTime.fromISO(
+                                    client.startTime
+                                  ).toFormat("HH:mm");
+                                  duration = client.duration + " min";
+                                  nowTime = DateTime.now().toFormat("HH:mm");
+                                  const playedMinutes = Math.max(
+                                    0,
+                                    Math.floor(
+                                      DateTime.now().diff(
+                                        DateTime.fromISO(client.startTime),
+                                        "minutes"
+                                      ).minutes
+                                    )
+                                  );
+                                  played = playedMinutes + " min";
+
+                                  // Wylicz kwotę za faktycznie zagrany czas
+                                  const start = DateTime.fromISO(
+                                    client.startTime
+                                  );
+                                  const isWeekend = [5, 6, 7].includes(
+                                    start.weekday
+                                  );
+                                  const rate = isWeekend ? 45 : 39;
+                                  defaultPrice = (
+                                    (rate / 30) *
+                                    playedMinutes
+                                  ).toFixed(2);
+                                }
+                                return (
+                                  <div
+                                    key={idx}
+                                    className="flex flex-col gap-1 border-b border-gray-700 pb-2"
+                                  >
+                                    <label className="text-sm">
+                                      Stanowisko do usunięcia {idx + 1}:
+                                    </label>
+                                    <select
+                                      value={removeStations[idx] ?? ""}
+                                      onChange={(e) => {
+                                        const updated = [...removeStations];
+                                        updated[idx] = Number(e.target.value);
+                                        setRemoveStations(updated);
+                                        const pricesUpd = [...removePrices];
+                                        const client = clients.find(
+                                          (c) => c.id === editId
+                                        );
+                                        const c = client
+                                          ? (() => {
+                                              const playedMinutes = Math.max(
+                                                0,
+                                                Math.floor(
+                                                  DateTime.now().diff(
+                                                    DateTime.fromISO(
+                                                      client.startTime
+                                                    ),
+                                                    "minutes"
+                                                  ).minutes
+                                                )
+                                              );
+                                              const start = DateTime.fromISO(
+                                                client.startTime
+                                              );
+                                              const isWeekend = [
+                                                5, 6, 7,
+                                              ].includes(start.weekday);
+                                              const rate = isWeekend ? 45 : 39;
+                                              return (
+                                                (rate / 30) *
+                                                playedMinutes
+                                              ).toFixed(2);
+                                            })()
+                                          : "";
+                                        pricesUpd[idx] =
+                                          c === "" ? "" : Number(c);
+                                        setRemovePrices(pricesUpd);
+                                      }}
+                                      className="w-28 p-1 rounded bg-[#0f1525] border border-gray-600 text-white"
+                                    >
+                                      <option value="">Stanowisko</option>
+                                      {slots.map((s) => (
+                                        <option key={s} value={s}>
+                                          {stanowiskoLabels[s]}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <div className="flex gap-4 mt-1">
+                                      <label className="flex items-center gap-1 text-xs">
+                                        <input
+                                          type="radio"
+                                          checked={
+                                            removeOptions[idx]?.type === "paid"
+                                          }
+                                          onChange={() => {
+                                            const updated = [...removeOptions];
+                                            updated[idx] = { type: "paid" };
+                                            setRemoveOptions(updated);
+                                          }}
+                                        />
+                                        Opłacone
+                                      </label>
+                                      <label className="flex items-center gap-1 text-xs">
+                                        <input
+                                          type="radio"
+                                          checked={
+                                            removeOptions[idx]?.type === "toPay"
+                                          }
+                                          onChange={() => {
+                                            const updated = [...removeOptions];
+                                            updated[idx] = { type: "toPay" };
+                                            setRemoveOptions(updated);
+                                          }}
+                                        />
+                                        Do opłacenia
+                                      </label>
+                                    </div>
+                                    {/* INPUTY i info tylko dla opcji do zapłaty */}
+                                    {removeOptions[idx]?.type === "toPay" && (
+                                      <>
+                                        <div className="text-xs text-gray-300 mt-2 mb-1">
+                                          <div>
+                                            <span className="font-semibold">
+                                              Czas gry:
+                                            </span>{" "}
+                                            {duration}
+                                          </div>
+                                          <div>
+                                            <span className="font-semibold">
+                                              Start:
+                                            </span>{" "}
+                                            {startTime}
+                                          </div>
+                                          <div>
+                                            <span className="font-semibold">
+                                              Teraz:
+                                            </span>{" "}
+                                            {nowTime}
+                                          </div>
+                                          <div>
+                                            <span className="font-semibold">
+                                              Grano:
+                                            </span>{" "}
+                                            {played}
+                                          </div>
+                                        </div>
+                                        <label className="block text-xs font-semibold mt-2 mb-0.5">
+                                          Kwota do zapłaty
+                                        </label>
+                                        <input
+                                          type="number"
+                                          min={0}
+                                          step="0.01"
+                                          placeholder="Kwota"
+                                          value={
+                                            removePrices[idx] ?? defaultPrice
+                                          }
+                                          onChange={(e) => {
+                                            const updated = [...removePrices];
+                                            updated[idx] =
+                                              e.target.value === ""
+                                                ? ""
+                                                : Number(e.target.value);
+                                            setRemovePrices(updated);
+                                          }}
+                                          className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                                        />
+                                      </>
+                                    )}
+                                  </div>
+                                );
+                              }
+                            )}
+                          </div>
+                          <button
+                            className="mt-4 px-4 py-2 rounded bg-red-600 text-white font-bold hover:bg-red-800 transition disabled:opacity-50"
+                            disabled={
+                              removeStations.length !== Number(removeCount) ||
+                              removeStations.some((s) => !s) ||
+                              removeOptions.length !== Number(removeCount) ||
+                              removeOptions.some((opt) => !opt.type)
+                            }
+                            onClick={() => {
+                              handleRemoveFromGroup(removeNames, removePrices);
+                            }}
+                          >
+                            Usuń wybrane osoby
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* Checkbox for paid game option */}
+              <div className="mb-4">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={paid}
+                    onChange={() => setPaid(!paid)}
+                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                  />{" "}
+                  Opłacone
+                </label>
+              </div>
+
+              <button
+                onClick={handleAddClient}
+                disabled={allStationsTaken}
+                className={`w-full text-black font-bold py-2 rounded transition ${
+                  allStationsTaken
+                    ? "bg-gray-600 cursor-not-allowed"
+                    : "bg-[#00d9ff] hover:bg-[#ffcc00]"
+                }`}
+              >
+                {editId ? "Zapisz zmiany" : "Dodaj klienta"}
+              </button>
+            </div>
           )}
 
-          {/* Checkbox for paid game option */}
-          <div className="mb-4">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={paid}
-                onChange={() => setPaid(!paid)}
-                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-              />{" "}
-              Opłacone
-            </label>
-          </div>
+          {subpage === "stoper" && <div className="mb-4">Stoper</div>}
 
-          <button
-            onClick={handleAddClient}
-            disabled={allStationsTaken}
-            className={`w-full text-black font-bold py-2 rounded transition ${
-              allStationsTaken
-                ? "bg-gray-600 cursor-not-allowed"
-                : "bg-[#00d9ff] hover:bg-[#ffcc00]"
-            }`}
-          >
-            {editId ? "Zapisz zmiany" : "Dodaj klienta"}
-          </button>
+          {subpage === "stats" && <div className="mb-4">Statystyki</div>}
         </div>
 
         {/*RIGHT SIDE: CLIENTS */}
         <div className="w-full md:w-2/3 px-2">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {[...Array(8)].map((_, index) => {
-              const slotIndex = index + 1;
-              const clientsInSlot = clients.filter((client) =>
-                client.stations.includes(slotIndex)
-              );
+          {(subpage === "main" || subpage === "stoper") && (
+            <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[...Array(8)].map((_, index) => {
+                  const slotIndex = index + 1;
+                  const clientsInSlot = clients.filter((client) =>
+                    client.stations.includes(slotIndex)
+                  );
 
-              const isEditing = clientsInSlot.some(
-                (client) => editId === client.id
-              );
+                  const isEditing = clientsInSlot.some(
+                    (client) => editId === client.id
+                  );
 
-              // Sprawdzamy, czy jakakolwiek gra w tym slocie się zakończyła
-              const hasGameEnded = clientsInSlot.some((client) => {
-                const { isOver } = getRemainingTime(
-                  client.startTime,
-                  client.duration,
-                  client.isPaused,
-                  client.pauseStartTime
-                );
-                return isOver;
-              });
+                  // Sprawdzamy, czy jakakolwiek gra w tym slocie się zakończyła
+                  const hasGameEnded = clientsInSlot.some((client) => {
+                    const { isOver } = getRemainingTime(
+                      client.startTime,
+                      client.duration,
+                      client.isPaused,
+                      client.pauseStartTime
+                    );
+                    return isOver;
+                  });
 
-              return (
-                <div
-                  key={index}
-                  className={`bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words transition
+                  return (
+                    <div
+                      key={index}
+                      className={`bg-[#1e2636] rounded-lg p-4 shadow-md flex flex-col h-50 break-words transition
                     ${
                       isEditing
                         ? "ring-1 ring-[#00d9ff] z-10"
@@ -2159,371 +2259,798 @@ const AdminClientManager: React.FC = () => {
                         ? "hover:bg-[#242d40]"
                         : ""
                     }`}
-                  style={{
-                    transition: "transform 0.2s, box-shadow 0.2s",
-                  }}
-                  onDragOver={(e) => {
-                    // Pozwalamy na upuszczenie na każde miejsce - puste lub zajęte
-                    e.preventDefault();
+                      style={{
+                        transition: "transform 0.2s, box-shadow 0.2s",
+                      }}
+                      onDragOver={(e) => {
+                        // Pozwalamy na upuszczenie na każde miejsce - puste lub zajęte
+                        e.preventDefault();
 
-                    // Dodajemy różne style zależnie od tego czy miejsce jest zajęte czy puste
-                    if (clientsInSlot.length === 0) {
-                      // Dla pustych miejsc - niebieska obwódka
-                      e.currentTarget.classList.add(
-                        "bg-[#2a3a56]",
-                        "ring-1",
-                        "ring-[#00d9ff]",
-                        "z-10"
-                      );
-                    } else {
-                      // Dla zajętych miejsc - pomarańczowa obwódka wskazująca na możliwość zamiany
-                      e.currentTarget.classList.add(
-                        "bg-[#2a3a56]",
-                        "ring-1",
-                        "ring-amber-500",
-                        "z-10"
-                      );
-                    }
-                  }}
-                  onDragLeave={(e) => {
-                    // Usuwamy wszystkie style podświetlające, niezależnie od tego czy miejsce było puste czy zajęte
-                    e.currentTarget.classList.remove(
-                      "bg-[#2a3a56]",
-                      "ring-1",
-                      "ring-[#00d9ff]",
-                      "ring-orange-500"
-                    );
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    // Usuwamy wszystkie style podświetlające
-                    e.currentTarget.classList.remove(
-                      "bg-[#2a3a56]",
-                      "ring-1",
-                      "ring-[#00d9ff]",
-                      "ring-orange-500"
-                    );
-                    const dragData = e.dataTransfer.getData("text/plain");
+                        // Dodajemy różne style zależnie od tego czy miejsce jest zajęte czy puste
+                        if (clientsInSlot.length === 0) {
+                          // Dla pustych miejsc - niebieska obwódka
+                          e.currentTarget.classList.add(
+                            "bg-[#2a3a56]",
+                            "ring-1",
+                            "ring-[#00d9ff]",
+                            "z-10"
+                          );
+                        } else {
+                          // Dla zajętych miejsc - pomarańczowa obwódka wskazująca na możliwość zamiany
+                          e.currentTarget.classList.add(
+                            "bg-[#2a3a56]",
+                            "ring-1",
+                            "ring-amber-500",
+                            "z-10"
+                          );
+                        }
+                      }}
+                      onDragLeave={(e) => {
+                        // Usuwamy wszystkie style podświetlające, niezależnie od tego czy miejsce było puste czy zajęte
+                        e.currentTarget.classList.remove(
+                          "bg-[#2a3a56]",
+                          "ring-1",
+                          "ring-[#00d9ff]",
+                          "ring-orange-500"
+                        );
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        // Usuwamy wszystkie style podświetlające
+                        e.currentTarget.classList.remove(
+                          "bg-[#2a3a56]",
+                          "ring-1",
+                          "ring-[#00d9ff]",
+                          "ring-orange-500"
+                        );
+                        const dragData = e.dataTransfer.getData("text/plain");
 
-                    // Sprawdzamy, czy dane zawierają ID stanowiska (format clientId:stationId)
-                    const [clientId, stationId] = dragData.includes(":")
-                      ? dragData.split(":")
-                      : [dragData, null];
+                        // Sprawdzamy, czy dane zawierają ID stanowiska (format clientId:stationId)
+                        const [clientId, stationId] = dragData.includes(":")
+                          ? dragData.split(":")
+                          : [dragData, null];
 
-                    // Obsługujemy upuszczanie na dowolne miejsce - puste lub zajęte
-                    if (clientId) {
-                      handleDragClient(
-                        clientId,
-                        slotIndex,
-                        stationId ? parseInt(stationId) : undefined
-                      );
-                    }
-                  }}
-                >
-                  <div className="flex justify-between items-center mb-2">
-                    {(() => {
-                      const colorMap = buildClientColorMap();
-                      const clientForSlot = clientsInSlot[0];
-                      return (
-                        <div className="text-sm font-bold text-[#00d9ff] flex items-center gap-2">
-                          <span>{stanowiskoLabels[slotIndex]}</span>
-                          {clientForSlot && clientForSlot.stations && clientForSlot.stations.length > 1 && (
-                            <span
-                              aria-hidden
-                              className="inline-block w-2 h-2 rounded-xs"
-                              style={{ backgroundColor: colorMap[clientForSlot.id] }}
-                            />
-                          )}
-                        </div>
-                      );
-                    })()}
-                    {clientsInSlot.length > 0 && (
-                      <div className="flex gap-2 ">
-                        <span className="relative group flex items-center mr-0.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const wasEditing = editId === clientsInSlot[0].id;
-                              handleEditClient(clientsInSlot[0]);
-                              // jeśli otwieramy edycję teraz (a nie zamykamy), włącz pole komentarza gdy brak komentarza
-                              if (!wasEditing && !clientsInSlot[0].comment) {
-                                setAddComment(true);
-                              }
-                              setTimeout(() => {
-                                commentInputRef.current?.focus();
-                              }, 0);
-                            }}
-                            className={`text-gray-500 hover:text-green-500/80 ${
-                              clientsInSlot[0].comment
-                                ? "text-green-500"
-                                : "text-gray-500"
-                            }`}
-                            title={
-                              clientsInSlot[0].comment ? "" : "Dodaj komentarz"
-                            }
-                          >
-                            <FaCommentDots />
-                          </button>
-                          {clientsInSlot[0].comment && (
-                            <span className="absolute left-7 top-1/2 -translate-y-1/2 bg-[#222] text-white px-3 py-1 rounded z-10 text-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line min-w-[180px] max-w-[400px] transition-opacity duration-200">
-                              {clientsInSlot[0].comment}
+                        // Obsługujemy upuszczanie na dowolne miejsce - puste lub zajęte
+                        if (clientId) {
+                          handleDragClient(
+                            clientId,
+                            slotIndex,
+                            stationId ? parseInt(stationId) : undefined
+                          );
+                        }
+                      }}
+                    >
+                      <div className="flex justify-between items-center mb-2">
+                        {(() => {
+                          const colorMap = buildClientColorMap();
+                          const clientForSlot = clientsInSlot[0];
+                          return (
+                            <div className="text-sm font-bold text-[#00d9ff] flex items-center gap-2">
+                              <span>{stanowiskoLabels[slotIndex]}</span>
+                              {clientForSlot &&
+                                clientForSlot.stations &&
+                                clientForSlot.stations.length > 1 && (
+                                  <span
+                                    aria-hidden
+                                    className="inline-block w-2 h-2 rounded-xs"
+                                    style={{
+                                      backgroundColor:
+                                        colorMap[clientForSlot.id],
+                                    }}
+                                  />
+                                )}
+                            </div>
+                          );
+                        })()}
+                        {clientsInSlot.length > 0 && (
+                          <div className="flex gap-2 ">
+                            <span className="relative group flex items-center mr-0.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const wasEditing =
+                                    editId === clientsInSlot[0].id;
+                                  handleEditClient(clientsInSlot[0]);
+                                  // jeśli otwieramy edycję teraz (a nie zamykamy), włącz pole komentarza gdy brak komentarza
+                                  if (
+                                    !wasEditing &&
+                                    !clientsInSlot[0].comment
+                                  ) {
+                                    setAddComment(true);
+                                  }
+                                  setTimeout(() => {
+                                    commentInputRef.current?.focus();
+                                  }, 0);
+                                }}
+                                className={`text-gray-500 hover:text-green-500/80 ${
+                                  clientsInSlot[0].comment
+                                    ? "text-green-500"
+                                    : "text-gray-500"
+                                }`}
+                                title={
+                                  clientsInSlot[0].comment
+                                    ? ""
+                                    : "Dodaj komentarz"
+                                }
+                              >
+                                <FaCommentDots />
+                              </button>
+                              {clientsInSlot[0].comment && (
+                                <span className="absolute left-7 top-1/2 -translate-y-1/2 bg-[#222] text-white px-3 py-1 rounded z-10 text-sm opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line min-w-[180px] max-w-[400px] transition-opacity duration-200">
+                                  {clientsInSlot[0].comment}
+                                </span>
+                              )}
                             </span>
-                          )}
-                        </span>
 
-                        <button
-                          onClick={() => handleEditClient(clientsInSlot[0])}
-                          className={`text-gray-500 hover:text-yellow-500 ${
-                            editId === clientsInSlot[0].id
-                              ? "animate-blink-slow text-yellow-500"
-                              : ""
-                          }`}
-                          title="Edytuj klienta"
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setClientToDelete(clientsInSlot[0]);
-                            setShowDeleteModal(true);
-                          }}
-                          className="text-gray-500 hover:text-red-600"
-                          title="Usuń klienta"
-                        >
-                          <FaTrash />
-                        </button>
+                            <button
+                              onClick={() => handleEditClient(clientsInSlot[0])}
+                              className={`text-gray-500 hover:text-yellow-500 ${
+                                editId === clientsInSlot[0].id
+                                  ? "animate-blink-slow text-yellow-500"
+                                  : ""
+                              }`}
+                              title="Edytuj klienta"
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setClientToDelete(clientsInSlot[0]);
+                                setShowDeleteModal(true);
+                              }}
+                              className="text-gray-500 hover:text-red-600"
+                              title="Usuń klienta"
+                            >
+                              <FaTrash />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
 
-                  {clientsInSlot.length > 0 ? (
-                    clientsInSlot.map((client, i) => {
-                      // Dla grup z wieloma stanowiskami, musimy znaleźć, które stanowisko odpowiada temu slotowi
-                      const stationForThisSlot = client.stations.includes(
-                        slotIndex
-                      )
-                        ? slotIndex
-                        : client.stations[i];
-                      return (
-                        <div
-                          key={i}
-                          className="text-sm text-blue-300 mb-2"
-                          draggable="false"
-                          onMouseDown={(e) => {
-                            const element = e.currentTarget;
-                            const timer = setTimeout(() => {
-                              element.setAttribute("draggable", "true");
-                              element.classList.add("cursor-move");
-                              // Dodajemy flagę, że element jest w trybie przeciągania
-                              element.setAttribute("data-drag-enabled", "true");
+                      {clientsInSlot.length > 0 ? (
+                        clientsInSlot.map((client, i) => {
+                          // Dla grup z wieloma stanowiskami, musimy znaleźć, które stanowisko odpowiada temu slotowi
+                          const stationForThisSlot = client.stations.includes(
+                            slotIndex
+                          )
+                            ? slotIndex
+                            : client.stations[i];
+                          return (
+                            <div
+                              key={i}
+                              className="text-sm text-blue-300 mb-2"
+                              draggable="false"
+                              onMouseDown={(e) => {
+                                const element = e.currentTarget;
+                                const timer = setTimeout(() => {
+                                  element.setAttribute("draggable", "true");
+                                  element.classList.add("cursor-move");
+                                  // Dodajemy flagę, że element jest w trybie przeciągania
+                                  element.setAttribute(
+                                    "data-drag-enabled",
+                                    "true"
+                                  );
 
-                              // Ustawiamy timer na reset po 2 sekundach jeśli nie zostanie przeciągnięty
-                              const resetTimer = setTimeout(() => {
-                                // Sprawdzamy czy element ma włączoną możliwość przeciągania
-                                // i nie jest aktualnie przeciągany
+                                  // Ustawiamy timer na reset po 2 sekundach jeśli nie zostanie przeciągnięty
+                                  const resetTimer = setTimeout(() => {
+                                    // Sprawdzamy czy element ma włączoną możliwość przeciągania
+                                    // i nie jest aktualnie przeciągany
+                                    if (
+                                      element.getAttribute(
+                                        "data-drag-enabled"
+                                      ) === "true" &&
+                                      !element.classList.contains("opacity-50")
+                                    ) {
+                                      element.setAttribute(
+                                        "draggable",
+                                        "false"
+                                      );
+                                      element.classList.remove("cursor-move");
+                                      element.removeAttribute(
+                                        "data-drag-enabled"
+                                      );
+                                    }
+                                  }, 2000);
+
+                                  // Zapisujemy timer resetu w atrybucie elementu
+                                  element.setAttribute(
+                                    "data-reset-timer",
+                                    String(resetTimer)
+                                  );
+                                }, 500); // zmienione z 1000 na 500ms (pół sekundy)
+
+                                // Zapisujemy timer w atrybucie elementu
+                                element.setAttribute(
+                                  "data-timer",
+                                  String(timer)
+                                );
+                              }}
+                              onMouseUp={(e) => {
+                                const element = e.currentTarget;
+                                const timer = Number(
+                                  element.getAttribute("data-timer")
+                                );
+                                if (timer) {
+                                  clearTimeout(timer);
+                                  element.removeAttribute("data-timer");
+                                }
+
+                                // Nie czyścimy timera resetu, aby pozwolić mu działać
+                                // nawet po puszczeniu przycisku myszy
+
                                 if (
-                                  element.getAttribute("data-drag-enabled") ===
-                                    "true" &&
-                                  !element.classList.contains("opacity-50")
+                                  !element.classList.contains("cursor-move")
                                 ) {
                                   element.setAttribute("draggable", "false");
-                                  element.classList.remove("cursor-move");
-                                  element.removeAttribute("data-drag-enabled");
                                 }
-                              }, 2000);
+                              }}
+                              onMouseLeave={(e) => {
+                                const element = e.currentTarget;
+                                const timer = Number(
+                                  element.getAttribute("data-timer")
+                                );
+                                if (timer) {
+                                  clearTimeout(timer);
+                                  element.removeAttribute("data-timer");
+                                }
 
-                              // Zapisujemy timer resetu w atrybucie elementu
-                              element.setAttribute(
-                                "data-reset-timer",
-                                String(resetTimer)
-                              );
-                            }, 500); // zmienione z 1000 na 500ms (pół sekundy)
+                                // Nie czyścimy timera resetu, aby pozwolił mu działać
+                                // nawet po opuszczeniu elementu kursorem
+                              }}
+                              onDragStart={(e) => {
+                                // Jeśli jest więcej niż jedno stanowisko (grupa), dodajemy informację o konkretnym stanowisku
+                                if (client.stations.length > 1) {
+                                  // Tworzymy specjalne ID dla przeciągania: clientId:stationId
+                                  e.dataTransfer.setData(
+                                    "text/plain",
+                                    `${client.id}:${stationForThisSlot}`
+                                  );
+                                } else {
+                                  // Dla pojedynczych klientów, po prostu używamy ich ID
+                                  e.dataTransfer.setData(
+                                    "text/plain",
+                                    client.id
+                                  );
+                                }
 
-                            // Zapisujemy timer w atrybucie elementu
-                            element.setAttribute("data-timer", String(timer));
-                          }}
-                          onMouseUp={(e) => {
-                            const element = e.currentTarget;
-                            const timer = Number(
-                              element.getAttribute("data-timer")
-                            );
-                            if (timer) {
-                              clearTimeout(timer);
-                              element.removeAttribute("data-timer");
-                            }
+                                // Dodajemy klasę wskazującą, że element jest przeciągany
+                                e.currentTarget.classList.add("opacity-50");
 
-                            // Nie czyścimy timera resetu, aby pozwolić mu działać
-                            // nawet po puszczeniu przycisku myszy
+                                // Czyścimy timer resetu, ponieważ element jest teraz przeciągany
+                                const resetTimer = Number(
+                                  e.currentTarget.getAttribute(
+                                    "data-reset-timer"
+                                  )
+                                );
+                                if (resetTimer) {
+                                  clearTimeout(resetTimer);
+                                  e.currentTarget.removeAttribute(
+                                    "data-reset-timer"
+                                  );
+                                }
+                              }}
+                              onDragEnd={(e) => {
+                                // Usuwamy klasę po zakończeniu przeciągania
+                                e.currentTarget.classList.remove("opacity-50");
+                                e.currentTarget.classList.remove("cursor-move");
+                                e.currentTarget.setAttribute(
+                                  "draggable",
+                                  "false"
+                                );
+                                e.currentTarget.removeAttribute(
+                                  "data-drag-enabled"
+                                );
 
-                            if (!element.classList.contains("cursor-move")) {
-                              element.setAttribute("draggable", "false");
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            const element = e.currentTarget;
-                            const timer = Number(
-                              element.getAttribute("data-timer")
-                            );
-                            if (timer) {
-                              clearTimeout(timer);
-                              element.removeAttribute("data-timer");
-                            }
+                                // Czyścimy timer resetu jeśli istnieje
+                                const resetTimer = Number(
+                                  e.currentTarget.getAttribute(
+                                    "data-reset-timer"
+                                  )
+                                );
+                                if (resetTimer) {
+                                  clearTimeout(resetTimer);
+                                  e.currentTarget.removeAttribute(
+                                    "data-reset-timer"
+                                  );
+                                }
+                              }}
+                            >
+                              <div className="font-semibold text-blue-300">
+                                {client.duration} min
+                              </div>
+                              <div className="text-sm mt-2 text-gray-400">
+                                {DateTime.fromISO(client.startTime).toFormat(
+                                  "HH:mm"
+                                )}{" "}
+                                –{" "}
+                                {calculateEndTime(
+                                  client.startTime,
+                                  client.duration
+                                ).toFormat("HH:mm")}
+                              </div>
+                              {(() => {
+                                const { text, minutes, isOver } =
+                                  getRemainingTime(
+                                    client.startTime,
+                                    client.duration,
+                                    client.isPaused,
+                                    client.pauseStartTime
+                                  );
+                                let colorClass = "text-white";
+                                let blinkClass = "";
+                                if (isOver || minutes <= 1) {
+                                  colorClass = "text-red-400";
+                                  blinkClass = "animate-blink";
+                                } else if (minutes <= 5) {
+                                  colorClass = "text-red-400";
+                                } else if (minutes <= 10) {
+                                  colorClass = "text-yellow-400";
+                                }
+                                return (
+                                  <div
+                                    className={`text-sm mt-1 ${colorClass} ${blinkClass}`}
+                                  >
+                                    Pozostało: {text}
+                                  </div>
+                                );
+                              })()}
+                              <div className="text-sm mt-4">
+                                {client.paid ? (
+                                  <span className="text-green-400 font-semibold">
+                                    Opłacone
+                                  </span>
+                                ) : (
+                                  <span className="text-red-400">
+                                    Do zapłaty:{" "}
+                                    {client.customPrice != null
+                                      ? `${client.customPrice.toFixed(2)} zł`
+                                      : `${getSinglePlayerAmount(
+                                          client.duration,
+                                          client.startTime
+                                        ).toFixed(2)} zł`}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex justify-end gap-2 mt-4 text-[15px] h-[17px]">
+                                {/* left area: show pause (if paused) and reminder (if set) */}
+                                <div className="mr-auto flex gap-3">
+                                  {client.isPaused && client.reminder && (
+                                    <>
+                                      <div className="text-pink-400 text-[13px]  font-semibold">
+                                        U:{" "}
+                                        {getReminderCountdown(client) ??
+                                          "--:--"}
+                                      </div>
+                                      <div className="text-orange-500 text-[13px] font-semibold">
+                                        P:{" "}
+                                        {
+                                          getRemainingTime(
+                                            client.startTime,
+                                            client.duration,
+                                            client.isPaused,
+                                            client.pauseStartTime
+                                          ).pauseDuration
+                                        }
+                                      </div>
+                                    </>
+                                  )}
 
-                            // Nie czyścimy timera resetu, aby pozwolił mu działać
-                            // nawet po opuszczeniu elementu kursorem
-                          }}
-                          onDragStart={(e) => {
-                            // Jeśli jest więcej niż jedno stanowisko (grupa), dodajemy informację o konkretnym stanowisku
-                            if (client.stations.length > 1) {
-                              // Tworzymy specjalne ID dla przeciągania: clientId:stationId
-                              e.dataTransfer.setData(
-                                "text/plain",
-                                `${client.id}:${stationForThisSlot}`
-                              );
-                            } else {
-                              // Dla pojedynczych klientów, po prostu używamy ich ID
-                              e.dataTransfer.setData("text/plain", client.id);
-                            }
+                                  {client.isPaused && !client.reminder && (
+                                    <div className="text-orange-500 text-[14px] font-semibold">
+                                      Pauza:{" "}
+                                      {
+                                        getRemainingTime(
+                                          client.startTime,
+                                          client.duration,
+                                          client.isPaused,
+                                          client.pauseStartTime
+                                        ).pauseDuration
+                                      }
+                                    </div>
+                                  )}
 
-                            // Dodajemy klasę wskazującą, że element jest przeciągany
-                            e.currentTarget.classList.add("opacity-50");
+                                  {client.reminder && !client.isPaused && (
+                                    <div className="text-pink-400 text-[14px] font-semibold">
+                                      Uwaga:{" "}
+                                      {getReminderCountdown(client) ?? "--:--"}
+                                    </div>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => {
+                                    // Mirror comment-button behaviour: if clicking the same client while editing,
+                                    // toggle edit off. If opening edit, enable reminder UI when no reminder exists.
+                                    const wasEditing = editId === client.id;
+                                    handleEditClient(client);
+                                    if (!wasEditing && !client.reminder) {
+                                      setAddReminder(true);
+                                    }
+                                  }}
+                                  className={`${
+                                    client.reminder
+                                      ? "text-pink-500 hover:text-pink-500"
+                                      : "text-gray-500 hover:text-pink-500"
+                                  }`}
+                                  title={
+                                    client.reminder
+                                      ? `Przypomnienie ustawione`
+                                      : "Ustaw przypomnienie"
+                                  }
+                                >
+                                  <FaBell />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    handlePauseResumeGame(client.id);
+                                  }}
+                                  className={`${
+                                    client.isPaused
+                                      ? "text-orange-500 hover:text-green-500"
+                                      : "text-gray-500 hover:text-orange-500"
+                                  }`}
+                                  title={
+                                    client.isPaused
+                                      ? "Wznów grę"
+                                      : "Wstrzymaj grę"
+                                  }
+                                >
+                                  {client.isPaused ? <FaPlay /> : <FaPause />}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div className="text-sm text-gray-300">Brak gracza</div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
 
-                            // Czyścimy timer resetu, ponieważ element jest teraz przeciągany
-                            const resetTimer = Number(
-                              e.currentTarget.getAttribute("data-reset-timer")
-                            );
-                            if (resetTimer) {
-                              clearTimeout(resetTimer);
-                              e.currentTarget.removeAttribute(
-                                "data-reset-timer"
-                              );
-                            }
-                          }}
-                          onDragEnd={(e) => {
-                            // Usuwamy klasę po zakończeniu przeciągania
-                            e.currentTarget.classList.remove("opacity-50");
-                            e.currentTarget.classList.remove("cursor-move");
-                            e.currentTarget.setAttribute("draggable", "false");
-                            e.currentTarget.removeAttribute(
-                              "data-drag-enabled"
-                            );
+              {/* Queue section */}
+              <div className="overflow-x-auto lg:overflow-x-visible mt-10">
+                {queueClients.length > 0 && (
+                  <div className="mt-8 mb-8">
+                    <h3 className="text-lg font-bold text-[#00d9ff] mb-2">
+                      Kolejka do zapłaty
+                    </h3>
+                    <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
+                      <thead>
+                        <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
+                          <th className="p-3">Stanowisko</th>
+                          <th className="p-3">Czas</th>
+                          <th className="p-3">Kwota</th>
+                          <th className="p-3">Opłacone</th>
+                          <th className="p-3">Akcje</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {queueClients.map((client) => {
+                          const isEditing = editingQueueId === client.id;
+                          return (
+                            <tr
+                              key={client.id}
+                              className="border-b border-gray-700 hover:bg-[#2b3242]"
+                            >
+                              <td className="p-3 text-white">
+                                {client.stations
+                                  .map((s) => stanowiskoLabels[s])
+                                  .join(", ")}
+                              </td>
+                              <td className="p-3 text-white">
+                                {client.playedMinutes != null
+                                  ? `${client.playedMinutes} min`
+                                  : "-"}
+                              </td>
+                              <td className="p-3 text-white ">
+                                {isEditing ? (
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={editingQueuePrice}
+                                    onChange={(e) =>
+                                      setEditingQueuePrice(
+                                        e.target.value === ""
+                                          ? ""
+                                          : Number(e.target.value)
+                                      )
+                                    }
+                                    className="w-24 p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
+                                  />
+                                ) : (
+                                  (client.customPrice != null
+                                    ? client.customPrice
+                                    : getSinglePlayerAmount(
+                                        client.duration,
+                                        client.startTime
+                                      )
+                                  ).toFixed(2) + " zł"
+                                )}
+                              </td>
+                              <td className="p-3 text-white">
+                                <label className="flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!client.paid}
+                                    onChange={(e) => {
+                                      const updated = [...queueClients];
+                                      const idx = updated.findIndex(
+                                        (c) => c.id === client.id
+                                      );
+                                      updated[idx] = {
+                                        ...client,
+                                        paid: e.target.checked,
+                                      };
+                                      setQueueClients(updated);
+                                    }}
+                                    className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
+                                    disabled={isEditing}
+                                  />
+                                  <span
+                                    className={
+                                      client.paid
+                                        ? "text-green-400 font-bold"
+                                        : "text-red-400 font-bold"
+                                    }
+                                    style={{
+                                      minWidth: 90,
+                                      display: "inline-block",
+                                    }}
+                                  >
+                                    {client.paid ? "Opłacone" : "Do zapłaty"}
+                                  </span>
+                                </label>
+                              </td>
+                              <td className="p-3">
+                                {isEditing ? (
+                                  <div className="flex gap-2">
+                                    <button
+                                      className="px-3 py-1 rounded bg-gray-600 text-white hover:bg-gray-700"
+                                      onClick={() => setEditingQueueId(null)}
+                                    >
+                                      Anuluj
+                                    </button>
+                                    <button
+                                      className="px-3 py-1 rounded bg-[#00d9ff] text-black font-bold hover:bg-[#ffcc00]"
+                                      onClick={() => {
+                                        setQueueClients(
+                                          queueClients.map((q) =>
+                                            q.id === client.id
+                                              ? {
+                                                  ...q,
+                                                  customPrice:
+                                                    editingQueuePrice === ""
+                                                      ? undefined
+                                                      : Number(
+                                                          editingQueuePrice
+                                                        ),
+                                                }
+                                              : q
+                                          )
+                                        );
+                                        setEditingQueueId(null);
+                                      }}
+                                    >
+                                      Zapisz
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <button
+                                      className="text-gray-500 hover:text-yellow-500 transition"
+                                      onClick={() => {
+                                        setEditingQueueId(client.id);
+                                        setEditingQueuePrice(
+                                          client.customPrice != null
+                                            ? client.customPrice
+                                            : getSinglePlayerAmount(
+                                                client.duration,
+                                                client.startTime
+                                              )
+                                        );
+                                      }}
+                                      title="Edytuj"
+                                      disabled={client.paid}
+                                    >
+                                      <FaEdit />
+                                    </button>
+                                    <button
+                                      className={`text-gray-500 hover:text-red-600 ml-2 transition ${
+                                        !client.paid
+                                          ? "opacity-50 cursor-not-allowed"
+                                          : ""
+                                      }`}
+                                      onClick={() => {
+                                        if (!client.paid) return;
+                                        setQueueClients(
+                                          queueClients.filter(
+                                            (q) => q.id !== client.id
+                                          )
+                                        );
+                                      }}
+                                      title="Usuń"
+                                      disabled={!client.paid}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-                            // Czyścimy timer resetu jeśli istnieje
-                            const resetTimer = Number(
-                              e.currentTarget.getAttribute("data-reset-timer")
-                            );
-                            if (resetTimer) {
-                              clearTimeout(resetTimer);
-                              e.currentTarget.removeAttribute(
-                                "data-reset-timer"
-                              );
-                            }
-                          }}
+                {/* Clients list section */}
+                <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
+                  <thead>
+                    <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
+                      <th
+                        className={`p-3 cursor-pointer select-none transition ${
+                          sortConfig.key === "players" ? "bg-[#193a4d]" : ""
+                        } hover:bg-[#193a4d]/40`}
+                        onClick={() => handleSort("players", true)}
+                      >
+                        Liczba graczy
+                      </th>
+                      <th
+                        className={`p-3 cursor-pointer select-none transition ${
+                          sortConfig.key === "stations" ? "bg-[#193a4d]" : ""
+                        } hover:bg-[#193a4d]/40`}
+                        onClick={() => handleSort("stations")}
+                      >
+                        Stanowiska
+                      </th>
+                      <th
+                        className={`p-3 cursor-pointer select-none transition ${
+                          sortConfig.key === "duration" ? "bg-[#193a4d]" : ""
+                        } hover:bg-[#193a4d]/40`}
+                        onClick={() => handleSort("duration", true)}
+                      >
+                        Czas
+                      </th>
+                      <th
+                        className={`p-3 cursor-pointer select-none transition ${
+                          sortConfig.key === "start" ? "bg-[#193a4d]" : ""
+                        } hover:bg-[#193a4d]/40`}
+                        onClick={() => handleSort("start", true)}
+                      >
+                        Start
+                      </th>
+                      <th
+                        className={`p-3 cursor-pointer select-none transition ${
+                          sortConfig.key === "end" ? "bg-[#193a4d]" : ""
+                        } hover:bg-[#193a4d]/40`}
+                        onClick={() => handleSort("end", true)}
+                      >
+                        Koniec
+                      </th>
+                      <th
+                        className={`p-3 cursor-pointer select-none transition ${
+                          sortConfig.key === "remaining" ? "bg-[#193a4d]" : ""
+                        } hover:bg-[#193a4d]/40`}
+                        onClick={() => handleSort("remaining", true)}
+                      >
+                        Pozostało
+                      </th>
+                      <th
+                        className={`p-3 cursor-pointer select-none transition ${
+                          sortConfig.key === "paid" ? "bg-[#193a4d]" : ""
+                        } hover:bg-[#193a4d]/40`}
+                        onClick={() => handleSort("paid", true)}
+                      >
+                        Płatność
+                      </th>
+                      <th className="p-3">Akcje</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getSortedClients().map((client) => {
+                      const end = calculateEndTime(
+                        client.startTime,
+                        client.duration
+                      );
+                      const remaining = getRemainingTime(
+                        client.startTime,
+                        client.duration,
+                        client.isPaused,
+                        client.pauseStartTime
+                      );
+                      const price = getPaymentAmount(
+                        client.duration,
+                        client.startTime,
+                        client.players
+                      );
+                      const isEditing = editId === client.id;
+
+                      return (
+                        <tr
+                          key={client.id}
+                          className={`border-b border-gray-700 hover:bg-[#2b3242] ${
+                            isEditing ? "bg-[#2a354a] " : ""
+                          }`}
                         >
-                          <div className="font-semibold text-blue-300">
+                          <td className="p-3 text-white">{client.players}</td>
+                          <td className="p-3 text-white">
+                            {client.stations
+                              .map((s) => `${stanowiskoLabels[s]}`)
+                              .join(", ")}
+                          </td>
+                          <td className="p-3 text-white">
                             {client.duration} min
-                          </div>
-                          <div className="text-sm mt-2 text-gray-400">
+                          </td>
+                          <td className="p-3 text-white">
                             {DateTime.fromISO(client.startTime).toFormat(
                               "HH:mm"
-                            )}{" "}
-                            –{" "}
-                            {calculateEndTime(
-                              client.startTime,
-                              client.duration
-                            ).toFormat("HH:mm")}
-                          </div>
-                          {(() => {
-                            const { text, minutes, isOver } = getRemainingTime(
-                              client.startTime,
-                              client.duration,
-                              client.isPaused,
-                              client.pauseStartTime
-                            );
-                            let colorClass = "text-white";
-                            let blinkClass = "";
-                            if (isOver || minutes <= 1) {
-                              colorClass = "text-red-400";
-                              blinkClass = "animate-blink";
-                            } else if (minutes <= 5) {
-                              colorClass = "text-red-400";
-                            } else if (minutes <= 10) {
-                              colorClass = "text-yellow-400";
-                            }
-                            return (
-                              <div
-                                className={`text-sm mt-1 ${colorClass} ${blinkClass}`}
-                              >
-                                Pozostało: {text}
-                              </div>
-                            );
-                          })()}
-                          <div className="text-sm mt-4">
+                            )}
+                          </td>
+                          <td className="p-3 text-white">
+                            {end.toFormat("HH:mm")}
+                          </td>
+                          <td className="p-3 text-white">{remaining.text}</td>
+                          <td className="p-3">
                             {client.paid ? (
                               <span className="text-green-400 font-semibold">
                                 Opłacone
                               </span>
                             ) : (
                               <span className="text-red-400">
-                                Do zapłaty:{" "}
-                                {client.customPrice != null
-                                  ? `${client.customPrice.toFixed(2)} zł`
-                                  : `${getSinglePlayerAmount(
-                                      client.duration,
-                                      client.startTime
-                                    ).toFixed(2)} zł`}
+                                {(client.customPrice != null
+                                  ? client.customPrice * client.players
+                                  : price
+                                ).toFixed(2)}{" "}
+                                zł
                               </span>
                             )}
-                          </div>
-                          <div className="flex justify-end gap-2 mt-4 text-[15px] h-[17px]">
-                            {/* left area: show pause (if paused) and reminder (if set) */}
-                            <div className="mr-auto flex gap-3">
-
-                              {client.isPaused && client.reminder && (
-                                <>
-                                <div className="text-pink-400 text-[13px]  font-semibold">
-                                  U:{" "}
-                                  {getReminderCountdown(client) ?? "--:--"}
-                                </div>
-                                <div className="text-orange-500 text-[13px] font-semibold">
-                                  P:{" "}
-                                  {
-                                    getRemainingTime(
-                                      client.startTime,
-                                      client.duration,
-                                      client.isPaused,
-                                      client.pauseStartTime
-                                    ).pauseDuration
+                          </td>
+                          <td className="p-3 flex gap-2 mt-1">
+                            <span className="relative group flex items-center">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const wasEditing = editId === client.id;
+                                  handleEditClient(client);
+                                  if (!wasEditing && !client.comment) {
+                                    setAddComment(true);
                                   }
-                                </div>
-                                </>
+                                  setTimeout(() => {
+                                    commentInputRef.current?.focus();
+                                  }, 0);
+                                }}
+                                className={`text-gray-500 hover:text-green-500/80 ${
+                                  client.comment
+                                    ? "text-green-500"
+                                    : "text-gray-500"
+                                }`}
+                                title={client.comment ? "" : "Dodaj komentarz"}
+                                style={{ padding: 0 }}
+                              >
+                                <FaCommentDots />
+                              </button>
+                              {client.comment && (
+                                <span className="absolute left-7 top-1/2 -translate-y-1/2 bg-[#222] text-white px-3 py-1 rounded z-10 text-xs opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line min-w-[120px] max-w-[300px] transition-opacity duration-200">
+                                  {client.comment}
+                                </span>
                               )}
-                              
-                              {client.isPaused && !client.reminder && (
-                                <div className="text-orange-500 text-[14px] font-semibold">
-                                  Pauza:{" "}
-                                  {
-                                    getRemainingTime(
-                                      client.startTime,
-                                      client.duration,
-                                      client.isPaused,
-                                      client.pauseStartTime
-                                    ).pauseDuration
-                                  }
-                                </div>
-                              )}
-
-                              {client.reminder && !client.isPaused && (
-                                <div className="text-pink-400 text-[14px] font-semibold">
-                                  Uwaga:{" "}
-                                  {getReminderCountdown(client) ?? "--:--"}
-                                </div>
-                              )}
-                            </div>
+                            </span>
+                            <button
+                              onClick={() => handleEditClient(client)}
+                              className={`text-gray-500 hover:text-yellow-500 ${
+                                isEditing
+                                  ? "animate-blink-slow text-yellow-500"
+                                  : ""
+                              }`}
+                              title="Edytuj"
+                            >
+                              <FaEdit />
+                            </button>
                             <button
                               onClick={() => {
-                                // Mirror comment-button behaviour: if clicking the same client while editing,
-                                // toggle edit off. If opening edit, enable reminder UI when no reminder exists.
                                 const wasEditing = editId === client.id;
                                 handleEditClient(client);
                                 if (!wasEditing && !client.reminder) {
@@ -2544,9 +3071,7 @@ const AdminClientManager: React.FC = () => {
                               <FaBell />
                             </button>
                             <button
-                              onClick={() => {
-                                handlePauseResumeGame(client.id);
-                              }}
+                              onClick={() => handlePauseResumeGame(client.id)}
                               className={`${
                                 client.isPaused
                                   ? "text-orange-500 hover:text-green-500"
@@ -2558,185 +3083,16 @@ const AdminClientManager: React.FC = () => {
                             >
                               {client.isPaused ? <FaPlay /> : <FaPause />}
                             </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <div className="text-sm text-gray-300">Brak gracza</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Queue section */}
-          <div className="overflow-x-auto lg:overflow-x-visible mt-10">
-            {queueClients.length > 0 && (
-              <div className="mt-8 mb-8">
-                <h3 className="text-lg font-bold text-[#00d9ff] mb-2">
-                  Kolejka do zapłaty
-                </h3>
-                <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
-                  <thead>
-                    <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
-                      <th className="p-3">Stanowisko</th>
-                      <th className="p-3">Czas</th>
-                      <th className="p-3">Kwota</th>
-                      <th className="p-3">Opłacone</th>
-                      <th className="p-3">Akcje</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {queueClients.map((client) => {
-                      const isEditing = editingQueueId === client.id;
-                      return (
-                        <tr
-                          key={client.id}
-                          className="border-b border-gray-700 hover:bg-[#2b3242]"
-                        >
-                          <td className="p-3 text-white">
-                            {client.stations
-                              .map((s) => stanowiskoLabels[s])
-                              .join(", ")}
-                          </td>
-                          <td className="p-3 text-white">
-                            {client.playedMinutes != null
-                              ? `${client.playedMinutes} min`
-                              : "-"}
-                          </td>
-                          <td className="p-3 text-white ">
-                            {isEditing ? (
-                              <input
-                                type="number"
-                                min={0}
-                                step="0.01"
-                                value={editingQueuePrice}
-                                onChange={(e) =>
-                                  setEditingQueuePrice(
-                                    e.target.value === ""
-                                      ? ""
-                                      : Number(e.target.value)
-                                  )
-                                }
-                                className="w-24 p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
-                              />
-                            ) : (
-                              (client.customPrice != null
-                                ? client.customPrice
-                                : getSinglePlayerAmount(
-                                    client.duration,
-                                    client.startTime
-                                  )
-                              ).toFixed(2) + " zł"
-                            )}
-                          </td>
-                          <td className="p-3 text-white">
-                            <label className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={!!client.paid}
-                                onChange={(e) => {
-                                  const updated = [...queueClients];
-                                  const idx = updated.findIndex(
-                                    (c) => c.id === client.id
-                                  );
-                                  updated[idx] = {
-                                    ...client,
-                                    paid: e.target.checked,
-                                  };
-                                  setQueueClients(updated);
-                                }}
-                                className="accent-[#00d9ff] w-4 h-4 rounded border-gray-600"
-                                disabled={isEditing}
-                              />
-                              <span
-                                className={
-                                  client.paid
-                                    ? "text-green-400 font-bold"
-                                    : "text-red-400 font-bold"
-                                }
-                                style={{
-                                  minWidth: 90,
-                                  display: "inline-block",
-                                }}
-                              >
-                                {client.paid ? "Opłacone" : "Do zapłaty"}
-                              </span>
-                            </label>
-                          </td>
-                          <td className="p-3">
-                            {isEditing ? (
-                              <div className="flex gap-2">
-                                <button
-                                  className="px-3 py-1 rounded bg-gray-600 text-white hover:bg-gray-700"
-                                  onClick={() => setEditingQueueId(null)}
-                                >
-                                  Anuluj
-                                </button>
-                                <button
-                                  className="px-3 py-1 rounded bg-[#00d9ff] text-black font-bold hover:bg-[#ffcc00]"
-                                  onClick={() => {
-                                    setQueueClients(
-                                      queueClients.map((q) =>
-                                        q.id === client.id
-                                          ? {
-                                              ...q,
-                                              customPrice:
-                                                editingQueuePrice === ""
-                                                  ? undefined
-                                                  : Number(editingQueuePrice),
-                                            }
-                                          : q
-                                      )
-                                    );
-                                    setEditingQueueId(null);
-                                  }}
-                                >
-                                  Zapisz
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <button
-                                  className="text-gray-500 hover:text-yellow-500 transition"
-                                  onClick={() => {
-                                    setEditingQueueId(client.id);
-                                    setEditingQueuePrice(
-                                      client.customPrice != null
-                                        ? client.customPrice
-                                        : getSinglePlayerAmount(
-                                            client.duration,
-                                            client.startTime
-                                          )
-                                    );
-                                  }}
-                                  title="Edytuj"
-                                  disabled={client.paid}
-                                >
-                                  <FaEdit />
-                                </button>
-                                <button
-                                  className={`text-gray-500 hover:text-red-600 ml-2 transition ${
-                                    !client.paid
-                                      ? "opacity-50 cursor-not-allowed"
-                                      : ""
-                                  }`}
-                                  onClick={() => {
-                                    if (!client.paid) return;
-                                    setQueueClients(
-                                      queueClients.filter(
-                                        (q) => q.id !== client.id
-                                      )
-                                    );
-                                  }}
-                                  title="Usuń"
-                                  disabled={!client.paid}
-                                >
-                                  <FaTrash />
-                                </button>
-                              </>
-                            )}
+                            <button
+                              onClick={() => {
+                                setClientToDelete(client);
+                                setShowDeleteModal(true);
+                              }}
+                              className="text-gray-500 hover:text-red-600"
+                              title="Usuń"
+                            >
+                              <FaTrash />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -2744,213 +3100,31 @@ const AdminClientManager: React.FC = () => {
                   </tbody>
                 </table>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Clients list section */}
-            <table className="w-full table-auto text-sm bg-[#1e2636] rounded-lg shadow-md">
-              <thead>
-                <tr className="text-left border-b border-gray-600 text-[#00d9ff]">
-                  <th
-                    className={`p-3 cursor-pointer select-none transition ${
-                      sortConfig.key === "players" ? "bg-[#193a4d]" : ""
-                    } hover:bg-[#193a4d]/40`}
-                    onClick={() => handleSort("players", true)}
-                  >
-                    Liczba graczy
-                  </th>
-                  <th
-                    className={`p-3 cursor-pointer select-none transition ${
-                      sortConfig.key === "stations" ? "bg-[#193a4d]" : ""
-                    } hover:bg-[#193a4d]/40`}
-                    onClick={() => handleSort("stations")}
-                  >
-                    Stanowiska
-                  </th>
-                  <th
-                    className={`p-3 cursor-pointer select-none transition ${
-                      sortConfig.key === "duration" ? "bg-[#193a4d]" : ""
-                    } hover:bg-[#193a4d]/40`}
-                    onClick={() => handleSort("duration", true)}
-                  >
-                    Czas
-                  </th>
-                  <th
-                    className={`p-3 cursor-pointer select-none transition ${
-                      sortConfig.key === "start" ? "bg-[#193a4d]" : ""
-                    } hover:bg-[#193a4d]/40`}
-                    onClick={() => handleSort("start", true)}
-                  >
-                    Start
-                  </th>
-                  <th
-                    className={`p-3 cursor-pointer select-none transition ${
-                      sortConfig.key === "end" ? "bg-[#193a4d]" : ""
-                    } hover:bg-[#193a4d]/40`}
-                    onClick={() => handleSort("end", true)}
-                  >
-                    Koniec
-                  </th>
-                  <th
-                    className={`p-3 cursor-pointer select-none transition ${
-                      sortConfig.key === "remaining" ? "bg-[#193a4d]" : ""
-                    } hover:bg-[#193a4d]/40`}
-                    onClick={() => handleSort("remaining", true)}
-                  >
-                    Pozostało
-                  </th>
-                  <th
-                    className={`p-3 cursor-pointer select-none transition ${
-                      sortConfig.key === "paid" ? "bg-[#193a4d]" : ""
-                    } hover:bg-[#193a4d]/40`}
-                    onClick={() => handleSort("paid", true)}
-                  >
-                    Płatność
-                  </th>
-                  <th className="p-3">Akcje</th>
-                </tr>
-              </thead>
-              <tbody>
-                {getSortedClients().map((client) => {
-                  const end = calculateEndTime(
-                    client.startTime,
-                    client.duration
-                  );
-                  const remaining = getRemainingTime(
-                    client.startTime,
-                    client.duration,
-                    client.isPaused,
-                    client.pauseStartTime
-                  );
-                  const price = getPaymentAmount(
-                    client.duration,
-                    client.startTime,
-                    client.players
-                  );
-                  const isEditing = editId === client.id;
-
-                  return (
-                    <tr
-                      key={client.id}
-                      className={`border-b border-gray-700 hover:bg-[#2b3242] ${
-                        isEditing ? "bg-[#2a354a] " : ""
-                      }`}
-                    >
-                      <td className="p-3 text-white">{client.players}</td>
-                      <td className="p-3 text-white">
-                        {client.stations
-                          .map((s) => `${stanowiskoLabels[s]}`)
-                          .join(", ")}
-                      </td>
-                      <td className="p-3 text-white">{client.duration} min</td>
-                      <td className="p-3 text-white">
-                        {DateTime.fromISO(client.startTime).toFormat("HH:mm")}
-                      </td>
-                      <td className="p-3 text-white">
-                        {end.toFormat("HH:mm")}
-                      </td>
-                      <td className="p-3 text-white">{remaining.text}</td>
-                      <td className="p-3">
-                        {client.paid ? (
-                          <span className="text-green-400 font-semibold">
-                            Opłacone
-                          </span>
-                        ) : (
-                          <span className="text-red-400">
-                            {(client.customPrice != null
-                              ? client.customPrice * client.players
-                              : price
-                            ).toFixed(2)}{" "}
-                            zł
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 flex gap-2 mt-1">
-                        <span className="relative group flex items-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const wasEditing = editId === client.id;
-                              handleEditClient(client);
-                              if (!wasEditing && !client.comment) {
-                                setAddComment(true);
-                              }
-                              setTimeout(() => {
-                                commentInputRef.current?.focus();
-                              }, 0);
-                            }}
-                            className={`text-gray-500 hover:text-green-500/80 ${
-                              client.comment
-                                ? "text-green-500"
-                                : "text-gray-500"
-                            }`}
-                            title={client.comment ? "" : "Dodaj komentarz"}
-                            style={{ padding: 0 }}
-                          >
-                            <FaCommentDots />
-                          </button>
-                          {client.comment && (
-                            <span className="absolute left-7 top-1/2 -translate-y-1/2 bg-[#222] text-white px-3 py-1 rounded z-10 text-xs opacity-0 group-hover:opacity-100 pointer-events-none whitespace-pre-line min-w-[120px] max-w-[300px] transition-opacity duration-200">
-                              {client.comment}
-                            </span>
-                          )}
-                        </span>
-                        <button
-                          onClick={() => handleEditClient(client)}
-                          className={`text-gray-500 hover:text-yellow-500 ${
-                            isEditing
-                              ? "animate-blink-slow text-yellow-500"
-                              : ""
-                          }`}
-                          title="Edytuj"
-                        >
-                          <FaEdit />
-                        </button>
-                        <button
-                          onClick={() => {
-                            const wasEditing = editId === client.id;
-                            handleEditClient(client);
-                            if (!wasEditing && !client.reminder) {
-                              setAddReminder(true);
-                            }
-                          }}
-                          className={`${
-                            client.reminder
-                              ? "text-pink-500 hover:text-pink-500"
-                              : "text-gray-500 hover:text-pink-500"
-                          }`}
-                          title={client.reminder ? `Przypomnienie ustawione` : "Ustaw przypomnienie"}
-                        >
-                          <FaBell />
-                        </button>
-                        <button
-                          onClick={() => handlePauseResumeGame(client.id)}
-                          className={`${
-                            client.isPaused
-                              ? "text-orange-500 hover:text-green-500"
-                              : "text-gray-500 hover:text-orange-500"
-                          }`}
-                          title={client.isPaused ? "Wznów grę" : "Wstrzymaj grę"}
-                        >
-                          {client.isPaused ? <FaPlay /> : <FaPause />}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setClientToDelete(client);
-                            setShowDeleteModal(true);
-                          }}
-                          className="text-gray-500 hover:text-red-600"
-                          title="Usuń"
-                        >
-                          <FaTrash />
-                        </button>
-                        
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {subpage === "stats" && (
+            <div className="mt-4">
+              <h3 className="text-lg font-bold mb-2 text-[#00d9ff]">
+                Statystyki
+              </h3>
+              <p className="mb-2 text-white">
+                Liczba aktywnych klientów:{" "}
+                <span className="font-semibold text-[#00d9ff]">
+                </span>
+              </p>
+              <p className="mb-2 text-white">
+                Liczba wstrzymanych klientów:{" "}
+                <span className="font-semibold text-[#00d9ff]">
+                </span>
+              </p>
+              <p className="mb-2 text-white">
+                Liczba klientów z przypomnieniami:{" "}
+                <span className="font-semibold text-[#00d9ff]">
+                </span>
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
