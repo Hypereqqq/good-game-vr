@@ -23,6 +23,15 @@ import {
 } from "react-icons/fa";
 
 type SubpageType = "main" | "stoper" | "stats";
+type StatsSubpageType =
+  | "statystyki_podstawowe"
+  | "wykorzystanie_stanowisk"
+  | "analiza_czasowa"
+  | "analiza_finansowa"
+  | "analiza_graczy"
+  | "analiza_gier"
+  | "operacyjne"
+  | "wskazniki";
 
 // This object maps station IDs to their labels for display purposes
 const stanowiskoLabels: Record<number, string> = {
@@ -43,9 +52,8 @@ type RemoveOption = {
 };
 
 const AdminClientManager: React.FC = () => {
-
   // --- Statistics in localStorage helpers ---
-  const STATS_KEY = 'ggvr_stats_v1';
+  const STATS_KEY = "ggvr_stats_v1";
 
   type StatsShape = {
     games: Record<string, number>; // total minutes per game
@@ -61,7 +69,12 @@ const AdminClientManager: React.FC = () => {
       revenue?: number;
       perStationMinutes?: Record<number, number>;
       perPlayerMinutes?: number[];
-      perSegmentRevenue?: Array<{ gameType: string; minutes: number; revenue: number; players: number[] }>;
+      perSegmentRevenue?: Array<{
+        gameType: string;
+        minutes: number;
+        revenue: number;
+        players: number[];
+      }>;
     }>;
     aggregates: {
       totalSessions: number;
@@ -72,163 +85,15 @@ const AdminClientManager: React.FC = () => {
     };
   };
 
-  const loadStats = (): StatsShape => {
-    try {
-      const raw = localStorage.getItem(STATS_KEY);
-      if (!raw) return { games: {}, revenuePerGame: {}, sessions: [], aggregates: { totalSessions: 0, totalMinutes: 0, totalRevenue: 0, avgSessionMinutes: 0, stationUsage: {} } };
-      return JSON.parse(raw) as StatsShape;
-    } catch (e) {
-      console.error('Failed to load stats', e);
-      return { games: {}, revenuePerGame: {}, sessions: [], aggregates: { totalSessions: 0, totalMinutes: 0, totalRevenue: 0, avgSessionMinutes: 0, stationUsage: {} } };
-    }
-  };
-
-  const saveStats = (s: StatsShape) => {
-    try {
-      localStorage.setItem(STATS_KEY, JSON.stringify(s));
-    } catch (e) {
-      console.error('Failed to save stats', e);
-    }
-  };
-
-  const recordClientToStats = (client: ClientGame) => {
-  const stats = loadStats();
-  // Ensure aggregates exist
-  stats.aggregates = stats.aggregates || { totalSessions: 0, totalMinutes: 0, totalRevenue: 0, avgSessionMinutes: 0, stationUsage: {} };
-
-    // Record sessions entry
-  // Compute played minutes using pauseHistory when possible
-  const now = DateTime.now();
-
-  const computePlayedMinutes = () => {
-    // If explicit playedMinutes is present, prefer it
-    if (typeof client.playedMinutes === 'number') return Math.max(0, Math.floor(client.playedMinutes));
-
-    // If we have explicit segments, sum their durations (trusted source)
-    if (client.gameSegments && client.gameSegments.length > 0) {
-      const total = client.gameSegments.reduce((acc, s) => acc + (s.duration || Math.max(0, Math.floor(DateTime.fromISO(s.endTime ?? now.toISO()).diff(DateTime.fromISO(s.startTime), 'minutes').minutes))), 0);
-      return Math.max(0, Math.floor(total));
-    }
-
-    // Otherwise, derive from startTime and pauseHistory.
-    // Note: existing resume logic shifts client.startTime forward to exclude past pauses.
-    // Strategy: compute naive elapsed from (now - startTime). If there's an ongoing pause (last pause has no endTime), subtract only that ongoing pause duration.
-    let elapsedMs = now.diff(DateTime.fromISO(client.startTime)).milliseconds;
-
-    let ongoingPauseMs = 0;
-    if (client.pauseHistory && client.pauseHistory.length > 0) {
-      const last = client.pauseHistory[client.pauseHistory.length - 1];
-      if (last && !last.endTime) {
-        try {
-          ongoingPauseMs = now.diff(DateTime.fromISO(last.startTime)).milliseconds;
-        } catch (e) {
-          ongoingPauseMs = 0;
-        }
-      }
-    }
-
-    const playedMs = Math.max(0, elapsedMs - ongoingPauseMs);
-    return Math.max(0, Math.floor(playedMs / 60000));
-  };
-
-  const sessionEntry: any = {
-      clientId: client.id,
-      stations: client.stations,
-      players: client.players,
-      startTime: client.startTime,
-      endTime: DateTime.fromISO(client.startTime).plus({ minutes: client.duration }).toISO() || undefined,
-      playedMinutes: computePlayedMinutes(),
-      gameSegments: client.gameSegments || [],
-  paid: !!client.paid,
-    };
-  stats.sessions.push(sessionEntry);
-
-    // Aggregate minutes per game based on segments. If no segments, attribute full duration to gameType
-    // We'll compute per-segment minutes and revenue
-    let sessionRevenue = 0;
-    const perStationMinutes: Record<number, number> = {};
-    const perPlayerMinutes: number[] = [];
-    const perSegmentRevenue: Array<{ gameType: string; minutes: number; revenue: number; players: number[] }> = [];
-
-    if (client.gameSegments && client.gameSegments.length > 0) {
-      client.gameSegments.forEach(seg => {
-        const minutes = seg.duration || Math.max(0, Math.floor(DateTime.fromISO(seg.endTime ?? DateTime.now().toISO()).diff(DateTime.fromISO(seg.startTime), 'minutes').minutes));
-        // Assign minutes to games
-        stats.games[seg.gameType] = (stats.games[seg.gameType] || 0) + minutes;
-
-        // Estimate revenue for this segment: proportionally to players in segment
-        // We'll use average per-player rate: derive simplistic revenue = getSinglePlayerAmount(minutes, seg.startTime) * playersCount
-        const playersCount = seg.players.length || client.players || 1;
-        const revenue = getSinglePlayerAmount(minutes, seg.startTime) * playersCount;
-        stats.revenuePerGame[seg.gameType] = (stats.revenuePerGame[seg.gameType] || 0) + revenue;
-        sessionRevenue += revenue;
-
-        // per segment record
-        perSegmentRevenue.push({ gameType: seg.gameType, minutes, revenue, players: seg.players });
-
-        // assign to per-player and per-station
-        seg.players.forEach(pi => {
-          perPlayerMinutes[pi] = (perPlayerMinutes[pi] || 0) + minutes;
-          const station = client.stations[pi];
-          if (station != null) {
-            perStationMinutes[station] = (perStationMinutes[station] || 0) + minutes;
-            stats.aggregates.stationUsage[station] = stats.aggregates.stationUsage[station] || { sessions: 0, minutes: 0 };
-            stats.aggregates.stationUsage[station].minutes += minutes;
-          }
-        });
-      });
-    } else if (client.hasGameSelection) {
-      // No segments: attribute full duration
-  const totalMinutes = sessionEntry.playedMinutes ?? client.duration;
-      if (client.gameMode === 'same' && client.gameType) {
-        stats.games[client.gameType] = (stats.games[client.gameType] || 0) + totalMinutes;
-        const revenue = getPaymentAmount(client.duration, client.startTime, client.players);
-        stats.revenuePerGame[client.gameType] = (stats.revenuePerGame[client.gameType] || 0) + revenue;
-        sessionRevenue += revenue;
-      } else if (client.gameMode === 'different' && client.individualGames) {
-        // approximate per-player equal split
-        const perPlayer = Math.round(totalMinutes);
-        client.individualGames.forEach((game, idx) => {
-          if (game) {
-            stats.games[game] = (stats.games[game] || 0) + perPlayer;
-            const revenue = getSinglePlayerAmount(perPlayer, client.startTime);
-            stats.revenuePerGame[game] = (stats.revenuePerGame[game] || 0) + revenue;
-            sessionRevenue += revenue;
-            perPlayerMinutes[idx] = (perPlayerMinutes[idx] || 0) + perPlayer;
-            const station = client.stations[idx];
-            if (station != null) {
-              perStationMinutes[station] = (perStationMinutes[station] || 0) + perPlayer;
-              stats.aggregates.stationUsage[station] = stats.aggregates.stationUsage[station] || { sessions: 0, minutes: 0 };
-              stats.aggregates.stationUsage[station].minutes += perPlayer;
-            }
-          }
-        });
-      }
-    }
-
-    // update session entry with computed fields
-    sessionEntry.revenue = sessionRevenue;
-    sessionEntry.perStationMinutes = perStationMinutes;
-    sessionEntry.perPlayerMinutes = perPlayerMinutes;
-    sessionEntry.perSegmentRevenue = perSegmentRevenue;
-
-    // Update aggregates
-    stats.aggregates.totalSessions = (stats.aggregates.totalSessions || 0) + 1;
-  const minutesThisSession = (sessionEntry.playedMinutes ?? client.duration) || 0;
-    stats.aggregates.totalMinutes = (stats.aggregates.totalMinutes || 0) + minutesThisSession;
-    stats.aggregates.totalRevenue = (stats.aggregates.totalRevenue || 0) + sessionRevenue;
-    stats.aggregates.avgSessionMinutes = Math.round((stats.aggregates.totalMinutes / stats.aggregates.totalSessions) || 0);
-
-    saveStats(stats);
-  };
-
-
   // Key for local storage to persist clients and queue clients
   const LOCAL_STORAGE_KEY = "ggvr_clients";
   const QUEUE_LOCAL_STORAGE_KEY = "ggvr_queueClients";
 
   // State management using Jotai atoms
   const [subpage, setSubpage] = useState<SubpageType>("main");
+  const [statsSubPage, setStatsSubPage] = useState<StatsSubpageType>(
+    "statystyki_podstawowe"
+  );
   const [clients, setClients] = useAtom(clientsAtom);
   const [peopleCount, setPeopleCount] = useState(1); // Number of players in the group
   const [slots, setSlots] = useState<number[]>([1]); // Default slot for the first player
@@ -282,7 +147,7 @@ const AdminClientManager: React.FC = () => {
 
   // Game selection states
   const [hasGameSelection, setHasGameSelection] = useState(false); // If game selection is enabled
-  const [gameMode, setGameMode] = useState<'same' | 'different'>('same'); // Whether all players play the same game
+  const [gameMode, setGameMode] = useState<"same" | "different">("same"); // Whether all players play the same game
   const [gameType, setGameType] = useState<string>(""); // Game for 'same' mode
   const [individualGames, setIndividualGames] = useState<string[]>([]); // Games for 'different' mode
 
@@ -474,11 +339,11 @@ const AdminClientManager: React.FC = () => {
 
   // Update individual games array when peopleCount changes
   useEffect(() => {
-    if (gameMode === 'different') {
-      setIndividualGames(prev => {
-        const newIndividualGames = Array(peopleCount).fill("").map((_, i) => 
-          prev[i] || ""
-        );
+    if (gameMode === "different") {
+      setIndividualGames((prev) => {
+        const newIndividualGames = Array(peopleCount)
+          .fill("")
+          .map((_, i) => prev[i] || "");
         return newIndividualGames;
       });
     }
@@ -487,25 +352,306 @@ const AdminClientManager: React.FC = () => {
   // Update game segments duration in real time
   useEffect(() => {
     const interval = setInterval(() => {
-      setClients(prev => prev.map(client => {
-        if (client.gameSegments && client.gameSegments.some(seg => !seg.endTime)) {
-          const updatedSegments = client.gameSegments.map(segment => {
-            if (!segment.endTime) {
-              return {
-                ...segment,
-                duration: Math.floor(DateTime.now().diff(DateTime.fromISO(segment.startTime), 'minutes').minutes)
-              };
-            }
-            return segment;
-          });
-          return { ...client, gameSegments: updatedSegments };
-        }
-        return client;
-      }));
+      setClients((prev) =>
+        prev.map((client) => {
+          if (
+            client.gameSegments &&
+            client.gameSegments.some((seg) => !seg.endTime)
+          ) {
+            const updatedSegments = client.gameSegments.map((segment) => {
+              if (!segment.endTime) {
+                return {
+                  ...segment,
+                  duration: Math.floor(
+                    DateTime.now().diff(
+                      DateTime.fromISO(segment.startTime),
+                      "minutes"
+                    ).minutes
+                  ),
+                };
+              }
+              return segment;
+            });
+            return { ...client, gameSegments: updatedSegments };
+          }
+          return client;
+        })
+      );
     }, 60000); // co minutę
 
     return () => clearInterval(interval);
   }, []);
+
+  const loadStats = (): StatsShape => {
+    try {
+      const raw = localStorage.getItem(STATS_KEY);
+      if (!raw)
+        return {
+          games: {},
+          revenuePerGame: {},
+          sessions: [],
+          aggregates: {
+            totalSessions: 0,
+            totalMinutes: 0,
+            totalRevenue: 0,
+            avgSessionMinutes: 0,
+            stationUsage: {},
+          },
+        };
+      return JSON.parse(raw) as StatsShape;
+    } catch (e) {
+      console.error("Failed to load stats", e);
+      return {
+        games: {},
+        revenuePerGame: {},
+        sessions: [],
+        aggregates: {
+          totalSessions: 0,
+          totalMinutes: 0,
+          totalRevenue: 0,
+          avgSessionMinutes: 0,
+          stationUsage: {},
+        },
+      };
+    }
+  };
+
+  const saveStats = (s: StatsShape) => {
+    try {
+      localStorage.setItem(STATS_KEY, JSON.stringify(s));
+    } catch (e) {
+      console.error("Failed to save stats", e);
+    }
+  };
+
+  // Compute simple summaries (sessions, total minutes, avg) and hourly heatmap for given range
+  const computeStatsSummary = (range: "day" | "week" | "month") => {
+    const stats = loadStats();
+    const now = DateTime.now();
+    let start: DateTime;
+    if (range === "day") start = now.minus({ days: 1 });
+    else if (range === "week") start = now.minus({ weeks: 1 });
+    else start = now.minus({ months: 1 });
+
+    const sessions = (stats.sessions || []).filter((s) => {
+      try {
+        return DateTime.fromISO(s.startTime) >= start;
+      } catch (e) {
+        return false;
+      }
+    });
+
+    const sessionsCount = sessions.length;
+    const totalMinutes = sessions.reduce((acc, s) => acc + (s.playedMinutes || 0), 0);
+    const avgMinutes = sessionsCount > 0 ? Math.round(totalMinutes / sessionsCount) : 0;
+
+    const hourCounts = new Array(24).fill(0);
+    sessions.forEach((s) => {
+      try {
+        const h = DateTime.fromISO(s.startTime).hour;
+        hourCounts[h] = (hourCounts[h] || 0) + 1;
+      } catch (e) {
+        // ignore
+      }
+    });
+
+    return { sessionsCount, totalMinutes, avgMinutes, hourCounts };
+  };
+
+  const recordClientToStats = (client: ClientGame) => {
+    const stats = loadStats();
+    // Ensure aggregates exist
+    stats.aggregates = stats.aggregates || {
+      totalSessions: 0,
+      totalMinutes: 0,
+      totalRevenue: 0,
+      avgSessionMinutes: 0,
+      stationUsage: {},
+    };
+
+    // Record sessions entry
+    // Compute played minutes using pauseHistory when possible
+    const now = DateTime.now();
+
+    const computePlayedMinutes = () => {
+      // If explicit playedMinutes is present, prefer it
+      if (typeof client.playedMinutes === "number")
+        return Math.max(0, Math.floor(client.playedMinutes));
+
+      // If we have explicit segments, sum their durations (trusted source)
+      if (client.gameSegments && client.gameSegments.length > 0) {
+        const total = client.gameSegments.reduce(
+          (acc, s) =>
+            acc +
+            (s.duration ||
+              Math.max(
+                0,
+                Math.floor(
+                  DateTime.fromISO(s.endTime ?? now.toISO()).diff(
+                    DateTime.fromISO(s.startTime),
+                    "minutes"
+                  ).minutes
+                )
+              )),
+          0
+        );
+        return Math.max(0, Math.floor(total));
+      }
+
+      // Otherwise, derive from startTime and pauseHistory.
+      // Note: existing resume logic shifts client.startTime forward to exclude past pauses.
+      // Strategy: compute naive elapsed from (now - startTime). If there's an ongoing pause (last pause has no endTime), subtract only that ongoing pause duration.
+      let elapsedMs = now.diff(DateTime.fromISO(client.startTime)).milliseconds;
+
+      let ongoingPauseMs = 0;
+      if (client.pauseHistory && client.pauseHistory.length > 0) {
+        const last = client.pauseHistory[client.pauseHistory.length - 1];
+        if (last && !last.endTime) {
+          try {
+            ongoingPauseMs = now.diff(
+              DateTime.fromISO(last.startTime)
+            ).milliseconds;
+          } catch (e) {
+            ongoingPauseMs = 0;
+          }
+        }
+      }
+
+      const playedMs = Math.max(0, elapsedMs - ongoingPauseMs);
+      return Math.max(0, Math.floor(playedMs / 60000));
+    };
+
+    const sessionEntry: any = {
+      clientId: client.id,
+      stations: client.stations,
+      players: client.players,
+      startTime: client.startTime,
+      endTime:
+        DateTime.fromISO(client.startTime)
+          .plus({ minutes: client.duration })
+          .toISO() || undefined,
+      playedMinutes: computePlayedMinutes(),
+      gameSegments: client.gameSegments || [],
+      paid: !!client.paid,
+    };
+    stats.sessions.push(sessionEntry);
+
+    // Aggregate minutes per game based on segments. If no segments, attribute full duration to gameType
+    // We'll compute per-segment minutes and revenue
+    let sessionRevenue = 0;
+    const perStationMinutes: Record<number, number> = {};
+    const perPlayerMinutes: number[] = [];
+    const perSegmentRevenue: Array<{
+      gameType: string;
+      minutes: number;
+      revenue: number;
+      players: number[];
+    }> = [];
+
+    if (client.gameSegments && client.gameSegments.length > 0) {
+      client.gameSegments.forEach((seg) => {
+        const minutes =
+          seg.duration ||
+          Math.max(
+            0,
+            Math.floor(
+              DateTime.fromISO(seg.endTime ?? DateTime.now().toISO()).diff(
+                DateTime.fromISO(seg.startTime),
+                "minutes"
+              ).minutes
+            )
+          );
+        // Assign minutes to games
+        stats.games[seg.gameType] = (stats.games[seg.gameType] || 0) + minutes;
+
+        // Estimate revenue for this segment: proportionally to players in segment
+        // We'll use average per-player rate: derive simplistic revenue = getSinglePlayerAmount(minutes, seg.startTime) * playersCount
+        const playersCount = seg.players.length || client.players || 1;
+        const revenue =
+          getSinglePlayerAmount(minutes, seg.startTime) * playersCount;
+        stats.revenuePerGame[seg.gameType] =
+          (stats.revenuePerGame[seg.gameType] || 0) + revenue;
+        sessionRevenue += revenue;
+
+        // per segment record
+        perSegmentRevenue.push({
+          gameType: seg.gameType,
+          minutes,
+          revenue,
+          players: seg.players,
+        });
+
+        // assign to per-player and per-station
+        seg.players.forEach((pi) => {
+          perPlayerMinutes[pi] = (perPlayerMinutes[pi] || 0) + minutes;
+          const station = client.stations[pi];
+          if (station != null) {
+            perStationMinutes[station] =
+              (perStationMinutes[station] || 0) + minutes;
+            stats.aggregates.stationUsage[station] = stats.aggregates
+              .stationUsage[station] || { sessions: 0, minutes: 0 };
+            stats.aggregates.stationUsage[station].minutes += minutes;
+          }
+        });
+      });
+    } else if (client.hasGameSelection) {
+      // No segments: attribute full duration
+      const totalMinutes = sessionEntry.playedMinutes ?? client.duration;
+      if (client.gameMode === "same" && client.gameType) {
+        stats.games[client.gameType] =
+          (stats.games[client.gameType] || 0) + totalMinutes;
+        const revenue = getPaymentAmount(
+          client.duration,
+          client.startTime,
+          client.players
+        );
+        stats.revenuePerGame[client.gameType] =
+          (stats.revenuePerGame[client.gameType] || 0) + revenue;
+        sessionRevenue += revenue;
+      } else if (client.gameMode === "different" && client.individualGames) {
+        // approximate per-player equal split
+        const perPlayer = Math.round(totalMinutes);
+        client.individualGames.forEach((game, idx) => {
+          if (game) {
+            stats.games[game] = (stats.games[game] || 0) + perPlayer;
+            const revenue = getSinglePlayerAmount(perPlayer, client.startTime);
+            stats.revenuePerGame[game] =
+              (stats.revenuePerGame[game] || 0) + revenue;
+            sessionRevenue += revenue;
+            perPlayerMinutes[idx] = (perPlayerMinutes[idx] || 0) + perPlayer;
+            const station = client.stations[idx];
+            if (station != null) {
+              perStationMinutes[station] =
+                (perStationMinutes[station] || 0) + perPlayer;
+              stats.aggregates.stationUsage[station] = stats.aggregates
+                .stationUsage[station] || { sessions: 0, minutes: 0 };
+              stats.aggregates.stationUsage[station].minutes += perPlayer;
+            }
+          }
+        });
+      }
+    }
+
+    // update session entry with computed fields
+    sessionEntry.revenue = sessionRevenue;
+    sessionEntry.perStationMinutes = perStationMinutes;
+    sessionEntry.perPlayerMinutes = perPlayerMinutes;
+    sessionEntry.perSegmentRevenue = perSegmentRevenue;
+
+    // Update aggregates
+    stats.aggregates.totalSessions = (stats.aggregates.totalSessions || 0) + 1;
+    const minutesThisSession =
+      (sessionEntry.playedMinutes ?? client.duration) || 0;
+    stats.aggregates.totalMinutes =
+      (stats.aggregates.totalMinutes || 0) + minutesThisSession;
+    stats.aggregates.totalRevenue =
+      (stats.aggregates.totalRevenue || 0) + sessionRevenue;
+    stats.aggregates.avgSessionMinutes = Math.round(
+      stats.aggregates.totalMinutes / stats.aggregates.totalSessions || 0
+    );
+
+    saveStats(stats);
+  };
 
   // Reset form function to clear all fields
   const resetForm = () => {
@@ -528,7 +674,7 @@ const AdminClientManager: React.FC = () => {
     setReminderStartMode("from_start");
     // Reset game fields
     setHasGameSelection(false);
-    setGameMode('same');
+    setGameMode("same");
     setGameType("");
     setIndividualGames([]);
   };
@@ -937,7 +1083,7 @@ const AdminClientManager: React.FC = () => {
     "Job Simulator",
     "Half-Life Alyx",
     "Blade & Sorcery",
-    "Rec Room"
+    "Rec Room",
   ];
 
   const updateIndividualGame = (index: number, game: string) => {
@@ -946,50 +1092,70 @@ const AdminClientManager: React.FC = () => {
     setIndividualGames(updatedGames);
   };
 
-  const startGameSegment = (clientId: string, gameType: string, playerIndexes: number[] = []) => {
-    setClients(prev => prev.map(client => {
-      if (client.id === clientId) {
-        // Zakończ poprzedni segmenty tylko jeśli dotyczą tych samych graczy
-        const updatedSegments = (client.gameSegments || []).map(segment => {
-          if (!segment.endTime) {
-            // Jeśli nie podano konkretnych indeksów graczy (playerIndexes.length === 0)
-            // traktujemy to jako "dla wszystkich" i kończymy każdy aktywny segment.
-            const shouldEnd = playerIndexes.length === 0 || segment.players.some(p => playerIndexes.includes(p));
-            if (shouldEnd) {
-              return {
-                ...segment,
-                endTime: DateTime.now().toISO(),
-                duration: Math.floor(DateTime.now().diff(DateTime.fromISO(segment.startTime), 'minutes').minutes)
-              };
+  const startGameSegment = (
+    clientId: string,
+    gameType: string,
+    playerIndexes: number[] = []
+  ) => {
+    setClients((prev) =>
+      prev.map((client) => {
+        if (client.id === clientId) {
+          // Zakończ poprzedni segmenty tylko jeśli dotyczą tych samych graczy
+          const updatedSegments = (client.gameSegments || []).map((segment) => {
+            if (!segment.endTime) {
+              // Jeśli nie podano konkretnych indeksów graczy (playerIndexes.length === 0)
+              // traktujemy to jako "dla wszystkich" i kończymy każdy aktywny segment.
+              const shouldEnd =
+                playerIndexes.length === 0 ||
+                segment.players.some((p) => playerIndexes.includes(p));
+              if (shouldEnd) {
+                return {
+                  ...segment,
+                  endTime: DateTime.now().toISO(),
+                  duration: Math.floor(
+                    DateTime.now().diff(
+                      DateTime.fromISO(segment.startTime),
+                      "minutes"
+                    ).minutes
+                  ),
+                };
+              }
             }
-          }
-          return segment;
-        });
+            return segment;
+          });
 
-        // Dodaj nowy segment
-        const newSegment: GameSegment = {
-          gameType,
-          startTime: DateTime.now().toISO(),
-          duration: 0,
-          players: playerIndexes.length > 0 ? playerIndexes : Array.from({length: client.players || 1}, (_, i) => i)
-        };
+          // Dodaj nowy segment
+          const newSegment: GameSegment = {
+            gameType,
+            startTime: DateTime.now().toISO(),
+            duration: 0,
+            players:
+              playerIndexes.length > 0
+                ? playerIndexes
+                : Array.from({ length: client.players || 1 }, (_, i) => i),
+          };
 
-        return {
-          ...client,
-          gameSegments: [...updatedSegments, newSegment]
-        };
-      }
-      return client;
-    }));
+          return {
+            ...client,
+            gameSegments: [...updatedSegments, newSegment],
+          };
+        }
+        return client;
+      })
+    );
   };
 
-  const getCurrentGameDisplay = (client: ClientGame, station?: number): string => {
+  const getCurrentGameDisplay = (
+    client: ClientGame,
+    station?: number
+  ): string => {
     if (!client.hasGameSelection) return "";
-    
-    const activeSegments = client.gameSegments?.filter(seg => !seg.endTime) || [];
-    
+
+    const activeSegments =
+      client.gameSegments?.filter((seg) => !seg.endTime) || [];
+
     if (activeSegments.length === 0) {
-      if (client.gameMode === 'same') {
+      if (client.gameMode === "same") {
         return client.gameType || "";
       } else {
         // For different games mode, show specific game for this station
@@ -1000,11 +1166,13 @@ const AdminClientManager: React.FC = () => {
             return client.individualGames[playerIndex];
           }
         }
-        return client.individualGames?.filter(g => g).length ? "Różne gry" : "";
+        return client.individualGames?.filter((g) => g).length
+          ? "Różne gry"
+          : "";
       }
     }
-    
-    if (client.gameMode === 'same') {
+
+    if (client.gameMode === "same") {
       const currentGame = activeSegments[0]?.gameType;
       return currentGame || "";
     } else {
@@ -1014,7 +1182,7 @@ const AdminClientManager: React.FC = () => {
         const playerIndex = client.stations.indexOf(station);
         if (playerIndex !== -1) {
           // Find segment that includes this player
-          const stationSegment = activeSegments.find(seg => 
+          const stationSegment = activeSegments.find((seg) =>
             seg.players.includes(playerIndex)
           );
           if (stationSegment) {
@@ -1022,7 +1190,9 @@ const AdminClientManager: React.FC = () => {
           }
         }
       }
-      return activeSegments.length > 1 ? "Różne gry" : activeSegments[0]?.gameType || "";
+      return activeSegments.length > 1
+        ? "Różne gry"
+        : activeSegments[0]?.gameType || "";
     }
   };
 
@@ -1155,33 +1325,47 @@ const AdminClientManager: React.FC = () => {
                 // Game fields update
                 hasGameSelection,
                 gameMode: hasGameSelection ? gameMode : undefined,
-                gameType: hasGameSelection && gameMode === 'same' ? gameType : undefined,
-                individualGames: hasGameSelection && gameMode === 'different' ? individualGames : undefined,
+                gameType:
+                  hasGameSelection && gameMode === "same"
+                    ? gameType
+                    : undefined,
+                individualGames:
+                  hasGameSelection && gameMode === "different"
+                    ? individualGames
+                    : undefined,
                 // Keep existing gameSegments when editing
               }
             : client
         )
       );
-      
+
       // Start new game segment if game changed and game selection is enabled
       if (hasGameSelection) {
-        const editedClient = clients.find(c => c.id === editId);
+        const editedClient = clients.find((c) => c.id === editId);
         if (editedClient) {
-          if (gameMode === 'same' && gameType && gameType !== editedClient.gameType) {
+          if (
+            gameMode === "same" &&
+            gameType &&
+            gameType !== editedClient.gameType
+          ) {
             startGameSegment(editId, gameType);
-          } else if (gameMode === 'different' && individualGames.some((game, i) => 
-            game && game !== (editedClient.individualGames?.[i] || '')
-          )) {
+          } else if (
+            gameMode === "different" &&
+            individualGames.some(
+              (game, i) =>
+                game && game !== (editedClient.individualGames?.[i] || "")
+            )
+          ) {
             // Start segments for changed individual games
             individualGames.forEach((game, i) => {
-              if (game && game !== (editedClient.individualGames?.[i] || '')) {
+              if (game && game !== (editedClient.individualGames?.[i] || "")) {
                 startGameSegment(editId, game, [i]);
               }
             });
           }
         }
       }
-      
+
       setEditId(null);
     } else {
       const newClient: ClientGame = {
@@ -1206,18 +1390,25 @@ const AdminClientManager: React.FC = () => {
         // Game fields
         hasGameSelection,
         gameMode: hasGameSelection ? gameMode : undefined,
-        gameType: hasGameSelection && gameMode === 'same' ? gameType : undefined,
-        individualGames: hasGameSelection && gameMode === 'different' ? individualGames : undefined,
+        gameType:
+          hasGameSelection && gameMode === "same" ? gameType : undefined,
+        individualGames:
+          hasGameSelection && gameMode === "different"
+            ? individualGames
+            : undefined,
         gameSegments: hasGameSelection ? [] : undefined,
       };
       setClients((prev) => [...prev, newClient]);
-      
+
       // Start initial game segment if game selection is enabled
       if (hasGameSelection) {
         setTimeout(() => {
-          if (gameMode === 'same' && gameType) {
+          if (gameMode === "same" && gameType) {
             startGameSegment(newClient.id, gameType);
-          } else if (gameMode === 'different' && individualGames.some(g => g)) {
+          } else if (
+            gameMode === "different" &&
+            individualGames.some((g) => g)
+          ) {
             // For different games, start segments for each player with their game
             individualGames.forEach((game, index) => {
               if (game) {
@@ -1235,7 +1426,7 @@ const AdminClientManager: React.FC = () => {
   // Function to handle deleting a client
   const handleDeleteClient = (id: string) => {
     setClients((prev) => {
-      const toRemove = prev.find(c => c.id === id);
+      const toRemove = prev.find((c) => c.id === id);
       if (toRemove) {
         try {
           // If client wasn't paid, treat deletion as paid (we don't release without payment)
@@ -1246,7 +1437,7 @@ const AdminClientManager: React.FC = () => {
             recordClientToStats(toRemove);
           }
         } catch (e) {
-          console.error('Failed to record stats for removed client', e);
+          console.error("Failed to record stats for removed client", e);
         }
       }
       return prev.filter((client) => client.id !== id);
@@ -1266,7 +1457,7 @@ const AdminClientManager: React.FC = () => {
 
         const now = DateTime.now();
 
-  if (client.isPaused && client.pauseStartTime) {
+        if (client.isPaused && client.pauseStartTime) {
           // Wznowienie gry - przesuwamy czas startowy o czas trwania pauzy
           const pauseStartTime = DateTime.fromISO(client.pauseStartTime);
           const pauseDuration = now.diff(pauseStartTime);
@@ -1296,7 +1487,10 @@ const AdminClientManager: React.FC = () => {
           if (newPauseHistory.length > 0) {
             const lastIdx = newPauseHistory.length - 1;
             if (!newPauseHistory[lastIdx].endTime) {
-              newPauseHistory[lastIdx] = { ...newPauseHistory[lastIdx], endTime: now.toISO() };
+              newPauseHistory[lastIdx] = {
+                ...newPauseHistory[lastIdx],
+                endTime: now.toISO(),
+              };
             }
           }
 
@@ -1558,10 +1752,10 @@ const AdminClientManager: React.FC = () => {
       setReminderTimes(client.reminderTimes || [15]);
       setReminderText(client.reminderText || "");
       setReminderStartMode(client.reminderStartMode || "from_start");
-      
+
       // Load game fields
       setHasGameSelection(client.hasGameSelection || false);
-      setGameMode(client.gameMode || 'same');
+      setGameMode(client.gameMode || "same");
       setGameType(client.gameType || "");
       setIndividualGames(client.individualGames || []);
     }
@@ -2810,45 +3004,63 @@ const AdminClientManager: React.FC = () => {
                         <label className="block text-sm mb-1">Tryb gier:</label>
                         <select
                           value={gameMode}
-                          onChange={(e) => setGameMode(e.target.value as 'same' | 'different')}
+                          onChange={(e) =>
+                            setGameMode(e.target.value as "same" | "different")
+                          }
                           className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white text-sm"
                         >
                           <option value="same">Wszyscy grają w to samo</option>
-                          <option value="different">Każdy gra w co innego</option>
+                          <option value="different">
+                            Każdy gra w co innego
+                          </option>
                         </select>
                       </div>
                     )}
 
-                    {(peopleCount === 1 || gameMode === 'same') ? (
+                    {peopleCount === 1 || gameMode === "same" ? (
                       /* Single select for entire group or single client */
                       <div>
-                        <label className="block text-sm mb-1">{peopleCount === 1 ? 'Gra dla klienta:' : 'Gra dla grupy:'}</label>
+                        <label className="block text-sm mb-1">
+                          {peopleCount === 1
+                            ? "Gra dla klienta:"
+                            : "Gra dla grupy:"}
+                        </label>
                         <select
                           value={gameType}
                           onChange={(e) => setGameType(e.target.value)}
                           className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white text-sm"
                         >
                           <option value="">Wybierz grę...</option>
-                          {availableGames.map(game => (
-                            <option key={game} value={game}>{game}</option>
+                          {availableGames.map((game) => (
+                            <option key={game} value={game}>
+                              {game}
+                            </option>
                           ))}
                         </select>
                       </div>
                     ) : (
                       /* Individual selects for each player */
                       <div className="space-y-2">
-                        <label className="block text-sm mb-1">Gry dla poszczególnych graczy:</label>
+                        <label className="block text-sm mb-1">
+                          Gry dla poszczególnych graczy:
+                        </label>
                         {Array.from({ length: peopleCount }).map((_, i) => (
                           <div key={i} className="flex items-center gap-2">
-                            <span className="text-sm w-20 text-gray-300">Gracz {i + 1}:</span>
+                            <span className="text-sm w-20 text-gray-300">
+                              Gracz {i + 1}:
+                            </span>
                             <select
-                              value={individualGames[i] || ''}
-                              onChange={(e) => updateIndividualGame(i, e.target.value)}
+                              value={individualGames[i] || ""}
+                              onChange={(e) =>
+                                updateIndividualGame(i, e.target.value)
+                              }
                               className="flex-1 p-2 rounded bg-[#0f1525] border border-gray-600 text-white text-sm"
                             >
                               <option value="">Wybierz grę...</option>
-                              {availableGames.map(game => (
-                                <option key={game} value={game}>{game}</option>
+                              {availableGames.map((game) => (
+                                <option key={game} value={game}>
+                                  {game}
+                                </option>
                               ))}
                             </select>
                           </div>
@@ -3061,7 +3273,98 @@ const AdminClientManager: React.FC = () => {
             </div>
           )}
 
-          {subpage === "stats" && <div className="mb-4">Statystyki</div>}
+          {subpage === "stats" && (
+            <div className="font-semibold">
+              <button
+                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
+                  statsSubPage === "statystyki_podstawowe"
+                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
+                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Statystyki podstawowe"
+                onClick={() => setStatsSubPage("statystyki_podstawowe")}
+              >
+                Statystyki podstawowe
+              </button>
+             <button
+                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
+                  statsSubPage === "wykorzystanie_stanowisk"
+                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
+                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Wykorzystanie stanowisk"
+                onClick={() => setStatsSubPage("wykorzystanie_stanowisk")}
+              >
+                Wykorzystanie stanowisk
+              </button>
+              <button
+                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
+                  statsSubPage === "analiza_czasowa"
+                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
+                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Analiza czasowa"
+                onClick={() => setStatsSubPage("analiza_czasowa")}
+              >
+                Analiza czasowa
+              </button>
+              <button
+                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
+                  statsSubPage === "analiza_finansowa"
+                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
+                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Analiza finansowa"
+                onClick={() => setStatsSubPage("analiza_finansowa")}
+              >
+                Analiza finansowa
+              </button>
+              <button
+                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
+                  statsSubPage === "analiza_graczy"
+                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
+                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Analiza graczy"
+                onClick={() => setStatsSubPage("analiza_graczy")}
+              >
+                Analiza graczy
+              </button>
+              <button
+                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
+                  statsSubPage === "analiza_gier"
+                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
+                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Analiza gier"
+                onClick={() => setStatsSubPage("analiza_gier")}
+              >
+                Analiza gier
+              </button>
+              <button
+                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
+                  statsSubPage === "operacyjne"
+                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
+                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Statystyki operacyjne"
+                onClick={() => setStatsSubPage("operacyjne")}
+              >
+                Statystyki operacyjne
+              </button>
+              <button
+                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
+                  statsSubPage === "wskazniki"
+                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
+                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
+                }`}
+                title="Wskaźniki"
+                onClick={() => setStatsSubPage("wskazniki")}
+              >
+                Wskaźniki
+              </button>
+            </div>
+          )}
         </div>
 
         {/*RIGHT SIDE: CLIENTS */}
@@ -3449,7 +3752,10 @@ const AdminClientManager: React.FC = () => {
                               <div className="text-sm ">
                                 {client.hasGameSelection ? (
                                   <span className="text-gray-500">
-                                    {getCurrentGameDisplay(client, stationForThisSlot) || "Nie wybrano gry"}
+                                    {getCurrentGameDisplay(
+                                      client,
+                                      stationForThisSlot
+                                    ) || "Nie wybrano gry"}
                                   </span>
                                 ) : (
                                   <span className="text-gray-500">
@@ -3474,7 +3780,7 @@ const AdminClientManager: React.FC = () => {
                                   </span>
                                 )}
                               </div>
-                              
+
                               <div className="flex justify-end gap-2 mt-5 text-[15px] h-[17px]">
                                 {/* left area: show pause (if paused) and reminder (if set) */}
                                 <div className="mr-auto flex gap-3">
@@ -3967,25 +4273,111 @@ const AdminClientManager: React.FC = () => {
             </div>
           )}
 
-          {subpage === "stats" && (
-            <div className="mt-4">
-              <h3 className="text-lg font-bold mb-2 text-[#00d9ff]">
-                Statystyki
-              </h3>
-              <p className="mb-2 text-white">
-                Liczba aktywnych klientów:{" "}
-                <span className="font-semibold text-[#00d9ff]"></span>
-              </p>
-              <p className="mb-2 text-white">
-                Liczba wstrzymanych klientów:{" "}
-                <span className="font-semibold text-[#00d9ff]"></span>
-              </p>
-              <p className="mb-2 text-white">
-                Liczba klientów z przypomnieniami:{" "}
-                <span className="font-semibold text-[#00d9ff]"></span>
-              </p>
+          {subpage === "stats" && statsSubPage === "statystyki_podstawowe" && (
+            <div className="bg-[#1e2636] p-4 rounded-md">
+              <h3 className="text-lg font-semibold mb-3">Statystyki podstawowe</h3>
+
+              {(() => {
+                const day = computeStatsSummary("day");
+                const week = computeStatsSummary("week");
+                const month = computeStatsSummary("month");
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300">Ostatnia doba</h4>
+                      <div className="text-2xl font-bold mt-2">{day.sessionsCount}</div>
+                      <div className="text-sm text-gray-400">sesji</div>
+                      <div className="mt-2">Suma minut: <b>{day.totalMinutes}</b></div>
+                      <div>Średnio: <b>{day.avgMinutes} min</b></div>
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300">Ostatni tydzień</h4>
+                      <div className="text-2xl font-bold mt-2">{week.sessionsCount}</div>
+                      <div className="text-sm text-gray-400">sesji</div>
+                      <div className="mt-2">Suma minut: <b>{week.totalMinutes}</b></div>
+                      <div>Średnio: <b>{week.avgMinutes} min</b></div>
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300">Ostatni miesiąc</h4>
+                      <div className="text-2xl font-bold mt-2">{month.sessionsCount}</div>
+                      <div className="text-sm text-gray-400">sesji</div>
+                      <div className="mt-2">Suma minut: <b>{month.totalMinutes}</b></div>
+                      <div>Średnio: <b>{month.avgMinutes} min</b></div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Hourly heatmap (day) */}
+              <div className="mt-4">
+                <h4 className="text-sm text-gray-300 mb-2">Najpopularniejsze godziny (ostatnia doba)</h4>
+                {(() => {
+                  const { hourCounts } = computeStatsSummary("day");
+                  const max = Math.max(...hourCounts, 1);
+                  return (
+                    <div className="flex gap-1 flex-wrap">
+                      {hourCounts.map((c, h) => (
+                        <div key={h} className="flex flex-col items-center text-xs w-10">
+                          <div
+                            title={`${h}:00 — ${c} sesji`}
+                            className="w-8 h-6 rounded"
+                            style={{ background: `rgba(0,213,255, ${c / max})` }}
+                          />
+                          <div className="mt-1">{h}</div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           )}
+
+          {subpage === "stats" && statsSubPage === "wykorzystanie_stanowisk" && (
+            <div className="">
+              wykorzystanie_stanowisk
+            </div>
+          )}
+
+          {subpage === "stats" && statsSubPage === "analiza_czasowa" && (
+            <div className="">
+              analiza_czasowa
+            </div>
+          )}
+
+          {subpage === "stats" && statsSubPage === "analiza_finansowa" && (
+            <div className="">
+              analiza_finansowa
+            </div>
+          )}
+
+          {subpage === "stats" && statsSubPage === "analiza_graczy" && (
+            <div className="">
+              analiza_graczy
+            </div>
+          )}
+
+          {subpage === "stats" && statsSubPage === "analiza_gier" && (
+            <div className="">
+              analiza_gier
+            </div>
+          )}
+
+          {subpage === "stats" && statsSubPage === "operacyjne" && (
+            <div className="">
+              operacyjne
+            </div>
+          )}
+
+          {subpage === "stats" && statsSubPage === "wskazniki" && (
+            <div className="">
+              wskazniki
+            </div>
+          )}
+
+
         </div>
       </div>
 
