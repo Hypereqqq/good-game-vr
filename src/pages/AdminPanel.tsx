@@ -180,7 +180,37 @@ const AdminPanel: React.FC = () => {
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
-              Drobne poprawki
+              Poprawki
+              <span className="text-purple-400 font-bold"> (V.1.3.0)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">26 sierpnia 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Usunięto możliwość wpisania nazwy klienta / grupy w kolejce
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Poprawiono zachowanie ponownego kliknięcia przycisku komentarza - teraz poprawnie zamyka edycję
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano identyczne zachowanie (jak dla komentarza) dla przycisku przypomnienia
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano przyciski odpowiadające za nowe funkcje do tabeli
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+            </ul>
+          </div>
+
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
+              Drobne poprawki i kolory
               <span className="text-purple-400 font-bold"> (V.1.2.5)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">25 sierpnia 2025</p>
@@ -197,6 +227,11 @@ const AdminPanel: React.FC = () => {
               </li>
               <li>
                 Poprawiono błąd, gdzie modal przypomnienia pojawiał się ponownie po wciśnięciu zamknij
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano 4 kolory dla grup klientów
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>
               </li>

@@ -4,6 +4,7 @@
 
 // Import necessary libraries and types
 import React, { useEffect, useRef, useState } from "react";
+//import { HexColorPicker } from "react-colorful";
 import { useAtom } from "jotai";
 import { clientsAtom } from "../store/clients";
 import { v4 as uuidv4 } from "uuid";
@@ -102,6 +103,28 @@ const AdminClientManager: React.FC = () => {
     direction: "asc" | "desc" | null;
   }>({ key: null, direction: null }); // Configuration for sorting clients
   const [, setOriginalClients] = useState<ClientGame[]>([]); // Original list of clients for reset purposes
+
+  // Kolory dla maksymalnie 8 grup / klientów
+  const groupColors = [
+    "#fff700", // yellow
+    "#0cad3f", // green
+    "#0356fc", // blue
+    "#b01033", // red
+  ];
+
+  // Buduje mapę clientId -> kolor na podstawie kolejności w liście clients
+  const buildClientColorMap = (): Record<string, string> => {
+    const map: Record<string, string> = {};
+    let idx = 0;
+    for (const c of clients) {
+      if (!map[c.id]) {
+        map[c.id] = groupColors[idx % groupColors.length];
+        idx++;
+      }
+    }
+    return map;
+  };
+  
 
   // Load clients from local storage on initial render
   useEffect(() => {
@@ -202,6 +225,7 @@ const AdminClientManager: React.FC = () => {
   const calculateEndTime = (startTime: string, duration: number) => {
     return DateTime.fromISO(startTime).plus({ minutes: duration });
   };
+  
 
   // Function to get remaining time in a human-readable format
   const getRemainingTime = (
@@ -893,6 +917,7 @@ const AdminClientManager: React.FC = () => {
       // Jeśli klikamy edycję tego samego klienta -> wyłącz edycję
       setEditId(null);
       resetForm(); // pełne resetowanie
+      setAddComment(false);
     } else {
       setEditId(client.id);
       setPeopleCount(client.players);
@@ -2018,20 +2043,6 @@ const AdminClientManager: React.FC = () => {
                                         {played}
                                       </div>
                                     </div>
-                                    <label className="block text-xs font-semibold mt-1 mb-0.5">
-                                      Nazwa
-                                    </label>
-                                    <input
-                                      type="text"
-                                      placeholder="Nazwa (opcjonalnie)"
-                                      value={removeNames[idx] ?? ""}
-                                      onChange={(e) => {
-                                        const updated = [...removeNames];
-                                        updated[idx] = e.target.value;
-                                        setRemoveNames(updated);
-                                      }}
-                                      className="w-full p-2 rounded bg-[#0f1525] border border-gray-600 text-white"
-                                    />
                                     <label className="block text-xs font-semibold mt-2 mb-0.5">
                                       Kwota do zapłaty
                                     </label>
@@ -2210,26 +2221,37 @@ const AdminClientManager: React.FC = () => {
                   }}
                 >
                   <div className="flex justify-between items-center mb-2">
-                    <div className="text-sm font-bold text-[#00d9ff]">
-                      {stanowiskoLabels[slotIndex]}
-                    </div>
+                    {(() => {
+                      const colorMap = buildClientColorMap();
+                      const clientForSlot = clientsInSlot[0];
+                      return (
+                        <div className="text-sm font-bold text-[#00d9ff] flex items-center gap-2">
+                          <span>{stanowiskoLabels[slotIndex]}</span>
+                          {clientForSlot && clientForSlot.stations && clientForSlot.stations.length > 1 && (
+                            <span
+                              aria-hidden
+                              className="inline-block w-2 h-2 rounded-xs"
+                              style={{ backgroundColor: colorMap[clientForSlot.id] }}
+                            />
+                          )}
+                        </div>
+                      );
+                    })()}
                     {clientsInSlot.length > 0 && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 ">
                         <span className="relative group flex items-center mr-0.5">
                           <button
                             type="button"
                             onClick={() => {
+                              const wasEditing = editId === clientsInSlot[0].id;
                               handleEditClient(clientsInSlot[0]);
-                              if (!clientsInSlot[0].comment) {
+                              // jeśli otwieramy edycję teraz (a nie zamykamy), włącz pole komentarza gdy brak komentarza
+                              if (!wasEditing && !clientsInSlot[0].comment) {
                                 setAddComment(true);
-                                setTimeout(() => {
-                                  commentInputRef.current?.focus();
-                                }, 0);
-                              } else {
-                                setTimeout(() => {
-                                  commentInputRef.current?.focus();
-                                }, 0);
                               }
+                              setTimeout(() => {
+                                commentInputRef.current?.focus();
+                              }, 0);
                             }}
                             className={`text-gray-500 hover:text-green-500/80 ${
                               clientsInSlot[0].comment
@@ -2455,15 +2477,15 @@ const AdminClientManager: React.FC = () => {
                           </div>
                           <div className="flex justify-end gap-2 mt-4 text-[15px] h-[17px]">
                             {/* left area: show pause (if paused) and reminder (if set) */}
-                            <div className="mr-auto flex items-center gap-3">
+                            <div className="mr-auto flex gap-3">
 
                               {client.isPaused && client.reminder && (
                                 <>
-                                <div className="text-pink-400 text-[14px]  font-semibold">
+                                <div className="text-pink-400 text-[13px]  font-semibold">
                                   U:{" "}
                                   {getReminderCountdown(client) ?? "--:--"}
                                 </div>
-                                <div className="text-orange-500 text-[14px] font-semibold">
+                                <div className="text-orange-500 text-[13px] font-semibold">
                                   P:{" "}
                                   {
                                     getRemainingTime(
@@ -2500,16 +2522,11 @@ const AdminClientManager: React.FC = () => {
                             </div>
                             <button
                               onClick={() => {
-                                // If not currently editing this client, open editor.
-                                // If already editing this client, don't toggle edit off — only open reminder UI.
-                                if (editId !== client.id) {
-                                  handleEditClient(client);
-                                } else {
-                                  // already editing this client: keep edit mode, just open reminder section
-                                  setAddReminder(true);
-                                }
-                                // If client previously didn't have reminder, ensure the reminder UI is shown
-                                if (!client.reminder) {
+                                // Mirror comment-button behaviour: if clicking the same client while editing,
+                                // toggle edit off. If opening edit, enable reminder UI when no reminder exists.
+                                const wasEditing = editId === client.id;
+                                handleEditClient(client);
+                                if (!wasEditing && !client.reminder) {
                                   setAddReminder(true);
                                 }
                               }}
@@ -2847,22 +2864,19 @@ const AdminClientManager: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td className="p-3 flex gap-2 items-center">
+                      <td className="p-3 flex gap-2 mt-1">
                         <span className="relative group flex items-center">
                           <button
                             type="button"
                             onClick={() => {
+                              const wasEditing = editId === client.id;
                               handleEditClient(client);
-                              if (!client.comment) {
+                              if (!wasEditing && !client.comment) {
                                 setAddComment(true);
-                                setTimeout(() => {
-                                  commentInputRef.current?.focus();
-                                }, 0);
-                              } else {
-                                setTimeout(() => {
-                                  commentInputRef.current?.focus();
-                                }, 0);
                               }
+                              setTimeout(() => {
+                                commentInputRef.current?.focus();
+                              }, 0);
                             }}
                             className={`text-gray-500 hover:text-green-500/80 ${
                               client.comment
@@ -2893,6 +2907,34 @@ const AdminClientManager: React.FC = () => {
                         </button>
                         <button
                           onClick={() => {
+                            const wasEditing = editId === client.id;
+                            handleEditClient(client);
+                            if (!wasEditing && !client.reminder) {
+                              setAddReminder(true);
+                            }
+                          }}
+                          className={`${
+                            client.reminder
+                              ? "text-pink-500 hover:text-pink-500"
+                              : "text-gray-500 hover:text-pink-500"
+                          }`}
+                          title={client.reminder ? `Przypomnienie ustawione` : "Ustaw przypomnienie"}
+                        >
+                          <FaBell />
+                        </button>
+                        <button
+                          onClick={() => handlePauseResumeGame(client.id)}
+                          className={`${
+                            client.isPaused
+                              ? "text-orange-500 hover:text-green-500"
+                              : "text-gray-500 hover:text-orange-500"
+                          }`}
+                          title={client.isPaused ? "Wznów grę" : "Wstrzymaj grę"}
+                        >
+                          {client.isPaused ? <FaPlay /> : <FaPause />}
+                        </button>
+                        <button
+                          onClick={() => {
                             setClientToDelete(client);
                             setShowDeleteModal(true);
                           }}
@@ -2901,6 +2943,7 @@ const AdminClientManager: React.FC = () => {
                         >
                           <FaTrash />
                         </button>
+                        
                       </td>
                     </tr>
                   );
