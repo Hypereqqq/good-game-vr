@@ -4,6 +4,9 @@
 
 // Import necessary libraries and types
 import React, { useEffect, useRef, useState } from "react";
+import Chart from "react-apexcharts";
+// react-apexcharts typings sometimes don't match JSX; cast to any component type
+const Apex: React.ComponentType<any> = (Chart as unknown) as React.ComponentType<any>;
 //import { HexColorPicker } from "react-colorful";
 import { useAtom } from "jotai";
 import { clientsAtom } from "../store/clients";
@@ -441,21 +444,242 @@ const AdminClientManager: React.FC = () => {
       }
     });
 
-    const sessionsCount = sessions.length;
-    const totalMinutes = sessions.reduce((acc, s) => acc + (s.playedMinutes || 0), 0);
+    // Count sessions per-player: each player in a session counts as one "player-session"
+    const sessionsCount = sessions.reduce((acc, s) => acc + (s.players || 1), 0);
+
+    // totalMinutes: prefer perPlayerMinutes (sum), otherwise playedMinutes * players
+    const totalMinutes = sessions.reduce((acc, s) => {
+      if (s.perPlayerMinutes && Array.isArray(s.perPlayerMinutes)) {
+        return acc + s.perPlayerMinutes.reduce((a: number, b: number) => a + (b || 0), 0);
+      }
+      return acc + ((s.playedMinutes || 0) * (s.players || 1));
+    }, 0);
+
     const avgMinutes = sessionsCount > 0 ? Math.round(totalMinutes / sessionsCount) : 0;
 
     const hourCounts = new Array(24).fill(0);
     sessions.forEach((s) => {
       try {
         const h = DateTime.fromISO(s.startTime).hour;
-        hourCounts[h] = (hourCounts[h] || 0) + 1;
+        hourCounts[h] = (hourCounts[h] || 0) + (s.players || 1);
       } catch (e) {
         // ignore
       }
     });
 
     return { sessionsCount, totalMinutes, avgMinutes, hourCounts };
+  };
+
+  // Helpers to build ApexCharts series/options
+  const buildLineOptions = (label: string) => ({
+    chart: {
+      id: `chart-${label}`,
+      toolbar: { show: true },
+      zoom: { enabled: false },
+      background: "#0f1525",
+    },
+    theme: { mode: "dark" },
+    stroke: { curve: "smooth" },
+    colors: ["#00d9ff"],
+    dataLabels: { enabled: false },
+    xaxis: { categories: [] as string[] },
+    yaxis: { labels: { formatter: (v: number) => String(Math.round(v)) } },
+    tooltip: { enabled: true, theme: "dark" },
+    grid: { borderColor: "#1f2a3a" },
+    fill: { type: "gradient", gradient: { shade: "dark", gradientToColors: ["#6a5cff"], shadeIntensity: 1, type: "vertical", opacityFrom: 0.7, opacityTo: 0.05 } },
+  });
+
+  const buildHeatmapOptions = () => ({
+  chart: { toolbar: { show: false }, background: "#0f1525" },
+  theme: { mode: "dark" },
+  dataLabels: { enabled: false },
+  colors: ["#00d9ff"],
+  plotOptions: { heatmap: { shadeIntensity: 0.9, radius: 4 } },
+  tooltip: { enabled: true, theme: "dark" },
+  grid: { borderColor: "#1f2a3a" },
+  });
+
+  const buildDaySeries = () => {
+    const stats = loadStats();
+    const now = DateTime.now();
+    const categories = Array.from({ length: 24 }, (_, i) => `${i}:00`);
+    const data = new Array(24).fill(0);
+    (stats.sessions || []).forEach((s) => {
+      try {
+        const dt = DateTime.fromISO(s.startTime);
+        if (dt >= now.startOf("day") && dt < now.endOf("day")) data[dt.hour] += 1;
+      } catch (e) {}
+    });
+    return { series: [{ name: "Sesje", data }], options: { ...buildLineOptions("day"), xaxis: { categories } } };
+  };
+
+  const buildWeekSeries = () => {
+    const stats = loadStats();
+    const now = DateTime.now();
+    const start = now.startOf("day").minus({ days: 6 });
+    const days = Array.from({ length: 7 }, (_, i) => start.plus({ days: i }));
+    const categories = days.map((d) => d.toFormat("ccc dd"));
+  const data = days.map((_) => 0);
+    (stats.sessions || []).forEach((s) => {
+      try {
+        const dt = DateTime.fromISO(s.startTime).startOf("day");
+        const idx = Math.floor(dt.diff(start, "days").days);
+        if (idx >= 0 && idx < 7) data[idx] += 1;
+      } catch (e) {}
+    });
+    return { series: [{ name: "Sesje", data }], options: { ...buildLineOptions("week"), xaxis: { categories } } };
+  };
+
+  const buildMonthSeries = () => {
+    const stats = loadStats();
+    const now = DateTime.now();
+    const start = now.startOf("day").minus({ days: 29 });
+    const days = Array.from({ length: 30 }, (_, i) => start.plus({ days: i }));
+    const categories = days.map((d) => d.toFormat("dd.MM"));
+  const data = days.map((_) => 0);
+    (stats.sessions || []).forEach((s) => {
+      try {
+        const dt = DateTime.fromISO(s.startTime).startOf("day");
+        const idx = Math.floor(dt.diff(start, "days").days);
+        if (idx >= 0 && idx < 30) data[idx] += 1;
+      } catch (e) {}
+    });
+    return { series: [{ name: "Sesje", data }], options: { ...buildLineOptions("month"), xaxis: { categories } } };
+  };
+
+  const buildHeatmapSeries = () => {
+    const stats = loadStats();
+    const now = DateTime.now();
+    const start = now.startOf("day").minus({ days: 6 });
+    const series = [] as any[];
+    for (let i = 0; i < 7; i++) {
+      const day = start.plus({ days: i });
+      const data = new Array(24).fill(0).map((_, h) => ({ x: `${h}:00`, y: 0 }));
+      (stats.sessions || []).forEach((s) => {
+        try {
+          const dt = DateTime.fromISO(s.startTime);
+          if (dt >= day && dt < day.plus({ days: 1 })) data[dt.hour].y += 1;
+        } catch (e) {}
+      });
+      series.push({ name: day.toFormat("dd.MM"), data });
+    }
+    return { series, options: buildHeatmapOptions() };
+  };
+
+  // --- Station usage analytics ---
+  const computeStationStats = () => {
+    const stats = loadStats();
+    const stationsCount = 8;
+    const sessionsCountPer: number[] = Array(stationsCount + 1).fill(0);
+    const totalMinutesPer: number[] = Array(stationsCount + 1).fill(0);
+    const gamePrefs: Record<number, Record<string, number>> = {};
+
+    // totalSessions counted per-player (each player = 1 session)
+    const totalSessions = (stats.sessions || []).reduce((acc, s) => acc + (s.players || 1), 0);
+
+    (stats.sessions || []).forEach((s) => {
+      const sessStations: number[] = s.stations || [];
+
+      // count session presence per station (each station entry corresponds to one player)
+      sessStations.forEach((st) => {
+        sessionsCountPer[st] = (sessionsCountPer[st] || 0) + 1;
+      });
+
+      // add minutes per station: prefer explicit perPlayerMinutes -> map them to stations,
+      // otherwise if perStationMinutes present use it, else split total player-minutes equally
+      if (s.perPlayerMinutes && Array.isArray(s.perPlayerMinutes) && s.stations) {
+        s.perPlayerMinutes.forEach((pm: number, idx: number) => {
+          const station = s.stations ? s.stations[idx] : undefined;
+          if (station != null) {
+            totalMinutesPer[station] = (totalMinutesPer[station] || 0) + (pm || 0);
+          }
+        });
+      } else if (s.perStationMinutes) {
+        Object.entries(s.perStationMinutes).forEach(([k, v]) => {
+          const idx = Number(k);
+          totalMinutesPer[idx] = (totalMinutesPer[idx] || 0) + (v || 0);
+        });
+      } else {
+        // fallback: total player-minutes = playedMinutes * players
+        const playedTotal = (s.playedMinutes || 0) * (s.players || 1);
+        if (playedTotal && sessStations.length > 0) {
+          const per = playedTotal / sessStations.length;
+          sessStations.forEach((st) => {
+            totalMinutesPer[st] = (totalMinutesPer[st] || 0) + per;
+          });
+        }
+      }
+
+      // infer game preferences from gameSegments when present
+      if (s.gameSegments && s.stations) {
+        s.gameSegments.forEach((seg: any) => {
+          const minutes = seg.duration || 0;
+          (seg.players || []).forEach((pi: number) => {
+            const station = s.stations[pi];
+            if (station == null) return;
+            gamePrefs[station] = gamePrefs[station] || {};
+            gamePrefs[station][seg.gameType] = (gamePrefs[station][seg.gameType] || 0) + minutes;
+          });
+        });
+      }
+    });
+
+    const percentUsage: number[] = Array(stationsCount + 1).fill(0);
+    const avgMinutesPer: number[] = Array(stationsCount + 1).fill(0);
+    for (let i = 1; i <= stationsCount; i++) {
+      percentUsage[i] = totalSessions > 0 ? Math.round((sessionsCountPer[i] / totalSessions) * 100) : 0;
+      avgMinutesPer[i] = sessionsCountPer[i] > 0 ? Math.round(totalMinutesPer[i] / sessionsCountPer[i]) : 0;
+    }
+
+    return { totalSessions, sessionsCountPer, totalMinutesPer, percentUsage, avgMinutesPer, gamePrefs };
+  };
+
+  const buildStationPercentSeries = () => {
+    const s = computeStationStats();
+    const categories = Array.from({ length: 8 }, (_, i) => stanowiskoLabels[i + 1] || `St ${i + 1}`);
+    const data = categories.map((_, i) => s.percentUsage[i + 1] || 0);
+    return { series: [{ name: "Wykorzystanie (%)", data }], options: { ...buildLineOptions("stationsPercent"), xaxis: { categories }, plotOptions: { bar: { horizontal: false } }, colors: ["#ffb86b"] } };
+  };
+
+  const buildStationAvgSeries = () => {
+    const s = computeStationStats();
+    const categories = Array.from({ length: 8 }, (_, i) => stanowiskoLabels[i + 1] || `St ${i + 1}`);
+    const data = categories.map((_, i) => s.avgMinutesPer[i + 1] || 0);
+    return { series: [{ name: "Średni czas (min)", data }], options: { ...buildLineOptions("stationsAvg"), xaxis: { categories }, colors: ["#7c4dff"] } };
+  };
+
+  const StationBlocks: React.FC<{ values: number[] }> = ({ values }) => {
+    const arr = values.slice(1, 9);
+    const max = Math.max(...arr, 1);
+    return (
+      <div className="grid grid-cols-4 gap-2 mt-3 items-center">
+        {arr.map((v, i) => (
+          <div key={i} className="flex flex-col items-center text-xs">
+            <div className="w-12 h-12 rounded-md" style={{ background: `rgba(255,130,92, ${v / max})`, border: '1px solid rgba(255,255,255,0.04)' }} title={`${stanowiskoLabels[i+1] || i+1}: ${v} min`} />
+            <div className="mt-1 text-[11px] text-gray-300">{stanowiskoLabels[i+1]}</div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  // Small hour blocks visualizer (24 hours)
+  const HourBlocks: React.FC<{ hourCounts: number[] }> = ({ hourCounts }) => {
+    const max = Math.max(...hourCounts, 1);
+    return (
+      <div className="flex gap-1 items-center mt-3 bg-[#0f1525] p-2 rounded">
+        {hourCounts.map((c, h) => (
+          <div key={h} className="flex flex-col items-center text-xs w-8">
+            <div
+              title={`${h}:00 — ${c} sesji`}
+              className="w-6 h-6 rounded"
+              style={{ background: `rgba(0,213,255, ${c / max})`, border: '1px solid rgba(255,255,255,0.03)' }}
+            />
+            <div className="text-[10px] text-gray-400 mt-1">{h}</div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const recordClientToStats = (client: ClientGame) => {
@@ -478,39 +702,45 @@ const AdminClientManager: React.FC = () => {
       if (typeof client.playedMinutes === "number")
         return Math.max(0, Math.floor(client.playedMinutes));
 
-      // If we have explicit segments, sum their durations (trusted source)
+      // If we have explicit segments, compute union of intervals (unique minutes)
       if (client.gameSegments && client.gameSegments.length > 0) {
-        const total = client.gameSegments.reduce(
-          (acc, s) =>
-            acc +
-            (s.duration ||
-              Math.max(
-                0,
-                Math.floor(
-                  DateTime.fromISO(s.endTime ?? now.toISO()).diff(
-                    DateTime.fromISO(s.startTime),
-                    "minutes"
-                  ).minutes
-                )
-              )),
-          0
-        );
-        return Math.max(0, Math.floor(total));
+        try {
+          const intervals = client.gameSegments
+            .map((s) => {
+              const start = DateTime.fromISO(s.startTime).toMillis();
+              const end = DateTime.fromISO(s.endTime ?? now.toISO()).toMillis();
+              return { start, end };
+            })
+            .filter((i) => i.end > i.start)
+            .sort((a, b) => a.start - b.start);
+
+          if (intervals.length === 0) return 0;
+
+          const merged: Array<{ start: number; end: number }> = [];
+          for (const it of intervals) {
+            if (merged.length === 0) merged.push({ ...it });
+            else {
+              const last = merged[merged.length - 1];
+              if (it.start <= last.end) last.end = Math.max(last.end, it.end);
+              else merged.push({ ...it });
+            }
+          }
+
+          const totalMs = merged.reduce((acc, m) => acc + (m.end - m.start), 0);
+          return Math.max(0, Math.floor(totalMs / 60000));
+        } catch (e) {
+          return Math.max(0, Math.floor(client.duration || 0));
+        }
       }
 
       // Otherwise, derive from startTime and pauseHistory.
-      // Note: existing resume logic shifts client.startTime forward to exclude past pauses.
-      // Strategy: compute naive elapsed from (now - startTime). If there's an ongoing pause (last pause has no endTime), subtract only that ongoing pause duration.
       let elapsedMs = now.diff(DateTime.fromISO(client.startTime)).milliseconds;
-
       let ongoingPauseMs = 0;
       if (client.pauseHistory && client.pauseHistory.length > 0) {
         const last = client.pauseHistory[client.pauseHistory.length - 1];
         if (last && !last.endTime) {
           try {
-            ongoingPauseMs = now.diff(
-              DateTime.fromISO(last.startTime)
-            ).milliseconds;
+            ongoingPauseMs = now.diff(DateTime.fromISO(last.startTime)).milliseconds;
           } catch (e) {
             ongoingPauseMs = 0;
           }
@@ -526,19 +756,13 @@ const AdminClientManager: React.FC = () => {
       stations: client.stations,
       players: client.players,
       startTime: client.startTime,
-      endTime:
-        DateTime.fromISO(client.startTime)
-          .plus({ minutes: client.duration })
-          .toISO() || undefined,
+      endTime: DateTime.fromISO(client.startTime).plus({ minutes: client.duration }).toISO() || undefined,
       playedMinutes: computePlayedMinutes(),
       gameSegments: client.gameSegments || [],
       paid: !!client.paid,
     };
-    stats.sessions.push(sessionEntry);
 
-    // Aggregate minutes per game based on segments. If no segments, attribute full duration to gameType
-    // We'll compute per-segment minutes and revenue
-    let sessionRevenue = 0;
+    // We'll compute per-player minutes and attribute game minutes in player-minutes
     const perStationMinutes: Record<number, number> = {};
     const perPlayerMinutes: number[] = [];
     const perSegmentRevenue: Array<{
@@ -547,6 +771,7 @@ const AdminClientManager: React.FC = () => {
       revenue: number;
       players: number[];
     }> = [];
+    let sessionRevenue = 0;
 
     if (client.gameSegments && client.gameSegments.length > 0) {
       client.gameSegments.forEach((seg) => {
@@ -561,94 +786,84 @@ const AdminClientManager: React.FC = () => {
               ).minutes
             )
           );
-        // Assign minutes to games
-        stats.games[seg.gameType] = (stats.games[seg.gameType] || 0) + minutes;
 
-        // Estimate revenue for this segment: proportionally to players in segment
-        // We'll use average per-player rate: derive simplistic revenue = getSinglePlayerAmount(minutes, seg.startTime) * playersCount
-        const playersCount = seg.players.length || client.players || 1;
-        const revenue =
-          getSinglePlayerAmount(minutes, seg.startTime) * playersCount;
-        stats.revenuePerGame[seg.gameType] =
-          (stats.revenuePerGame[seg.gameType] || 0) + revenue;
+        const playersCount = (seg.players && seg.players.length) || client.players || 1;
+
+        // record player-minutes for this segment
+        stats.games[seg.gameType] = (stats.games[seg.gameType] || 0) + minutes * playersCount;
+
+        const revenue = getSinglePlayerAmount(minutes, seg.startTime) * playersCount;
+        stats.revenuePerGame[seg.gameType] = (stats.revenuePerGame[seg.gameType] || 0) + revenue;
         sessionRevenue += revenue;
 
-        // per segment record
-        perSegmentRevenue.push({
-          gameType: seg.gameType,
-          minutes,
-          revenue,
-          players: seg.players,
-        });
+        perSegmentRevenue.push({ gameType: seg.gameType, minutes, revenue, players: seg.players });
 
-        // assign to per-player and per-station
         seg.players.forEach((pi) => {
           perPlayerMinutes[pi] = (perPlayerMinutes[pi] || 0) + minutes;
           const station = client.stations[pi];
           if (station != null) {
-            perStationMinutes[station] =
-              (perStationMinutes[station] || 0) + minutes;
-            stats.aggregates.stationUsage[station] = stats.aggregates
-              .stationUsage[station] || { sessions: 0, minutes: 0 };
+            perStationMinutes[station] = (perStationMinutes[station] || 0) + minutes;
+            stats.aggregates.stationUsage[station] = stats.aggregates.stationUsage[station] || { sessions: 0, minutes: 0 };
             stats.aggregates.stationUsage[station].minutes += minutes;
           }
         });
       });
     } else if (client.hasGameSelection) {
-      // No segments: attribute full duration
       const totalMinutes = sessionEntry.playedMinutes ?? client.duration;
       if (client.gameMode === "same" && client.gameType) {
-        stats.games[client.gameType] =
-          (stats.games[client.gameType] || 0) + totalMinutes;
-        const revenue = getPaymentAmount(
-          client.duration,
-          client.startTime,
-          client.players
-        );
-        stats.revenuePerGame[client.gameType] =
-          (stats.revenuePerGame[client.gameType] || 0) + revenue;
+        const players = client.players || 1;
+        stats.games[client.gameType] = (stats.games[client.gameType] || 0) + totalMinutes * players;
+        const revenue = getPaymentAmount(client.duration, client.startTime, client.players);
+        stats.revenuePerGame[client.gameType] = (stats.revenuePerGame[client.gameType] || 0) + revenue;
         sessionRevenue += revenue;
+
+        for (let i = 0; i < (client.players || 1); i++) {
+          perPlayerMinutes[i] = (perPlayerMinutes[i] || 0) + totalMinutes;
+          const station = client.stations[i];
+          if (station != null) {
+            perStationMinutes[station] = (perStationMinutes[station] || 0) + totalMinutes;
+            stats.aggregates.stationUsage[station] = stats.aggregates.stationUsage[station] || { sessions: 0, minutes: 0 };
+            stats.aggregates.stationUsage[station].minutes += totalMinutes;
+          }
+        }
       } else if (client.gameMode === "different" && client.individualGames) {
-        // approximate per-player equal split
-        const perPlayer = Math.round(totalMinutes);
         client.individualGames.forEach((game, idx) => {
-          if (game) {
-            stats.games[game] = (stats.games[game] || 0) + perPlayer;
-            const revenue = getSinglePlayerAmount(perPlayer, client.startTime);
-            stats.revenuePerGame[game] =
-              (stats.revenuePerGame[game] || 0) + revenue;
-            sessionRevenue += revenue;
-            perPlayerMinutes[idx] = (perPlayerMinutes[idx] || 0) + perPlayer;
-            const station = client.stations[idx];
-            if (station != null) {
-              perStationMinutes[station] =
-                (perStationMinutes[station] || 0) + perPlayer;
-              stats.aggregates.stationUsage[station] = stats.aggregates
-                .stationUsage[station] || { sessions: 0, minutes: 0 };
-              stats.aggregates.stationUsage[station].minutes += perPlayer;
-            }
+          if (!game) return;
+          stats.games[game] = (stats.games[game] || 0) + totalMinutes;
+          const revenue = getSinglePlayerAmount(totalMinutes, client.startTime);
+          stats.revenuePerGame[game] = (stats.revenuePerGame[game] || 0) + revenue;
+          sessionRevenue += revenue;
+
+          perPlayerMinutes[idx] = (perPlayerMinutes[idx] || 0) + totalMinutes;
+          const station = client.stations[idx];
+          if (station != null) {
+            perStationMinutes[station] = (perStationMinutes[station] || 0) + totalMinutes;
+            stats.aggregates.stationUsage[station] = stats.aggregates.stationUsage[station] || { sessions: 0, minutes: 0 };
+            stats.aggregates.stationUsage[station].minutes += totalMinutes;
           }
         });
       }
     }
 
-    // update session entry with computed fields
     sessionEntry.revenue = sessionRevenue;
     sessionEntry.perStationMinutes = perStationMinutes;
     sessionEntry.perPlayerMinutes = perPlayerMinutes;
     sessionEntry.perSegmentRevenue = perSegmentRevenue;
 
-    // Update aggregates
-    stats.aggregates.totalSessions = (stats.aggregates.totalSessions || 0) + 1;
-    const minutesThisSession =
-      (sessionEntry.playedMinutes ?? client.duration) || 0;
-    stats.aggregates.totalMinutes =
-      (stats.aggregates.totalMinutes || 0) + minutesThisSession;
-    stats.aggregates.totalRevenue =
-      (stats.aggregates.totalRevenue || 0) + sessionRevenue;
-    stats.aggregates.avgSessionMinutes = Math.round(
-      stats.aggregates.totalMinutes / stats.aggregates.totalSessions || 0
-    );
+    // push session (group-level record) and update aggregates counted per-player
+    stats.sessions.push(sessionEntry);
+
+    // Increase totalSessions by number of players
+    stats.aggregates.totalSessions = (stats.aggregates.totalSessions || 0) + (client.players || 1);
+
+    // total minutes: sum perPlayerMinutes if present, otherwise playedMinutes * players
+    const minutesThisSession = perPlayerMinutes.length > 0
+      ? perPlayerMinutes.reduce((a, b) => a + (b || 0), 0)
+      : ((sessionEntry.playedMinutes ?? client.duration) * (client.players || 1));
+
+    stats.aggregates.totalMinutes = (stats.aggregates.totalMinutes || 0) + minutesThisSession;
+    stats.aggregates.totalRevenue = (stats.aggregates.totalRevenue || 0) + sessionRevenue;
+    stats.aggregates.avgSessionMinutes = Math.round(((stats.aggregates.totalMinutes || 0) / (stats.aggregates.totalSessions || 1)) || 0);
 
     saveStats(stats);
   };
@@ -4281,36 +4496,39 @@ const AdminClientManager: React.FC = () => {
                 const day = computeStatsSummary("day");
                 const week = computeStatsSummary("week");
                 const month = computeStatsSummary("month");
+                const dayChart = buildDaySeries();
+                const weekChart = buildWeekSeries();
+                const monthChart = buildMonthSeries();
+                const heatmap = buildHeatmapSeries();
                 return (
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="p-3 bg-[#0f1525] rounded">
-                      <h4 className="text-sm text-gray-300">Ostatnia doba</h4>
-                      <div className="text-2xl font-bold mt-2">{day.sessionsCount}</div>
-                      <div className="text-sm text-gray-400">sesji</div>
-                      <div className="mt-2">Suma minut: <b>{day.totalMinutes}</b></div>
-                      <div>Średnio: <b>{day.avgMinutes} min</b></div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300">Ostatnia doba</h4>
+                        <div className="text-2xl font-bold mt-2">{day.sessionsCount}</div>
+                        <div className="text-sm text-gray-400">sesji</div>
+                        <div className="mt-2">Suma minut: <b>{day.totalMinutes}</b></div>
+                        <div>Średnio: <b>{day.avgMinutes} min</b></div>
+                      </div>
+
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300">Ostatni tydzień</h4>
+                        <div className="text-2xl font-bold mt-2">{week.sessionsCount}</div>
+                        <div className="text-sm text-gray-400">sesji</div>
+                        <div className="mt-2">Suma minut: <b>{week.totalMinutes}</b></div>
+                        <div>Średnio: <b>{week.avgMinutes} min</b></div>
+                      </div>
+
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300">Ostatni miesiąc</h4>
+                        <div className="text-2xl font-bold mt-2">{month.sessionsCount}</div>
+                        <div className="text-sm text-gray-400">sesji</div>
+                        <div className="mt-2">Suma minut: <b>{month.totalMinutes}</b></div>
+                        <div>Średnio: <b>{month.avgMinutes} min</b></div>
+                      </div>
                     </div>
 
-                    <div className="p-3 bg-[#0f1525] rounded">
-                      <h4 className="text-sm text-gray-300">Ostatni tydzień</h4>
-                      <div className="text-2xl font-bold mt-2">{week.sessionsCount}</div>
-                      <div className="text-sm text-gray-400">sesji</div>
-                      <div className="mt-2">Suma minut: <b>{week.totalMinutes}</b></div>
-                      <div>Średnio: <b>{week.avgMinutes} min</b></div>
-                    </div>
-
-                    <div className="p-3 bg-[#0f1525] rounded">
-                      <h4 className="text-sm text-gray-300">Ostatni miesiąc</h4>
-                      <div className="text-2xl font-bold mt-2">{month.sessionsCount}</div>
-                      <div className="text-sm text-gray-400">sesji</div>
-                      <div className="mt-2">Suma minut: <b>{month.totalMinutes}</b></div>
-                      <div>Średnio: <b>{month.avgMinutes} min</b></div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Hourly heatmap (day) */}
+                    {/* Hourly heatmap (day) */}
               <div className="mt-4">
                 <h4 className="text-sm text-gray-300 mb-2">Najpopularniejsze godziny (ostatnia doba)</h4>
                 {(() => {
@@ -4332,12 +4550,95 @@ const AdminClientManager: React.FC = () => {
                   );
                 })()}
               </div>
+
+                    <div className="flex flex-col gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Sesje — doba</h4>
+                        <Apex options={dayChart.options} series={dayChart.series} type="area" height={320} />
+                        <HourBlocks hourCounts={computeStatsSummary("day").hourCounts} />
+                      </div>
+
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Sesje — tydzień</h4>
+                        <Apex options={weekChart.options} series={weekChart.series} type="area" height={320} />
+                        <HourBlocks hourCounts={computeStatsSummary("week").hourCounts} />
+                      </div>
+
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Sesje — miesiąc</h4>
+                        <Apex options={monthChart.options} series={monthChart.series} type="area" height={320} />
+                        <HourBlocks hourCounts={computeStatsSummary("month").hourCounts} />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Heatmapa — ostatni tydzień</h4>
+                      <Apex options={heatmap.options} series={heatmap.series} type="heatmap" height={220} />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              
             </div>
           )}
 
           {subpage === "stats" && statsSubPage === "wykorzystanie_stanowisk" && (
-            <div className="">
-              wykorzystanie_stanowisk
+            <div className="bg-[#1e2636] p-4 rounded-md">
+              <h3 className="text-lg font-semibold mb-3">Wykorzystanie stanowisk</h3>
+
+              {(() => {
+                const percentChart = buildStationPercentSeries();
+                const avgChart = buildStationAvgSeries();
+                const stats = computeStationStats();
+                return (
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Wykorzystanie (%)</h4>
+                        <Apex options={percentChart.options} series={percentChart.series} type="bar" height={300} />
+                      </div>
+
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Średni czas na stanowisko (min)</h4>
+                        <Apex options={avgChart.options} series={avgChart.series} type="bar" height={300} />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Heatmapa stanowisk (średnie minuty)</h4>
+                      <StationBlocks values={[0, ...stats.totalMinutesPer.slice(1, 9)]} />
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Top gry na stanowiskach</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        {Array.from({ length: 8 }, (_, i) => i + 1).map((st) => {
+                          const prefs = stats.gamePrefs[st] || {};
+                          const items = Object.entries(prefs).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                          return (
+                            <div key={st} className="p-2 bg-[#151e33] rounded">
+                              <div className="text-sm text-gray-300 font-semibold mb-1">{stanowiskoLabels[st] || `St ${st}`}</div>
+                              {items.length === 0 ? (
+                                <div className="text-xs text-gray-400">Brak danych</div>
+                              ) : (
+                                <ul className="text-xs text-gray-200 list-inside space-y-1">
+                                  {items.map(([game, mins]) => (
+                                    <li key={game} className="flex justify-between">
+                                      <span className="truncate pr-2">{game}</span>
+                                      <span className="font-semibold">{Math.round(mins)}m</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
