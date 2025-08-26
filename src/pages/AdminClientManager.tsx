@@ -2487,7 +2487,7 @@ const AdminClientManager: React.FC = () => {
                     </div>
                   )}
                   
-                  <div className="flex gap-2 justify-center font-semibold">
+                  <div className="flex gap-2 justify-center text-sm font-semibold">
                     {!timerRunning ? (
                       <button
                         onClick={startTimer}
