@@ -32,7 +32,6 @@ type StatsSubpageType =
   | "analiza_finansowa"
   | "analiza_graczy"
   | "analiza_gier"
-  | "operacyjne"
   | "wskazniki";
 
 // This object maps station IDs to their labels for display purposes
@@ -3557,17 +3556,7 @@ const AdminClientManager: React.FC = () => {
               >
                 Analiza gier
               </button>
-              <button
-                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
-                  statsSubPage === "operacyjne"
-                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
-                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
-                }`}
-                title="Statystyki operacyjne"
-                onClick={() => setStatsSubPage("operacyjne")}
-              >
-                Statystyki operacyjne
-              </button>
+              
               <button
                 className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
                   statsSubPage === "wskazniki"
@@ -5227,12 +5216,6 @@ const AdminClientManager: React.FC = () => {
                   </div>
                 );
               })()}
-            </div>
-          )}
-
-          {subpage === "stats" && statsSubPage === "operacyjne" && (
-            <div className="">
-              operacyjne
             </div>
           )}
 
