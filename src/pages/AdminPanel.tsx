@@ -177,11 +177,33 @@ const AdminPanel: React.FC = () => {
           </div>
 
           {/* Log */}
+          <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
+            <h3 className="text-xl font-bold text-white">
+              Stoper i statystyki
+              <span className="text-purple-400 font-bold"> (V.1.3.0)</span>
+            </h3>
+            <p className="text-xs text-gray-400 mb-2">26 sierpnia 2025</p>
+            <ul className="list-disc list-inside text-gray-300 space-y-1">
+              <li>
+                Dodatno stoper i minutnik wraz z wszystkimi potrzebnymi funkcjami
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano pływające dymki dla stopera i minutnika
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              
+            </ul>
+          </div>
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
               Podstrony i poprawki
-              <span className="text-purple-400 font-bold"> (V.1.3.0)</span>
+              <span className="text-purple-400 font-bold"> (V.1.2.9)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">26 sierpnia 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">

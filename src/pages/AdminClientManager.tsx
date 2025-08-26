@@ -100,6 +100,30 @@ const AdminClientManager: React.FC = () => {
   const [editingQueueId, setEditingQueueId] = useState<string | null>(null); // ID of the client being edited in the queue
   const [editingQueuePrice, setEditingQueuePrice] = useState<number | "">(""); // Price of the client being edited in the queue, empty string if not set
 
+  // Stoper states
+  const [stopwatchRunning, setStopwatchRunning] = useState(false);
+  const [stopwatchTime, setStopwatchTime] = useState(0); // czas w sekundach
+  const [stopwatchStartTime, setStopwatchStartTime] = useState<number | null>(null);
+  const [stopwatchPausedTime, setStopwatchPausedTime] = useState(0);
+  const [measurements, setMeasurements] = useState<number[]>([]);
+  const [showStopwatchBubble, setShowStopwatchBubble] = useState(false);
+
+  // Timer states
+  const [timerMinutes, setTimerMinutes] = useState(0);
+  const [timerSeconds, setTimerSeconds] = useState(30);
+  const [timerRunning, setTimerRunning] = useState(false);
+  const [timerRemainingSeconds, setTimerRemainingSeconds] = useState(0);
+  const [timerStartTime, setTimerStartTime] = useState<number | null>(null);
+  const [showTimerBubble, setShowTimerBubble] = useState(false);
+  const [showTimerModal, setShowTimerModal] = useState(false);
+
+  // Bubble position states
+  const [stopwatchBubblePosition, setStopwatchBubblePosition] = useState({ x: 20, y: 20 });
+  const [timerBubblePosition, setTimerBubblePosition] = useState({ x: 300, y: 20 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [activeBox, setActiveBox] = useState<'stopwatch' | 'timer' | null>(null);
+
   const [, setTick] = useState(0); // State to force re-render every second
   const [showDeleteModal, setShowDeleteModal] = useState(false); // If delete confirmation modal is shown
   const [clientToDelete, setClientToDelete] = useState<ClientGame | null>(null); // Client to delete, null if not set
@@ -204,6 +228,53 @@ const AdminClientManager: React.FC = () => {
       setCustomMinute(now.minute);
     }
   }, [customStartEnabled, editId]);
+
+  // Stopwatch useEffect
+  useEffect(() => {
+    let interval: number;
+    if (stopwatchRunning && stopwatchStartTime) {
+      interval = setInterval(() => {
+        const now = Date.now();
+        const elapsed = Math.floor((now - stopwatchStartTime) / 1000);
+        setStopwatchTime(elapsed);
+      }, 100);
+    }
+    return () => clearInterval(interval);
+  }, [stopwatchRunning, stopwatchStartTime]);
+
+  // Timer useEffect
+  useEffect(() => {
+    let interval: number;
+    if (timerRunning && timerStartTime) {
+      interval = setInterval(() => {
+        const now = Date.now();
+        const elapsed = Math.floor((now - timerStartTime) / 1000);
+        const totalSeconds = timerMinutes * 60 + timerSeconds;
+        const remaining = totalSeconds - elapsed;
+        
+        if (remaining <= 0) {
+          setTimerRemainingSeconds(0);
+          setTimerRunning(false);
+          setShowTimerModal(true);
+        } else {
+          setTimerRemainingSeconds(remaining);
+        }
+      }, 100);
+    }
+    return () => clearInterval(interval);
+  }, [timerRunning, timerStartTime, timerMinutes, timerSeconds]);
+
+  // Mouse event listeners for dragging
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, dragOffset.x, dragOffset.y]);
 
   // Reset form function to clear all fields
   const resetForm = () => {
@@ -546,6 +617,106 @@ const AdminClientManager: React.FC = () => {
     const isWeekend = [5, 6, 7].includes(start.weekday);
     const rate = isWeekend ? 45 : 39;
     return (rate / 30) * duration;
+  };
+
+  // Helper function to format time for stopwatch and timer
+  const formatTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Stopwatch functions
+  const startStopwatch = () => {
+    setStopwatchStartTime(Date.now() - stopwatchPausedTime * 1000);
+    setStopwatchRunning(true);
+    setShowStopwatchBubble(true);
+  };
+
+  const pauseStopwatch = () => {
+    setStopwatchRunning(false);
+    setStopwatchPausedTime(stopwatchTime);
+  };
+
+  const resetStopwatch = () => {
+    setStopwatchRunning(false);
+    setStopwatchTime(0);
+    setStopwatchStartTime(null);
+    setStopwatchPausedTime(0);
+    setMeasurements([]);
+    setShowStopwatchBubble(false);
+  };
+
+  const measureStopwatch = () => {
+    setMeasurements(prev => [...prev, stopwatchTime]);
+  };
+
+  // Timer functions
+  const startTimer = () => {
+    const totalSeconds = timerMinutes * 60 + timerSeconds;
+    setTimerRemainingSeconds(totalSeconds);
+    setTimerStartTime(Date.now());
+    setTimerRunning(true);
+    setShowTimerBubble(true);
+  };
+
+  const pauseTimer = () => {
+    setTimerRunning(false);
+    const newTotalSeconds = Math.floor(timerRemainingSeconds);
+    setTimerMinutes(Math.floor(newTotalSeconds / 60));
+    setTimerSeconds(newTotalSeconds % 60);
+  };
+
+  const resetTimer = () => {
+    setTimerRunning(false);
+    setTimerRemainingSeconds(0);
+    setTimerStartTime(null);
+    setShowTimerBubble(false);
+  };
+
+  // Bubble dragging functions
+  const handleStopwatchMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setActiveBox('stopwatch');
+    setDragOffset({
+      x: e.clientX - stopwatchBubblePosition.x,
+      y: e.clientY - stopwatchBubblePosition.y
+    });
+  };
+
+  const handleTimerMouseDown = (e: React.MouseEvent) => {
+    setIsDragging(true);
+    setActiveBox('timer');
+    setDragOffset({
+      x: e.clientX - timerBubblePosition.x,
+      y: e.clientY - timerBubblePosition.y
+    });
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging && activeBox) {
+      if (activeBox === 'stopwatch') {
+        setStopwatchBubblePosition({
+          x: e.clientX - dragOffset.x,
+          y: e.clientY - dragOffset.y
+        });
+      } else if (activeBox === 'timer') {
+        setTimerBubblePosition({
+          x: e.clientX - dragOffset.x,
+          y: e.clientY - dragOffset.y
+        });
+      }
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setActiveBox(null);
   };
 
   // Function to handle changes in the number of players
@@ -1209,7 +1380,7 @@ const AdminClientManager: React.FC = () => {
               {subpage === "main"
                 ? "Zarządzaj klientami"
                 : subpage === "stoper"
-                ? "Stoper"
+                ? "Stoper i Minutnik"
                 : "Statystyki"}
             </h2>
             <div className="flex flex-1 gap-2 justify-end">
@@ -2209,7 +2380,153 @@ const AdminClientManager: React.FC = () => {
             </div>
           )}
 
-          {subpage === "stoper" && <div className="mb-4">Stoper</div>}
+          {subpage === "stoper" && (
+            <div>
+              {/* Sekcja Stopera */}
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-[#00d9ff] mb-4">Stoper</h3>
+                <div className="bg-[#0f1525] p-4 rounded-lg">
+                  <div className="text-center mb-4">
+                    <div className="text-2xl font-bold text-white">
+                      {formatTime(stopwatchTime)}
+                    </div>
+                  </div>
+                  
+                  <div className="flex text-sm gap-2 font-semibold mb-4 justify-center">
+                    {!stopwatchRunning ? (
+                      <button
+                        onClick={startStopwatch}
+                        className="px-2 py-2 w-24 bg-green-600 hover:bg-green-700 text-white rounded transition"
+                      >
+                        <FaPlay className="inline mr-2" />
+                        Start
+                      </button>
+                    ) : (
+                      <button
+                        onClick={pauseStopwatch}
+                        className="px-4 py-2 w-24 bg-yellow-600 hover:bg-yellow-700 text-white rounded transition"
+                      >
+                        <FaPause className="inline mr-2" />
+                        Pauza
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={measureStopwatch}
+                      disabled={!stopwatchRunning}
+                      className="px-4 py-2 bg-indigo-700 hover:bg-indigo-800 disabled:bg-gray-600 text-white rounded transition"
+                    >
+                      Pomiar
+                    </button>
+                    
+                    <button
+                      onClick={resetStopwatch}
+                      className="px-4 py-2 bg-red-500 hover:bg-red-800 text-white rounded transition"
+                    >
+                      Reset
+                    </button>
+                  </div>
+
+                  {!showStopwatchBubble && (stopwatchRunning || measurements.length > 0) && (
+                    <button
+                      onClick={() => setShowStopwatchBubble(true)}
+                      className="w-full px-4 py-2 bg-[#1e2636] hover:bg-[#147a8f] text-white rounded transition"
+                    >
+                      Pokaż
+                    </button>
+                  )}
+
+                  {measurements.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="font-semibold text-gray-300 mb-2">Pomiary:</h4>
+                      <div className="max-h-32 overflow-y-auto bg-[#1e2636] p-2 rounded">
+                        {measurements.map((time, index) => (
+                          <div key={index} className="text-sm text-gray-300 font-mono">
+                            {index + 1}. {formatTime(time)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Sekcja Minutnika */}
+              <div className="mb-4">
+                <h3 className="text-lg font-bold text-[#00d9ff] mb-4">Minutnik</h3>
+                <div className="bg-[#0f1525] p-4 rounded-lg">
+                  <div className="text-center mb-4">
+                    <div className="text-2xl  font-bold text-white">
+                      {timerRunning ? formatTime(timerRemainingSeconds) : formatTime(timerMinutes * 60 + timerSeconds)}
+                    </div>
+                  </div>
+
+                  {!timerRunning && (
+                    <div className="flex gap-4 mb-4">
+                      <div className="flex-1">
+                        <label className="block text-sm text-gray-300 mb-1">Minuty</label>
+                        <input
+                          type="number"
+                          value={timerMinutes}
+                          onChange={(e) => setTimerMinutes(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-full p-2 rounded bg-[#1e2636] border border-gray-600 text-white"
+                          min="0"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-sm text-gray-300 mb-1">Sekundy</label>
+                        <input
+                          type="number"
+                          value={timerSeconds}
+                          onChange={(e) => setTimerSeconds(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+                          className="w-full p-2 rounded bg-[#1e2636] border border-gray-600 text-white"
+                          min="0"
+                          max="59"
+                        />
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="flex gap-2 justify-center font-semibold">
+                    {!timerRunning ? (
+                      <button
+                        onClick={startTimer}
+                        disabled={timerMinutes === 0 && timerSeconds === 0}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded transition"
+                      >
+                        <FaPlay className="inline mr-2" />
+                        Start
+                      </button>
+                    ) : (
+                      <button
+                        onClick={pauseTimer}
+                        className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded transition"
+                      >
+                        <FaPause className="inline mr-2" />
+                        Pauza
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={resetTimer}
+                      className="px-4 py-2 bg-red-500 hover:bg-red-800 text-white rounded transition"
+                    >
+                      Reset
+                    </button>
+                  </div>
+
+                  {!showTimerBubble && timerRunning && (
+                    <button
+                      onClick={() => setShowTimerBubble(true)}
+                      className="w-full mt-4 px-4 py-2 bg-[#1e2636] hover:bg-[#147a8f] text-white rounded transition"
+                    >
+                      Pokaż
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {subpage === "stats" && <div className="mb-4">Statystyki</div>}
         </div>
@@ -3235,6 +3552,164 @@ const AdminClientManager: React.FC = () => {
 
                   setShowReminderModal(false);
                   setActiveReminder(null);
+                }}
+                className="px-4 py-2 rounded bg-[#00d9ff] text-[#1e2636] hover:bg-[#00a0c0] hover:scale-105 hover:shadow-lg font-bold transition"
+              >
+                Zamknij
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floatujący dymek stopera */}
+      {showStopwatchBubble && (
+        <div
+          className="fixed bg-[#1e2636] border border-gray-500 rounded-lg p-4 shadow-lg z-50 cursor-move"
+          style={{
+            left: stopwatchBubblePosition.x,
+            top: stopwatchBubblePosition.y,
+            width: '250px'
+          }}
+          onMouseDown={handleStopwatchMouseDown}
+        >
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="font-bold text-[#00d9ff]">Stoper</h4>
+            <button
+              onClick={() => setShowStopwatchBubble(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div className="text-center mb-3">
+            <div className="text-xl font-mono font-bold text-white">
+              {formatTime(stopwatchTime)}
+            </div>
+          </div>
+          
+          <div className="flex gap-1 mb-3 font-semibold">
+            {!stopwatchRunning ? (
+              <button
+                onClick={startStopwatch}
+                className="flex-1 px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm transition"
+              >
+                Start
+              </button>
+            ) : (
+              <button
+                onClick={pauseStopwatch}
+                className="flex-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm transition "
+              >
+                Pauza
+              </button>
+            )}
+            
+            <button
+              onClick={measureStopwatch}
+              disabled={!stopwatchRunning}
+              className="flex-1 px-2 py-1 bg-indigo-700 hover:bg-indigo-800 disabled:bg-gray-600 text-white rounded text-sm transition"
+            >
+              Pomiar
+            </button>
+            
+            <button
+              onClick={resetStopwatch}
+              className="flex-1 px-2 py-1 bg-red-500 hover:bg-red-800 text-white rounded text-sm transition"
+            >
+              Reset
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowStopwatchBubble(false)}
+            className="w-full px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm transition"
+          >
+            Ukryj
+          </button>
+        </div>
+      )}
+
+      {/* Floatujący dymek minutnika */}
+      {showTimerBubble && (
+        <div
+          className="fixed bg-[#1e2636] border border-gray-500 rounded-lg p-4 shadow-lg z-50 cursor-move"
+          style={{
+            left: timerBubblePosition.x,
+            top: timerBubblePosition.y,
+            width: '250px'
+          }}
+          onMouseDown={handleTimerMouseDown}
+        >
+          <div className="flex justify-between items-center mb-2">
+            <h4 className="font-bold text-[#00d9ff]">Minutnik</h4>
+            <button
+              onClick={() => setShowTimerBubble(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              ✕
+            </button>
+          </div>
+          
+          <div className="text-center mb-3">
+            <div className="text-xl  font-bold text-white">
+              {formatTime(timerRemainingSeconds)}
+            </div>
+          </div>
+          
+          <div className="flex gap-1 mb-3 font-semibold">
+            {!timerRunning ? (
+              <button
+                onClick={startTimer}
+                disabled={timerMinutes === 0 && timerSeconds === 0}
+                className="flex-1 px-2 py-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white rounded text-sm transition"
+              >
+                <FaPlay className="inline mr-1" size={12} />
+                Start
+              </button>
+            ) : (
+              <button
+                onClick={pauseTimer}
+                className="flex-1 px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-sm transition"
+              >
+                <FaPause className="inline mr-1" size={12} />
+                Pauza
+              </button>
+            )}
+            
+            <button
+              onClick={resetTimer}
+              className="flex-1 px-2 py-1 bg-red-500 hover:bg-red-800 text-white rounded text-sm transition"
+            >
+              Reset
+            </button>
+          </div>
+
+          <button
+            onClick={() => setShowTimerBubble(false)}
+            className="w-full px-2 py-1 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm transition"
+          >
+            Ukryj
+          </button>
+        </div>
+      )}
+
+      {/* Modal końca minutnika */}
+      {showTimerModal && (
+        <div className="fixed inset-0 bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#1e2636] border border-[#00d9ff] rounded-lg p-6 max-w-md w-full mx-4 relative">
+            <h3 className="text-lg font-bold mb-4 text-[#00d9ff]">
+              Czas upłynął!
+            </h3>
+            <p className="mb-6 text-white">
+              Minutnik zakończył odliczanie.
+            </p>
+            <div className="flex justify-end gap-4">
+              <button
+                onClick={() => {
+                  setShowTimerModal(false);
+                  resetTimer();
                 }}
                 className="px-4 py-2 rounded bg-[#00d9ff] text-[#1e2636] hover:bg-[#00a0c0] hover:scale-105 hover:shadow-lg font-bold transition"
               >
