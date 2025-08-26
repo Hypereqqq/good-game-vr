@@ -29,7 +29,6 @@ type SubpageType = "main" | "stoper" | "stats";
 type StatsSubpageType =
   | "statystyki_podstawowe"
   | "wykorzystanie_stanowisk"
-  | "analiza_czasowa"
   | "analiza_finansowa"
   | "analiza_graczy"
   | "analiza_gier"
@@ -613,7 +612,17 @@ const AdminClientManager: React.FC = () => {
       // infer game preferences from gameSegments when present
       if (s.gameSegments && s.stations) {
         s.gameSegments.forEach((seg: any) => {
-          const minutes = seg.duration || 0;
+          let minutes = seg.duration || 0;
+          if (!minutes && seg.startTime && seg.endTime) {
+            try {
+              const start = DateTime.fromISO(seg.startTime);
+              const end = DateTime.fromISO(seg.endTime);
+              minutes = Math.max(0, Math.floor(end.diff(start, "minutes").minutes));
+            } catch (e) {
+              minutes = 0; // fallback in case of invalid date format
+            }
+          }
+
           (seg.players || []).forEach((pi: number) => {
             const station = s.stations[pi];
             if (station == null) return;
@@ -758,8 +767,11 @@ const AdminClientManager: React.FC = () => {
       startTime: client.startTime,
       endTime: DateTime.fromISO(client.startTime).plus({ minutes: client.duration }).toISO() || undefined,
       playedMinutes: computePlayedMinutes(),
+  plannedMinutes: client.duration,
       gameSegments: client.gameSegments || [],
       paid: !!client.paid,
+      customPrice: typeof (client as any).customPrice === 'number' ? (client as any).customPrice : undefined,
+      wasCustomPrice: typeof (client as any).customPrice === 'number',
     };
 
     // We'll compute per-player minutes and attribute game minutes in player-minutes
@@ -3514,17 +3526,6 @@ const AdminClientManager: React.FC = () => {
               </button>
               <button
                 className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
-                  statsSubPage === "analiza_czasowa"
-                    ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
-                    : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
-                }`}
-                title="Analiza czasowa"
-                onClick={() => setStatsSubPage("analiza_czasowa")}
-              >
-                Analiza czasowa
-              </button>
-              <button
-                className={`px-4 py-2 mb-2 rounded flex items-center justify-center transition ${
                   statsSubPage === "analiza_finansowa"
                     ? "bg-[#0f1525] text-white shadow border-l-2 border-[#00d9ff]"
                     : "bg-[#161c29] text-gray-500 hover:bg-[#0f1525]"
@@ -4642,27 +4643,590 @@ const AdminClientManager: React.FC = () => {
             </div>
           )}
 
-          {subpage === "stats" && statsSubPage === "analiza_czasowa" && (
-            <div className="">
-              analiza_czasowa
-            </div>
-          )}
-
           {subpage === "stats" && statsSubPage === "analiza_finansowa" && (
-            <div className="">
-              analiza_finansowa
+            <div className="bg-[#1e2636] p-4 rounded-md">
+              <h3 className="text-lg font-semibold mb-3">Analiza finansowa</h3>
+              {(() => {
+                const stats = loadStats();
+                const sessions: any[] = stats.sessions || [];
+                if (!sessions.length) return <div className="text-sm text-gray-400">Brak danych</div>;
+
+                const toDayKey = (iso: string) => {
+                  try { return DateTime.fromISO(iso).toFormat('yyyy-LL-dd'); } catch { return '??'; }
+                };
+                const isWeekend = (iso: string) => {
+                  try { const d = DateTime.fromISO(iso).weekday; return d === 6 || d === 7; } catch { return false; }
+                };
+                const getRevenue = (s: any) => {
+                  if (typeof s.revenue === 'number') return s.revenue; // already computed total
+                  if (Array.isArray(s.perSegmentRevenue) && s.perSegmentRevenue.length) {
+                    return s.perSegmentRevenue.reduce((a: number, seg: any) => a + (seg.revenue || 0), 0);
+                  }
+                  if (typeof s.customPrice === 'number') return s.customPrice;
+                  const minutes = s.playedMinutes || s.duration || 0;
+                  try { return getPaymentAmount(minutes, s.startTime, s.players || 1); } catch { return 0; }
+                };
+
+                const now = DateTime.now();
+                const dayCut = now.minus({ days: 1 });
+                const weekCut = now.minus({ weeks: 1 });
+                const monthCut = now.minus({ months: 1 });
+
+                let dayRevenue = 0, weekRevenue = 0, monthRevenue = 0;
+                let daySessions = 0, weekSessions = 0, monthSessions = 0;
+                let weekendRevenue = 0, weekdayRevenue = 0, weekendSessions = 0, weekdaySessions = 0;
+                let customPriceSessions = 0;
+                const dayBuckets: Record<string, number> = {};
+                const priceValues: number[] = [];
+                const revenuePerGame: Record<string, number> = {};
+                const revenuePerGameHour: Record<string, number[]> = {};
+                let totalPlayerMinutes = 0;
+
+                sessions.forEach(s => {
+                  const rev = getRevenue(s);
+                  priceValues.push(rev);
+                  if (s.wasCustomPrice) customPriceSessions++;
+                  const start = DateTime.fromISO(s.startTime);
+                  const players = s.players || 1;
+                  const minutesPlayer = (s.perPlayerMinutes && Array.isArray(s.perPlayerMinutes) && s.perPlayerMinutes.length)
+                    ? s.perPlayerMinutes.reduce((a: number, b: number) => a + (b||0), 0)
+                    : ( (s.playedMinutes || s.duration || 0) * players );
+                  totalPlayerMinutes += minutesPlayer;
+
+                  if (start >= dayCut) { dayRevenue += rev; daySessions += players; }
+                  if (start >= weekCut) { weekRevenue += rev; weekSessions += players; }
+                  if (start >= monthCut) { monthRevenue += rev; monthSessions += players; }
+
+                  if (isWeekend(s.startTime)) { weekendRevenue += rev; weekendSessions += players; } else { weekdayRevenue += rev; weekdaySessions += players; }
+
+                  const dk = toDayKey(s.startTime);
+                  dayBuckets[dk] = (dayBuckets[dk] || 0) + rev;
+
+                  if (s.gameSegments && s.gameSegments.length) {
+                    s.gameSegments.forEach((seg: any) => {
+                      if (!seg.gameType) return;
+                      const segMinutes = seg.duration || (() => { try { return Math.max(0, Math.floor((DateTime.fromISO(seg.endTime).toMillis() - DateTime.fromISO(seg.startTime).toMillis())/60000)); } catch { return 0; } })();
+                      if (!segMinutes) return;
+                      let segRevenue = 0;
+                      if (Array.isArray(s.perSegmentRevenue)) {
+                        const found = s.perSegmentRevenue.find((r: any) => r.gameType === seg.gameType && r.minutes === segMinutes);
+                        if (found) segRevenue = found.revenue;
+                      }
+                      if (!segRevenue) {
+                        const playersInSeg = (seg.players && seg.players.length) || players;
+                        const singleRate = segMinutes ? (getSinglePlayerAmount(segMinutes, seg.startTime) / segMinutes) : 0;
+                        segRevenue = singleRate * segMinutes * playersInSeg;
+                      }
+                      revenuePerGame[seg.gameType] = (revenuePerGame[seg.gameType] || 0) + segRevenue;
+                      const hour = DateTime.fromISO(seg.startTime).hour;
+                      revenuePerGameHour[seg.gameType] = revenuePerGameHour[seg.gameType] || Array.from({length:24},()=>0);
+                      revenuePerGameHour[seg.gameType][hour] += segRevenue;
+                    });
+                  }
+                });
+
+                const avgSessionValueDay = daySessions ? (dayRevenue / daySessions) : 0;
+                const avgSessionValueWeek = weekSessions ? (weekRevenue / weekSessions) : 0;
+                const avgSessionValueMonth = monthSessions ? (monthRevenue / monthSessions) : 0;
+                const customPct = sessions.length ? (customPriceSessions / sessions.length * 100) : 0;
+                const totalRevenueAll = sessions.reduce((a,s)=> a + getRevenue(s), 0);
+                const pricePerMinute = totalPlayerMinutes ? (totalRevenueAll / totalPlayerMinutes) : 0;
+
+                const topDays = Object.entries(dayBuckets).sort((a,b)=> b[1]-a[1]).slice(0,5);
+
+                // Histogram of session revenue (bucket 50 zł)
+                const bucketSize = 50;
+                const hist: Record<string, number> = {};
+                priceValues.forEach(v => {
+                  const base = Math.floor(v / bucketSize) * bucketSize;
+                  const key = `${base}-${base + bucketSize - 1}`;
+                  hist[key] = (hist[key] || 0) + 1;
+                });
+                const histCategories = Object.keys(hist).sort((a,b)=> parseInt(a)-parseInt(b));
+                const histSeries = [{ name: 'Sesje', data: histCategories.map(c => hist[c]) }];
+
+                const gameRevEntries = Object.entries(revenuePerGame).sort((a,b)=> b[1]-a[1]);
+                const gameRevCategories = gameRevEntries.map(e=>e[0]);
+                const gameRevData = gameRevEntries.map(e=> Math.round(e[1]));
+
+                const gameHourSeries = Object.entries(revenuePerGameHour).map(([game, arr]) => ({ name: game, data: arr.map((v,i)=> ({ x: `${i}:00`, y: Math.round(v) })) }));
+                const weekendWeekdaySeries = [{ name: 'Przychód', data: [Math.round(weekdayRevenue), Math.round(weekendRevenue)] }];
+                const weekendWeekdayCategories = ['Dni robocze','Weekend'];
+
+                return (
+                  <div className="flex flex-col gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">Przychód 24h</h4>
+                        <div className="text-2xl font-bold mt-1">{Math.round(dayRevenue)} zł</div>
+                        <div className="text-[11px] text-gray-500">Śr/sesja: {avgSessionValueDay.toFixed(2)} zł</div>
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">Przychód 7 dni</h4>
+                        <div className="text-2xl font-bold mt-1">{Math.round(weekRevenue)} zł</div>
+                        <div className="text-[11px] text-gray-500">Śr/sesja: {avgSessionValueWeek.toFixed(2)} zł</div>
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">Przychód 30 dni</h4>
+                        <div className="text-2xl font-bold mt-1">{Math.round(monthRevenue)} zł</div>
+                        <div className="text-[11px] text-gray-500">Śr/sesja: {avgSessionValueMonth.toFixed(2)} zł</div>
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">Śr. cena / minuta</h4>
+                        <div className="text-2xl font-bold mt-1">{pricePerMinute.toFixed(2)} zł</div>
+                        <div className="text-[11px] text-gray-500">Custom: {customPct.toFixed(1)}%</div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Weekend vs Dni robocze</h4>
+                      <Apex type="bar" height={240} series={weekendWeekdaySeries} options={{ ...buildLineOptions('weekendWeekday'), xaxis: { categories: weekendWeekdayCategories }, colors: ['#00d9ff'] }} />
+                      <div className="text-xs text-gray-400 mt-2">Weekend: {Math.round(weekendRevenue)} zł / {weekendSessions} sesji | Dni robocze: {Math.round(weekdayRevenue)} zł / {weekdaySessions} sesji</div>
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Rozkład cen sesji</h4>
+                      <Apex type="bar" height={260} series={histSeries} options={{ ...buildLineOptions('histPrices'), xaxis: { categories: histCategories }, colors: ['#ffb86b'] }} />
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Przychód na grę</h4>
+                      <Apex type="bar" height={300} series={[{ name: 'Przychód', data: gameRevData }]} options={{ ...buildLineOptions('gameRev'), xaxis: { categories: gameRevCategories }, colors: ['#7c4dff'] }} />
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Przychód na grę / godzinę</h4>
+                      <Apex type="heatmap" height={260} series={gameHourSeries} options={{ ...buildHeatmapOptions(), plotOptions: { heatmap: { shadeIntensity: 0.6 } } }} />
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Top dni (przychód)</h4>
+                      {topDays.length === 0 ? <div className="text-xs text-gray-400">Brak danych</div> : (
+                        <ul className="text-xs text-gray-200 space-y-1">
+                          {topDays.map(([d,val]) => <li key={d} className="flex justify-between"><span>{d}</span><span className="font-semibold">{Math.round(val)} zł</span></li>)}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
           {subpage === "stats" && statsSubPage === "analiza_graczy" && (
-            <div className="">
-              analiza_graczy
+            <div className="bg-[#1e2636] p-4 rounded-md">
+              <h3 className="text-lg font-semibold mb-3">Analiza graczy</h3>
+              {(() => {
+                const stats = loadStats();
+                const sessions: any[] = stats.sessions || [];
+                if (!sessions.length) return <div className="text-sm text-gray-400">Brak danych</div>;
+
+                // Group size distribution (1-8)
+                const maxGroup = 8;
+                const groupCounts = Array.from({length: maxGroup},()=>0); // index size-1
+                const groupMinutes: number[] = Array.from({length:maxGroup},()=>0);
+                const groupRevenue: number[] = Array.from({length:maxGroup},()=>0);
+                const sessionDurations: number[] = []; // playedMinutes (group level)
+                const plannedDurations: number[] = []; // planned
+                const extensionRecords: Array<{planned:number; played:number; delta:number; players:number}> = [];
+
+                sessions.forEach(s => {
+                  const size = s.players || 1;
+                  const sizeIdx = Math.min(Math.max(size,1), maxGroup) - 1;
+                  groupCounts[sizeIdx] += 1;
+                  const played = s.playedMinutes || s.duration || 0;
+                  const totalPlayerMinutes = (s.perPlayerMinutes && s.perPlayerMinutes.length) ? s.perPlayerMinutes.reduce((a:number,b:number)=>a+(b||0),0) : played * size;
+                  groupMinutes[sizeIdx] += totalPlayerMinutes; // player-minutes for fairness
+                  const revenue = typeof s.revenue === 'number' ? s.revenue : (s.perSegmentRevenue ? s.perSegmentRevenue.reduce((a:number,seg:any)=>a+(seg.revenue||0),0):0);
+                  groupRevenue[sizeIdx] += revenue;
+                  sessionDurations.push(played);
+                  if (typeof s.plannedMinutes === 'number') {
+                    plannedDurations.push(s.plannedMinutes);
+                    const delta = played - s.plannedMinutes;
+                    extensionRecords.push({ planned: s.plannedMinutes, played, delta, players: size });
+                  }
+                });
+
+                const mostPopularSizeIdx = groupCounts.reduce((bestIdx, val, idx, arr) => val > arr[bestIdx] ? idx : bestIdx, 0);
+                const mostPopularSize = mostPopularSizeIdx + 1;
+
+                // Average play time by group size (convert player-minutes back to per-player average minutes and also group total)
+                const avgMinutesPerPlayerSize = groupCounts.map((count, idx) => count ? Math.round(groupMinutes[idx] / (count * (idx+1))) : 0);
+                // Revenue by group size
+                const revenuePerGroupSize = groupRevenue.map(v=> Math.round(v));
+
+                // Session length histogram (bucket 15 min)
+                const bucketSize = 15;
+                const histMap: Record<string, number> = {};
+                sessionDurations.forEach(min => {
+                  const base = Math.floor(min / bucketSize) * bucketSize;
+                  const key = `${base}-${base+bucketSize-1}`;
+                  histMap[key] = (histMap[key] || 0) + 1;
+                });
+                const histCategories = Object.keys(histMap).sort((a,b)=> parseInt(a)-parseInt(b));
+                const histSeries = [{ name: 'Sesje', data: histCategories.map(k=> histMap[k]) }];
+
+                // Most common planned durations (najczęściej wybierane czasy gry)
+                const plannedFreq: Record<number, number> = {};
+                plannedDurations.forEach(p => { plannedFreq[p] = (plannedFreq[p] || 0)+1; });
+                const popularPlanned = Object.entries(plannedFreq).sort((a,b)=> b[1]-a[1]).slice(0,5);
+
+                // Extensions analysis (delta > 0 = przedłużenie)
+                const extensions = extensionRecords.filter(r => r.delta > 3); // >3 min tolerance
+                const shortened = extensionRecords.filter(r => r.delta < -3);
+                const avgExtensionMinutes = extensions.length ? (extensions.reduce((a,r)=>a+r.delta,0)/extensions.length) : 0;
+                const extensionRate = extensionRecords.length ? (extensions.length / extensionRecords.length * 100) : 0;
+
+                // Charts
+                const sizeCategories = Array.from({length:maxGroup},(_,i)=> `${i+1}`);
+                const sizeDistSeries = [{ name: 'Sesje', data: groupCounts }];
+                const avgSizeSeries = [{ name: 'Śr. min (na gracza)', data: avgMinutesPerPlayerSize }];
+                const revenueSizeSeries = [{ name: 'Przychód', data: revenuePerGroupSize }];
+
+                return (
+                  <div className="flex flex-col gap-6">
+                    {/* KPIs */}
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">Najpopularniejsza wielkość</h4>
+                        <div className="text-2xl font-bold mt-1">{mostPopularSize}</div>
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">Liczba sesji</h4>
+                        <div className="text-2xl font-bold mt-1">{sessions.length}</div>
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">% z przedłużeniem</h4>
+                        <div className="text-2xl font-bold mt-1">{extensionRate.toFixed(1)}%</div>
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">Śr. przedłużenie (min)</h4>
+                        <div className="text-2xl font-bold mt-1">{avgExtensionMinutes.toFixed(1)}</div>
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-xs text-gray-400">Przedł./Skrócenia</h4>
+                        <div className="text-2xl font-bold mt-1">{extensions.length}/{shortened.length}</div>
+                      </div>
+                    </div>
+
+                    {/* Group size distribution */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Rozkład wielkości grup</h4>
+                        <Apex type="bar" height={280} series={sizeDistSeries} options={{ ...buildLineOptions('groupDist'), xaxis: { categories: sizeCategories }, colors:['#00d9ff'] }} />
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Średni czas wg wielkości (min / gracz)</h4>
+                        <Apex type="bar" height={280} series={avgSizeSeries} options={{ ...buildLineOptions('avgGroupTime'), xaxis: { categories: sizeCategories }, colors:['#ffb86b'] }} />
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Przychód wg wielkości grupy</h4>
+                        <Apex type="bar" height={280} series={revenueSizeSeries} options={{ ...buildLineOptions('revGroup'), xaxis: { categories: sizeCategories }, colors:['#7c4dff'] }} />
+                      </div>
+                    </div>
+
+                    {/* Session length histogram */}
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Rozkład długości sesji (min)</h4>
+                      <Apex type="bar" height={260} series={histSeries} options={{ ...buildLineOptions('sessionLen'), xaxis: { categories: histCategories }, colors:['#34d399'] }} />
+                    </div>
+
+                    {/* Most chosen planned times */}
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Najczęściej wybierane czasy gry (planowane)</h4>
+                      {popularPlanned.length === 0 ? <div className="text-xs text-gray-400">Brak danych planowanych czasów</div> : (
+                        <ul className="text-xs text-gray-200 space-y-1">
+                          {popularPlanned.map(([mins,count]) => (
+                            <li key={mins} className="flex justify-between"><span>{mins} min</span><span className="font-semibold">{count}</span></li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+
+                    {/* Extensions detail list */}
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Analiza przedłużeń (top 10)</h4>
+                      {extensions.length === 0 ? <div className="text-xs text-gray-400">Brak przedłużeń</div> : (
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="text-gray-400 text-left">
+                              <th className="py-1 pr-2">Graczy</th>
+                              <th className="py-1 pr-2">Plan</th>
+                              <th className="py-1 pr-2">Zagrano</th>
+                              <th className="py-1 pr-2">+Min</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {extensions.sort((a,b)=> b.delta - a.delta).slice(0,10).map((e,i)=>(
+                              <tr key={i} className="border-t border-gray-700">
+                                <td className="py-1 pr-2">{e.players}</td>
+                                <td className="py-1 pr-2">{e.planned}</td>
+                                <td className="py-1 pr-2">{e.played}</td>
+                                <td className="py-1 pr-2 text-green-400 font-semibold">+{e.delta}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
           {subpage === "stats" && statsSubPage === "analiza_gier" && (
-            <div className="">
-              analiza_gier
+            <div className="bg-[#1e2636] p-4 rounded-md">
+              <h3 className="text-lg font-semibold mb-3">Analiza gier</h3>
+              {(() => {
+                const stats = loadStats();
+                const sessions: any[] = stats.sessions || [];
+                if (!sessions.length) return <div className="text-sm text-gray-400">Brak danych</div>;
+
+                interface GameAgg {
+                  game: string;
+                  sessionsCount: number; // liczba sesji w których gra wystąpiła
+                  segmentsCount: number;
+                  totalSegmentMinutes: number; // suma minut segmentowych (bez mnożenia przez graczy)
+                  totalPlayerMinutes: number; // suma (segmentMin * playersInSeg)
+                  revenue: number;
+                  extensionSessions: number; // ile sesji z przedłużeniem zawierało grę
+                  pausePlayerMinutes: number; // rozdzielone pauzy (player-min)
+                  groupSizeSum: number; // suma wielkości grup w sesjach występowania
+                }
+                const gameAgg: Record<string, GameAgg> = {};
+
+                // Pre-calc session level extension and pause deltas
+                type SessionInfo = { games: Set<string>; extension: boolean; playerMinutes: number; plannedPlayerMinutes: number; pausePlayerMinutes: number; groupSize: number; segments: any[] };
+                const sessionInfos: SessionInfo[] = [];
+                sessions.forEach(s => {
+                  const groupSize = s.players || 1;
+                  const played = s.playedMinutes || s.duration || 0;
+                  const playerMinutes = (s.perPlayerMinutes && s.perPlayerMinutes.length)
+                    ? s.perPlayerMinutes.reduce((a:number,b:number)=>a+(b||0),0)
+                    : played * groupSize;
+                  const plannedMinutes = typeof s.plannedMinutes === 'number' ? s.plannedMinutes : played; // fallback
+                  const plannedPlayerMinutes = plannedMinutes * groupSize;
+                  const pausePlayerMinutes = Math.max(0, plannedPlayerMinutes - playerMinutes);
+                  const extension = played > plannedMinutes + 3; // tolerance
+                  const games = new Set<string>();
+                  (s.gameSegments || []).forEach((seg:any)=> { if (seg.gameType) games.add(seg.gameType); });
+                  sessionInfos.push({ games, extension, playerMinutes, plannedPlayerMinutes, pausePlayerMinutes, groupSize, segments: s.gameSegments || [] });
+                });
+
+                // Helper to extract segment revenue
+                const getSegRevenue = (session: any, seg: any, segMinutes: number, playersInSeg: number) => {
+                  if (Array.isArray(session.perSegmentRevenue)) {
+                    const found = session.perSegmentRevenue.find((r:any)=> r.gameType === seg.gameType && r.minutes === segMinutes);
+                    if (found) return found.revenue || 0;
+                  }
+                  if (segMinutes <=0) return 0;
+                  const singleRate = segMinutes ? (getSinglePlayerAmount(segMinutes, seg.startTime) / segMinutes) : 0;
+                  return singleRate * segMinutes * playersInSeg;
+                };
+
+                sessions.forEach((s, idx) => {
+                  const info = sessionInfos[idx];
+                  (s.gameSegments || []).forEach((seg:any) => {
+                    if (!seg.gameType) return;
+                    const playersInSeg = (seg.players && seg.players.length) || (s.players || 1);
+                    const segMinutes = seg.duration || (() => { try { return Math.max(0, Math.floor((DateTime.fromISO(seg.endTime).toMillis() - DateTime.fromISO(seg.startTime).toMillis())/60000)); } catch { return 0; } })();
+                    if (!gameAgg[seg.gameType]) {
+                      gameAgg[seg.gameType] = { game: seg.gameType, sessionsCount: 0, segmentsCount: 0, totalSegmentMinutes: 0, totalPlayerMinutes: 0, revenue: 0, extensionSessions: 0, pausePlayerMinutes: 0, groupSizeSum: 0 };
+                    }
+                    const g = gameAgg[seg.gameType];
+                    g.segmentsCount += 1;
+                    g.totalSegmentMinutes += segMinutes;
+                    g.totalPlayerMinutes += segMinutes * playersInSeg;
+                    g.revenue += getSegRevenue(s, seg, segMinutes, playersInSeg);
+                  });
+                  info.games.forEach(game => {
+                    const g = gameAgg[game];
+                    g.sessionsCount += 1;
+                    g.groupSizeSum += info.groupSize;
+                    if (info.extension) g.extensionSessions += 1;
+                  });
+                });
+
+                // Distribute pause minutes proportionally to player-minutes within each session
+                sessionInfos.forEach((info, idx) => {
+                  if (info.pausePlayerMinutes <= 0) return;
+                  // compute total player-minutes per game in this session
+                  const perGamePlayerMin: Record<string, number> = {};
+                  (sessions[idx].gameSegments || []).forEach((seg:any)=>{
+                    if (!seg.gameType) return;
+                    const playersInSeg = (seg.players && seg.players.length) || (sessions[idx].players || 1);
+                    const segMinutes = seg.duration || (() => { try { return Math.max(0, Math.floor((DateTime.fromISO(seg.endTime).toMillis() - DateTime.fromISO(seg.startTime).toMillis())/60000)); } catch { return 0; } })();
+                    perGamePlayerMin[seg.gameType] = (perGamePlayerMin[seg.gameType] || 0) + segMinutes * playersInSeg;
+                  });
+                  const total = Object.values(perGamePlayerMin).reduce((a,b)=>a+b,0) || 1;
+                  Object.entries(perGamePlayerMin).forEach(([game, pm]) => {
+                    const share = pm / total;
+                    gameAgg[game].pausePlayerMinutes += info.pausePlayerMinutes * share;
+                  });
+                });
+
+                // Build derived metrics arrays
+                const gamesList = Object.values(gameAgg);
+                if (!gamesList.length) return <div className="text-sm text-gray-400">Brak segmentów gier</div>;
+
+                const popularitySorted = [...gamesList].sort((a,b)=> b.totalPlayerMinutes - a.totalPlayerMinutes);
+                const revenueSorted = [...gamesList].sort((a,b)=> b.revenue - a.revenue);
+                const roiSorted = [...gamesList].sort((a,b)=> (b.revenue/(b.totalPlayerMinutes||1)) - (a.revenue/(a.totalPlayerMinutes||1)));
+                const extensionSorted = [...gamesList].sort((a,b)=> (b.extensionSessions/(b.sessionsCount||1)) - (a.extensionSessions/(a.sessionsCount||1)));
+                const rotationSorted = [...gamesList].sort((a,b)=> (b.totalSegmentMinutes/(b.segmentsCount||1)) - (a.totalSegmentMinutes/(a.segmentsCount||1)));
+
+                // Chart data: popularity (top 15)
+                const safeNumber = (v:any) => (Number.isFinite(v) && !isNaN(v)) ? v : 0;
+                const topPop = popularitySorted.slice(0,15);
+                const popCategories = topPop.map(g=>g.game);
+                const popSeries = [{ name: 'Player-minuty', data: topPop.map(g=> safeNumber(Math.round(g.totalPlayerMinutes))) }];
+
+                // Pie (donut) popularity share using player-minutes
+                const donutSeries = popSeries[0].data.map(safeNumber);
+
+                // Revenue per game (top 15)
+                const topRev = revenueSorted.slice(0,15);
+                const revCategories = topRev.map(g=>g.game);
+                const revSeries = [{ name: 'Przychód', data: topRev.map(g=> safeNumber(Math.round(g.revenue))) }];
+
+                // ROI per game (top 15 up to ROI)
+                const topROI = roiSorted.slice(0,15);
+                const roiCategories = topROI.map(g=>g.game);
+                const roiSeries = [{ name: 'zł / player-min', data: topROI.map(g=> safeNumber(+(g.revenue/(g.totalPlayerMinutes||1)).toFixed(2))) }];
+
+                // Average session time per game (segment minutes per session)
+                const avgSessionTimeSeries = [{ name: 'Śr. min / sesja', data: topPop.map(g=> safeNumber(+(g.totalSegmentMinutes/(g.sessionsCount||1)).toFixed(1))) }];
+
+                // Average session value per game (revenue / sessionsCount)
+                const avgValueSeries = [{ name: 'Śr. wartość sesji', data: topRev.map(g=> safeNumber(+(g.revenue/(g.sessionsCount||1)).toFixed(2))) }];
+
+                // Extensions rate per game (top 10)
+                const topExt = extensionSorted.slice(0,10);
+                const extCategories = topExt.map(g=>g.game);
+                const extSeries = [{ name: '% sesji z przedłużeniem', data: topExt.map(g=> safeNumber(+(g.extensionSessions/(g.sessionsCount||1)*100).toFixed(1))) }];
+
+                // Rotation (avg segment duration) top 10
+                const topRot = rotationSorted.slice(0,10);
+                const rotCategories = topRot.map(g=>g.game);
+                const rotSeries = [{ name: 'Śr. min segmentu', data: topRot.map(g=> safeNumber(+(g.totalSegmentMinutes/(g.segmentsCount||1)).toFixed(1))) }];
+
+                // Group size correlation: average group size
+                const groupSizeSorted = [...gamesList].sort((a,b)=> (b.groupSizeSum/(b.sessionsCount||1)) - (a.groupSizeSum/(a.sessionsCount||1))).slice(0,15);
+                const groupSizeCategories = groupSizeSorted.map(g=>g.game);
+                const groupSizeSeries = [{ name: 'Śr. wielkość grupy', data: groupSizeSorted.map(g=> safeNumber(+(g.groupSizeSum/(g.sessionsCount||1)).toFixed(2))) }];
+
+                // Pause percentage per game (approx)
+                const pausePercSeries = [{ name: '% pauzy', data: topPop.map(g=> {
+                  const perc = g.pausePlayerMinutes > 0 ? (g.pausePlayerMinutes / (g.pausePlayerMinutes + g.totalPlayerMinutes) * 100) : 0; return safeNumber(+perc.toFixed(1)); }) }];
+
+                // Top 10 most profitable games list (revenue)
+                const top10Prof = revenueSorted.slice(0,10);
+
+                // Stations preference: compute per game station minutes
+                const stationMinutesPerGame: Record<string, number[]> = {};
+                sessions.forEach(s => {
+                  (s.gameSegments || []).forEach((seg:any)=>{
+                    if (!seg.gameType) return;
+                    const segMinutes = seg.duration || (() => { try { return Math.max(0, Math.floor((DateTime.fromISO(seg.endTime).toMillis() - DateTime.fromISO(seg.startTime).toMillis())/60000)); } catch { return 0; } })();
+                    const players = (seg.players && seg.players.length) ? seg.players : [...Array((s.players||1))].map((_,i)=>i);
+                    players.forEach((pi:number) => {
+                      const station = s.stations?.[pi];
+                      if (!station) return;
+                      stationMinutesPerGame[seg.gameType] = stationMinutesPerGame[seg.gameType] || Array.from({length:9},()=>0);
+                      stationMinutesPerGame[seg.gameType][station] += segMinutes;
+                    });
+                  });
+                });
+
+                // For each top game get top station
+                const stationPref = Object.entries(stationMinutesPerGame).map(([game, arr]) => {
+                  const bestIdx = arr.reduce((bi, val, idx, a)=> val > a[bi] ? idx : bi, 0);
+                  return { game, station: bestIdx, minutes: arr[bestIdx] };
+                }).sort((a,b)=> b.minutes - a.minutes).slice(0,10);
+
+                return (
+                  <div className="flex flex-col gap-6">
+                    {/* Popularność */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Popularność (player-minuty)</h4>
+                        <Apex type="bar" height={300} series={popSeries} options={{ ...buildLineOptions('gamePop'), xaxis: { categories: popCategories }, colors:['#00d9ff'] }} />
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Udział popularności (Top 15)</h4>
+                        <Apex type="donut" height={300} series={donutSeries} options={{ labels: popCategories, theme:{mode:'dark'}, legend:{show:false} }} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Średni czas sesji na grę (min)</h4>
+                        <Apex type="bar" height={280} series={avgSessionTimeSeries} options={{ ...buildLineOptions('avgSessGame'), xaxis:{ categories: popCategories }, colors:['#ffb86b'] }} />
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Śr. wartość sesji wg gry</h4>
+                        <Apex type="bar" height={280} series={avgValueSeries} options={{ ...buildLineOptions('avgValGame'), xaxis:{ categories: revCategories }, colors:['#7c4dff'] }} />
+                      </div>
+                    </div>
+
+                    {/* Finansowa */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Przychód na grę (Top 15)</h4>
+                        <Apex type="bar" height={300} series={revSeries} options={{ ...buildLineOptions('revGame'), xaxis:{ categories: revCategories }, colors:['#34d399'] }} />
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">ROI (zł / player-min)</h4>
+                        <Apex type="bar" height={300} series={roiSeries} options={{ ...buildLineOptions('roiGame'), xaxis:{ categories: roiCategories }, colors:['#f78c6c'] }} />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Top 10 najbardziej dochodowych gier</h4>
+                      <ul className="text-xs text-gray-200 space-y-1">
+                        {top10Prof.map(g => (
+                          <li key={g.game} className="flex justify-between"><span className="truncate pr-2">{g.game}</span><span className="font-semibold">{Math.round(g.revenue)} zł</span></li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Zachowania */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">% sesji z przedłużeniem (Top 10)</h4>
+                        <Apex type="bar" height={280} series={extSeries} options={{ ...buildLineOptions('extGame'), xaxis:{ categories: extCategories }, colors:['#ff79c6'] }} />
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">% pauzy (szacowane) – Top 15</h4>
+                        <Apex type="bar" height={280} series={pausePercSeries} options={{ ...buildLineOptions('pauseGame'), xaxis:{ categories: popCategories }, colors:['#c792ea'] }} />
+                      </div>
+                    </div>
+                    <div className="p-3 bg-[#0f1525] rounded text-xs text-gray-400">Przypomnienia per gra: brak danych historycznych (nie są zapisywane w statystykach – można dodać w przyszłości).</div>
+
+                    {/* Stanowiska & korelacje */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Preferowane stanowiska (Top 10 gier)</h4>
+                        <ul className="text-xs text-gray-200 space-y-1 max-h-72 overflow-auto pr-1">
+                          {stationPref.map(sp => (
+                            <li key={sp.game} className="flex justify-between"><span className="truncate pr-2">{sp.game}</span><span className="font-semibold">St {sp.station} ({Math.round(sp.minutes)}m)</span></li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div className="p-3 bg-[#0f1525] rounded">
+                        <h4 className="text-sm text-gray-300 mb-2">Śr. wielkość grupy (Top 15)</h4>
+                        <Apex type="bar" height={300} series={groupSizeSeries} options={{ ...buildLineOptions('grpSizeGame'), xaxis:{ categories: groupSizeCategories }, colors:['#82aaff'] }} />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-[#0f1525] rounded">
+                      <h4 className="text-sm text-gray-300 mb-2">Rotacja – gry o najdłuższych segmentach</h4>
+                      <Apex type="bar" height={300} series={rotSeries} options={{ ...buildLineOptions('rotGame'), xaxis:{ categories: rotCategories }, colors:['#ffcb6b'] }} />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
 
