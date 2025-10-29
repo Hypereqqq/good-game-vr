@@ -74,6 +74,16 @@ const Navbar: React.FC = () => {
                   </NavLink>
                 </li>
                 <li>
+                  <NavLink to="/admin/mail" className={getLinkClass}>
+                    MAIL
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/admin/todo" className={getLinkClass}>
+                    TODO
+                  </NavLink>
+                </li>
+                <li>
                   <NavLink to="/admin/vouchery" className={getLinkClass}>
                     Vouchery
                   </NavLink>

@@ -185,24 +185,70 @@ const AdminPanel: React.FC = () => {
             </h3>
             <p className="text-xs text-gray-400 mb-2">26 sierpnia 2025</p>
             <ul className="list-disc list-inside text-gray-300 space-y-1">
-              <li>
-                Poprawiono wygląd kafelka
-                <span className="text-[#16da9f] font-bold"> [UI]</span>
-              </li>
-              <li>
-                Dodano możliwość wprowadzenia gry
-                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
-                <span className="text-[#dd9c10] font-bold"> [UX]</span>
-                <span className="text-[#16da9f] font-bold"> [UI]</span>
-              </li>
-              
+              {/* Podstawowe statystyki */}
+              <li className="mt-2 font-semibold text-white">Podstawowe statystyki</li>
+              <li className="ml-4">Dzienne / tygodniowe / miesięczne podsumowania (czas, player‑minuty, przychód)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Wykresy area dla trendów 24h / 7d / 30d<span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li className="ml-4">Heatmapa godzinowa (ostatnia doba + tydzień)<span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li className="ml-4">Bloki godzin (wizualne zagęszczenie ruchu)<span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+
+              {/* Wykorzystanie stanowisk */}
+              <li className="mt-4 font-semibold text-white">Wykorzystanie stanowisk</li>
+              <li className="ml-4">Procentowy udział czasu pracy każdego stanowiska<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Średnie minuty na sesję per stanowisko<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Heatmapa intensywności (minuty vs stanowisko)<span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li className="ml-4">Top gry na stanowiskach (ranking czasu)<span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+
+              {/* Analiza finansowa */}
+              <li className="mt-4 font-semibold text-white">Analiza finansowa</li>
+              <li className="ml-4">Przychód 24h / 7d / 30d + średnia wartość sesji (okresy)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Weekend vs dni robocze (porównanie przychodu i liczby sesji)<span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+              <li className="ml-4">Histogram wartości sesji (bucket 50 zł)<span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li className="ml-4">Przychód per gra + heatmapa przychodu per godzina (gra × godzina)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Top dni (najwyższy przychód)<span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+              <li className="ml-4">% sesji z ceną niestandardową + średnia zł / player‑min<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+
+              {/* Analiza graczy */}
+              <li className="mt-4 font-semibold text-white">Analiza graczy</li>
+              <li className="ml-4">Rozkład wielkości grup (1–8) + wykresy słupkowe<span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li className="ml-4">Śr. minuty na gracza wg wielkości grupy<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Przychód wg wielkości grupy<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Histogram długości sesji (bucket 15 min)<span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li className="ml-4">Najczęściej wybierane planowane czasy gry<span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+              <li className="ml-4">Analiza przedłużeń: % sesji z przedłużeniem, średnie + top 10 różnic<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+
+              {/* Analiza gier */}
+              <li className="mt-4 font-semibold text-white">Analiza gier</li>
+              <li className="ml-4">Popularność (player‑minuty) + donut udziałów Top 15<span className="text-[#16da9f] font-bold"> [UI]</span></li>
+              <li className="ml-4">Średni czas segmentów / sesji per gra (rotacja + długość)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Średnia wartość sesji per gra + przychód i ROI (zł / player‑min)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">% sesji z przedłużeniem (Top 10) + % pauzy (szacowane)<span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+              <li className="ml-4">Preferencje stanowisk dla gier (Top 10) + śr. wielkość grupy per gra<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Lista Top 10 najbardziej dochodowych gier<span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+
+              {/* KPI */}
+              <li className="mt-4 font-semibold text-white">KPI</li>
+              <li className="ml-4">Przychód łącznie / średnia wartość klienta<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Przychód na godzinę: zajętą vs dostępna (efektywność vs potencjał)<span className="text-[#dd9c10] font-bold"> [UX]</span></li>
+              <li className="ml-4">Utilizacja pojemności (czas wykorzystany / dostępny)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Rotacja stanowisk (sesje / stanowisko / dzień)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Top gry – wykorzystanie czasu i przychód na godzinę (mini ranking KPI)<span className="text-[#16da9f] font-bold"> [UI]</span></li>
+
+              {/* Infrastruktura / techniczne */}
+              <li className="mt-4 font-semibold text-white">Warstwa techniczna</li>
+              <li className="ml-4">Nowa struktura danych: gameSegments, perSegmentRevenue, perPlayerMinutes, perStationMinutes<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Scalanie interwałów czasu (odliczanie realnych minut po pauzach)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Bezpieczna sanitacja wartości liczbowych dla wykresów (ochrona przed NaN/Infinity)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Obsługa plannedMinutes i detekcja przedłużeń / skróceń<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Proporcjonalny podział pauz na gry (player‑minuty) dla % pauzy<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
+              <li className="ml-4">Elastyczne wyliczanie revenue fallback (custom / segment / kalkulator stawek)<span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span></li>
             </ul>
           </div>
 
 
           <div className="bg-[#1e2636] rounded-xl shadow-lg p-6 flex flex-col gap-2">
             <h3 className="text-xl font-bold text-white">
-              Stoper
+              Stoper i dodawanie gier
               <span className="text-purple-400 font-bold"> (V.1.3.0)</span>
             </h3>
             <p className="text-xs text-gray-400 mb-2">26 sierpnia 2025</p>
@@ -215,6 +261,12 @@ const AdminPanel: React.FC = () => {
               </li>
               <li>
                 Dodano pływające dymki dla stopera i minutnika
+                <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
+                <span className="text-[#dd9c10] font-bold"> [UX]</span>
+                <span className="text-[#16da9f] font-bold"> [UI]</span>
+              </li>
+              <li>
+                Dodano możliwość wprowadzenia gry.
                 <span className="text-[#2fc5eb] font-bold"> [SYSTEM]</span>
                 <span className="text-[#dd9c10] font-bold"> [UX]</span>
                 <span className="text-[#16da9f] font-bold"> [UI]</span>

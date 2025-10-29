@@ -5220,9 +5220,202 @@ const AdminClientManager: React.FC = () => {
           )}
 
           {subpage === "stats" && statsSubPage === "wskazniki" && (
-            <div className="">
-              wskazniki
-            </div>
+                      <div className="bg-[#1e2636] p-4 rounded-md">
+                        <h3 className="text-lg font-semibold mb-3">Kluczowe wskaźniki (KPI)</h3>
+                        {(() => {
+                          const stats = loadStats();
+                          const sessions: any[] = stats.sessions || [];
+                          if (!sessions.length) return <p className="text-sm text-gray-300">Brak danych do obliczenia KPI.</p>;
+
+                          // Pomocnicze
+                          const getRevenue = (s: any) => {
+                            if (typeof s.revenue === 'number') return s.revenue;
+                            if (typeof s.amountPaid === 'number') return s.amountPaid;
+                            // fallback – jeśli istnieje totalMinutes / playedMinutes oraz players
+                            const minutes = s.playedMinutes || s.duration || 0;
+                            if (minutes > 0 && typeof getSinglePlayerAmount === 'function') {
+                              try { return getSinglePlayerAmount(minutes, s.startTime) * (s.players || 1); } catch { return 0; }
+                            }
+                            return 0;
+                          };
+
+                          // Liczba stanowisk (na podstawie mapy labeli)
+                          const stationCount = Object.keys(stanowiskoLabels || {}).length || 1;
+
+                          // Zakres czasowy danych
+                          let earliest: DateTime | null = null;
+                          let latest: DateTime | null = null;
+                          sessions.forEach(s => {
+                            if (s.startTime) {
+                              const dt = DateTime.fromISO(s.startTime);
+                              if (dt.isValid) {
+                                if (!earliest || dt < earliest) earliest = dt;
+                              }
+                            }
+                            let endDt: DateTime | null = null;
+                            if (s.endTime) {
+                              endDt = DateTime.fromISO(s.endTime);
+                            } else if (s.startTime) {
+                              const mins = s.playedMinutes || s.duration || 0;
+                              endDt = DateTime.fromISO(s.startTime).plus({ minutes: mins });
+                            }
+                            if (endDt && endDt.isValid) {
+                              if (!latest || endDt > latest) latest = endDt;
+                            }
+                          });
+
+                          if (!earliest || !latest || latest <= earliest) return <p className="text-sm text-gray-300">Niewystarczające dane czasowe.</p>;
+
+                          const earliestDt = earliest as DateTime;
+                          const latestDt = latest as DateTime;
+                          const totalSpanMinutes = Math.max(1, Math.round(latestDt.diff(earliestDt, 'minutes').minutes));
+                          const totalSpanHours = totalSpanMinutes / 60;
+                          const totalSpanDays = Math.max(1, Math.ceil(totalSpanHours / 24));
+
+                          // Zajętość stanowisk – zsumuj perStationMinutes jeśli istnieje
+                          const occupiedPerStation: number[] = Array.from({ length: stationCount }, () => 0);
+                          sessions.forEach(s => {
+                            if (Array.isArray(s.perStationMinutes)) {
+                              s.perStationMinutes.forEach((m: number, idx: number) => {
+                                if (idx < stationCount) occupiedPerStation[idx] += (m || 0);
+                              });
+                            } else {
+                              // Fallback: przydziel całe minuty równomiernie na wszystkie (słabsze przybliżenie)
+                              const mins = s.playedMinutes || s.duration || 0;
+                              const share = mins / stationCount;
+                              for (let i = 0; i < stationCount; i++) occupiedPerStation[i] += share;
+                            }
+                          });
+                          const totalOccupiedMinutes = occupiedPerStation.reduce((a, b) => a + b, 0);
+
+                          // Dostępna pojemność (czas * liczba stanowisk)
+                          const capacityMinutes = totalSpanMinutes * stationCount;
+                          const capacityUtilizationPct = capacityMinutes ? (totalOccupiedMinutes / capacityMinutes * 100) : 0;
+
+                          // Przychody
+                          const totalRevenue = sessions.reduce((a, s) => a + getRevenue(s), 0);
+                          const sessionsCount = sessions.length;
+                          const avgClientValue = sessionsCount ? (totalRevenue / sessionsCount) : 0; // średnia wartość sesji
+
+                          // Przychód na stanowisko na godzinę – dwie perspektywy
+                          // 1) Efektywny (tylko czas użycia)
+                          const revenuePerOccupiedStationHour = totalOccupiedMinutes > 0
+                            ? totalRevenue / (totalOccupiedMinutes / 60)
+                            : 0;
+                          // 2) Nominalny (cały dostępny czas w oknie danych)
+                          const revenuePerAvailableStationHour = capacityMinutes > 0
+                            ? totalRevenue / (capacityMinutes / 60)
+                            : 0;
+
+                          // Wskaźnik rotacji stanowisk: liczba sesji / (liczba stanowisk * liczba dni)
+                          const stationTurnover = (sessionsCount) / (stationCount * totalSpanDays);
+
+                          // --- Metryki gier ---
+                          interface GameAgg { minutes: number; revenue: number; }
+                          const gameAgg: Record<string, GameAgg> = {};
+                          sessions.forEach(s => {
+                            const segs = s.gameSegments || [];
+                            if (Array.isArray(segs) && segs.length) {
+                              segs.forEach((seg: any, idx: number) => {
+                                const g = seg.game || 'Nieznana gra';
+                                let segMinutes = 0;
+                                if (seg.duration) segMinutes = seg.duration;
+                                else if (seg.startTime && seg.endTime) {
+                                  const st = DateTime.fromISO(seg.startTime);
+                                  const et = DateTime.fromISO(seg.endTime);
+                                  if (st.isValid && et.isValid && et > st) segMinutes = Math.round(et.diff(st, 'minutes').minutes);
+                                }
+                                if (segMinutes <= 0) return;
+                                if (!gameAgg[g]) gameAgg[g] = { minutes: 0, revenue: 0 };
+                                gameAgg[g].minutes += segMinutes; // czas segmentu (nie player-min)
+                                // Przychód segmentu – jeśli mamy perSegmentRevenue
+                                if (Array.isArray(s.perSegmentRevenue) && typeof s.perSegmentRevenue[idx] === 'number') {
+                                  gameAgg[g].revenue += s.perSegmentRevenue[idx];
+                                } else {
+                                  // fallback pro-rata wg udziału minut w sesji
+                                  const sessionMinutes = s.playedMinutes || s.duration || 0;
+                                  if (sessionMinutes > 0) {
+                                    const share = segMinutes / sessionMinutes;
+                                    gameAgg[g].revenue += getRevenue(s) * share;
+                                  }
+                                }
+                              });
+                            } else {
+                              // Jeśli brak segmentów – przydziel całą sesję do "Nieprzypisane"
+                              const g = 'Nieprzypisane';
+                              const m = s.playedMinutes || s.duration || 0;
+                              if (!gameAgg[g]) gameAgg[g] = { minutes: 0, revenue: 0 };
+                              gameAgg[g].minutes += m;
+                              gameAgg[g].revenue += getRevenue(s);
+                            }
+                          });
+
+                          const totalGameMinutes = Object.values(gameAgg).reduce((a, g) => a + g.minutes, 0) || 1;
+                          const gameUtilList = Object.entries(gameAgg).map(([game, g]) => ({
+                            game,
+                            minutes: g.minutes,
+                            utilizationPct: (g.minutes / totalGameMinutes * 100),
+                            revenuePerGameHour: g.minutes > 0 ? (g.revenue / (g.minutes / 60)) : 0,
+                            revenue: g.revenue,
+                          }));
+                          const topUtil = [...gameUtilList].sort((a, b) => b.utilizationPct - a.utilizationPct).slice(0, 10);
+                          const topRevPerHour = [...gameUtilList].sort((a, b) => b.revenuePerGameHour - a.revenuePerGameHour).slice(0, 10);
+
+                          const utilCategories = topUtil.map(g => g.game);
+                          const utilSeries = [{ name: '% wykorzystania (czas gry)', data: topUtil.map(g => +g.utilizationPct.toFixed(1)) }];
+
+                          const revPerHourCategories = topRevPerHour.map(g => g.game);
+                          const revPerHourSeries = [{ name: 'zł / godz. gry', data: topRevPerHour.map(g => +g.revenuePerGameHour.toFixed(2)) }];
+
+                          return (
+                            <div className="flex flex-col gap-8">
+                              {/* Karty KPI */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                                <div className="p-3 bg-[#0f1525] rounded">
+                                  <h4 className="text-sm text-gray-300">Przychód łącznie</h4>
+                                  <div className="text-2xl font-bold text-white">{Math.round(totalRevenue)} zł</div>
+                                </div>
+                                <div className="p-3 bg-[#0f1525] rounded">
+                                  <h4 className="text-sm text-gray-300">Średnia wartość klienta</h4>
+                                  <div className="text-2xl font-bold text-white">{avgClientValue.toFixed(2)} zł</div>
+                                </div>
+                                <div className="p-3 bg-[#0f1525] rounded">
+                                  <h4 className="text-sm text-gray-300">Przychód / godz. (zajęte)</h4>
+                                  <div className="text-2xl font-bold text-white">{revenuePerOccupiedStationHour.toFixed(2)} zł</div>
+                                </div>
+                                <div className="p-3 bg-[#0f1525] rounded">
+                                  <h4 className="text-sm text-gray-300">Przychód / godz. (dostępne)</h4>
+                                  <div className="text-2xl font-bold text-white">{revenuePerAvailableStationHour.toFixed(2)} zł</div>
+                                </div>
+                                <div className="p-3 bg-[#0f1525] rounded">
+                                  <h4 className="text-sm text-gray-300">Utilizacja pojemności</h4>
+                                  <div className="text-2xl font-bold text-white">{capacityUtilizationPct.toFixed(1)}%</div>
+                                </div>
+                                <div className="p-3 bg-[#0f1525] rounded">
+                                  <h4 className="text-sm text-gray-300">Rotacja (sesje/st./dzień)</h4>
+                                  <div className="text-2xl font-bold text-white">{stationTurnover.toFixed(2)}</div>
+                                </div>
+                              </div>
+
+                              {/* Wykorzystanie gier */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <div className="p-3 bg-[#0f1525] rounded">
+                                  <h4 className="text-sm text-gray-300 mb-2">Top gry – wykorzystanie czasu (%)</h4>
+                                  {utilCategories.length ? (
+                                    <Apex type="bar" height={300} series={utilSeries} options={{ ...buildLineOptions('kpiGameUtil'), xaxis:{ categories: utilCategories }, plotOptions:{ bar:{ horizontal:true, borderRadius:3 } }, colors:['#00d9ff'] }} />
+                                  ) : <p className="text-xs text-gray-400">Brak danych.</p>}
+                                </div>
+                                <div className="p-3 bg-[#0f1525] rounded">
+                                  <h4 className="text-sm text-gray-300 mb-2">Top gry – przychód na godzinę</h4>
+                                  {revPerHourCategories.length ? (
+                                    <Apex type="bar" height={300} series={revPerHourSeries} options={{ ...buildLineOptions('kpiGameRevHour'), xaxis:{ categories: revPerHourCategories }, plotOptions:{ bar:{ horizontal:true, borderRadius:3 } }, colors:['#fbbf24'] }} />
+                                  ) : <p className="text-xs text-gray-400">Brak danych.</p>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
           )}
 
 

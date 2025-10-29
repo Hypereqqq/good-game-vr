@@ -28,6 +28,8 @@ import AdminClientManager from './pages/AdminClientManager';
 import AdminVoucher from './pages/AdminVoucher';
 import AdminReservations from './pages/AdminReservations';
 import AdminTest from './pages/Test';
+import AdminMail from './pages/AdminMail';
+import AdminTodo from './pages/AdminTodo';
 
 
 
@@ -139,6 +141,16 @@ const router = createBrowserRouter([
       {
         path: '/admin/test',
         element: <AdminTest />,
+      },
+
+      {
+        path: '/admin/todo',
+        element: <AdminTodo />,
+      },
+
+      {
+        path: '/admin/mail',
+        element: <AdminMail />,
       }
     ],
     errorElement: <Error404 />,
